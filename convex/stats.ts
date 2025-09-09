@@ -43,16 +43,16 @@ export const getLandingStats = query({
       .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
       .collect()
 
-    // Calculate topic popularity
-    const topicCounts = new Map<string, number>()
-    let totalSelections = 0
-
-    for (const pref of preferences) {
-      for (const topicId of pref.topicOrder) {
-        topicCounts.set(topicId, (topicCounts.get(topicId) || 0) + 1)
-        totalSelections++
-      }
-    }
+    // Calculate topic popularity declaratively
+    const topicCounts = preferences
+      .flatMap(pref => pref.topicOrder)
+      .reduce((counts, topicId) => {
+        counts.set(topicId, (counts.get(topicId) || 0) + 1)
+        return counts
+      }, new Map<string, number>())
+    
+    const totalSelections = preferences
+      .reduce((sum, pref) => sum + pref.topicOrder.length, 0)
 
     // Get most and least popular topics
     const topicsWithCounts = topics.map(topic => ({

@@ -26,36 +26,39 @@ export const updateRankingsAggregate = mutation({
     })),
   },
   handler: async (ctx, args) => {
-    // Clear all old rankings for this student across all topics and positions
-    // We need to be thorough since a student might have changed their rankings completely
-    if (args.oldRankings) {
-      // Delete each old ranking, handling cases where it might not exist
-      for (const ranking of args.oldRankings) {
-        await rankingsAggregate.deleteIfExists(ctx, {
-          namespace: ranking.topicId,
-          key: ranking.position,
-          id: args.studentId,
-        });
-      }
-    }
+    // Clear old rankings in parallel (if they exist)
+    const deletions = args.oldRankings
+      ? Promise.all(
+          args.oldRankings.map(ranking =>
+            rankingsAggregate.deleteIfExists(ctx, {
+              namespace: ranking.topicId,
+              key: ranking.position,
+              id: args.studentId,
+            })
+          )
+        )
+      : Promise.resolve([]);
 
-    // Insert new rankings
-    // Use replaceOrInsert to handle any edge cases where the ranking might already exist
-    for (const ranking of args.newRankings) {
-      await rankingsAggregate.replaceOrInsert(ctx, 
-        {
-          namespace: ranking.topicId,
-          key: ranking.position,
-          id: args.studentId,
-        },
-        {
-          namespace: ranking.topicId,
-          key: ranking.position,
-          id: args.studentId,
-          sumValue: ranking.position, // For average calculation
-        }
-      );
-    }
+    // Insert new rankings in parallel
+    const insertions = Promise.all(
+      args.newRankings.map(ranking =>
+        rankingsAggregate.replaceOrInsert(ctx,
+          {
+            namespace: ranking.topicId,
+            key: ranking.position,
+            id: args.studentId,
+          },
+          {
+            namespace: ranking.topicId,
+            key: ranking.position,
+            sumValue: ranking.position, // For average calculation
+          }
+        )
+      )
+    );
+
+    // Execute both operations in parallel
+    await Promise.all([deletions, insertions]);
 
     return { success: true };
   },
@@ -67,23 +70,22 @@ export const getTopicMetrics = query({
     topicId: v.id("topics"),
   },
   handler: async (ctx, args) => {
-    const count = await rankingsAggregate.count(ctx, { namespace: args.topicId });
-    const sum = await rankingsAggregate.sum(ctx, { namespace: args.topicId });
-    
+    // Fetch all metrics in parallel
+    const [count, sum, topChoiceCount, top3Count] = await Promise.all([
+      rankingsAggregate.count(ctx, { namespace: args.topicId }),
+      rankingsAggregate.sum(ctx, { namespace: args.topicId }),
+      rankingsAggregate.count(ctx, {
+        namespace: args.topicId,
+        bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } }
+      }),
+      rankingsAggregate.count(ctx, {
+        namespace: args.topicId,
+        bounds: { upper: { key: 3, inclusive: true } }
+      })
+    ]);
+
     const averagePosition = count > 0 ? sum / count : 0;
-    
-    // Get how many students ranked it as their top choice (position 1)
-    const topChoiceCount = await rankingsAggregate.count(ctx, { 
-      namespace: args.topicId,
-      bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } }
-    });
-    
-    // Get how many ranked it in top 3
-    const top3Count = await rankingsAggregate.count(ctx, { 
-      namespace: args.topicId,
-      bounds: { upper: { key: 3, inclusive: true } }
-    });
-    
+
     return {
       topicId: args.topicId,
       studentCount: count,
@@ -105,10 +107,13 @@ export const getAllTopicMetrics = query({
 
     const metrics = await Promise.all(
       topics.map(async (topic) => {
-        const count = await rankingsAggregate.count(ctx, { namespace: topic._id });
-        const sum = await rankingsAggregate.sum(ctx, { namespace: topic._id });
+        // Fetch count and sum in parallel
+        const [count, sum] = await Promise.all([
+          rankingsAggregate.count(ctx, { namespace: topic._id }),
+          rankingsAggregate.sum(ctx, { namespace: topic._id })
+        ]);
         const averagePosition = count > 0 ? sum / count : 0;
-        
+
         return {
           topicId: topic._id,
           title: topic.title,
@@ -120,13 +125,11 @@ export const getAllTopicMetrics = query({
     );
 
     // Sort by average position (lower is more competitive)
-    metrics.sort((a, b) => {
+    return metrics.sort((a, b) => {
       if (a.averagePosition === 0) return 1;
       if (b.averagePosition === 0) return 1;
       return a.averagePosition - b.averagePosition;
     });
-
-    return metrics;
   },
 });
 
@@ -134,36 +137,39 @@ export const getAllTopicMetrics = query({
 export const rebuildRankingsAggregate = mutation({
   args: {},
   handler: async (ctx) => {
-    // Clear the entire aggregate
-    await rankingsAggregate.clear(ctx);
+    // Get all data in parallel
+    const [topics, preferences] = await Promise.all([
+      ctx.db.query("topics").collect(),
+      ctx.db.query("preferences").collect()
+    ]);
     
-    // Get all preferences
-    const preferences = await ctx.db.query("preferences").collect();
-    
-    let totalProcessed = 0;
-    
-    // Process each preference
-    for (const pref of preferences) {
-      const rankings = pref.topicOrder.map((topicId, index) => ({
-        topicId,
-        position: index + 1
-      }));
-      
-      // Insert rankings using insertIfDoesNotExist for safety
-      for (const ranking of rankings) {
-        await rankingsAggregate.insertIfDoesNotExist(ctx, {
-          namespace: ranking.topicId,
-          key: ranking.position,
-          id: pref.studentId,
-          sumValue: ranking.position,
-        });
-        totalProcessed++;
-      }
-    }
-    
-    return { 
-      success: true, 
-      message: `Rebuilt aggregate with ${totalProcessed} rankings from ${preferences.length} preferences`
+    // Clear all topic namespaces in parallel
+    await Promise.all(
+      topics.map(topic => 
+        rankingsAggregate.clear(ctx, { namespace: topic._id })
+      )
+    );
+
+    // Transform preferences into rankings
+    const allRankings = preferences.flatMap(pref =>
+      pref.topicOrder.map((topicId, index) => ({
+        namespace: topicId,
+        key: index + 1,
+        id: pref.studentId,
+        sumValue: index + 1,
+      }))
+    );
+
+    // Insert all rankings in parallel
+    await Promise.all(
+      allRankings.map(ranking =>
+        rankingsAggregate.insertIfDoesNotExist(ctx, ranking)
+      )
+    );
+
+    return {
+      success: true,
+      message: `Cleared ${topics.length} topic namespaces and rebuilt aggregate with ${allRankings.length} rankings from ${preferences.length} preferences`
     };
   },
 });

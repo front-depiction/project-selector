@@ -9,10 +9,12 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as analytics from "../analytics.js";
 import type * as lib_congestion from "../lib/congestion.js";
 import type * as preferences from "../preferences.js";
 import type * as rankings from "../rankings.js";
 import type * as schemas_Preference from "../schemas/Preference.js";
+import type * as schemas_RankingEvent from "../schemas/RankingEvent.js";
 import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
 import type * as stats from "../stats.js";
@@ -34,10 +36,12 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  analytics: typeof analytics;
   "lib/congestion": typeof lib_congestion;
   preferences: typeof preferences;
   rankings: typeof rankings;
   "schemas/Preference": typeof schemas_Preference;
+  "schemas/RankingEvent": typeof schemas_RankingEvent;
   "schemas/SelectionPeriod": typeof schemas_SelectionPeriod;
   "schemas/Topic": typeof schemas_Topic;
   stats: typeof stats;

@@ -104,20 +104,26 @@ export const getActiveTopicsWithMetrics = query({
     // Get metrics for each topic from the aggregate
     const topicsWithMetrics = await Promise.all(
       topics.map(async (topic) => {
-        const count = await rankingsAggregate.count(ctx, { namespace: topic._id })
-        const sum = await rankingsAggregate.sum(ctx, { namespace: topic._id })
+        // Fetch count and sum in parallel for each topic
+        const [count, sum] = await Promise.all([
+          rankingsAggregate.count(ctx, { namespace: topic._id }),
+          rankingsAggregate.sum(ctx, { namespace: topic._id })
+        ])
+        
         const averagePosition = count > 0 ? sum / count : null
         
         // Calculate competition level based on average position
-        let likelihoodCategory = "unknown"
-        if (count === 0) {
-          likelihoodCategory = "low"
-        } else if (averagePosition !== null) {
-          if (averagePosition <= 2) likelihoodCategory = "very-high"
-          else if (averagePosition <= 3.5) likelihoodCategory = "high"
-          else if (averagePosition <= 5) likelihoodCategory = "moderate"
-          else likelihoodCategory = "low"
-        }
+        const likelihoodCategory = count === 0 
+          ? "low"
+          : averagePosition === null
+            ? "unknown"
+            : averagePosition <= 2
+              ? "very-high"
+              : averagePosition <= 3.5
+                ? "high"
+                : averagePosition <= 5
+                  ? "moderate"
+                  : "low"
         
         return {
           _id: topic._id,

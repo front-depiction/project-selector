@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server"
 import { v } from "convex/values"
 import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import * as RankingEvent from "./schemas/RankingEvent"
 import { api } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
 
@@ -53,7 +54,7 @@ export const savePreferences = mutation({
       await ctx.db.insert("preferences", newPreference)
     }
 
-    // Update rankings aggregate
+    // Track ranking events for analytics
     const newRankings = args.topicOrder.map((topicId, index) => ({
       topicId,
       position: index + 1 // 1-based positioning
@@ -65,6 +66,67 @@ export const savePreferences = mutation({
       position: index + 1
     })) : undefined
 
+    // Create ranking events
+    const rankingEvents = oldRankings 
+      ? (() => {
+          const oldMap = new Map(oldRankings.map(r => [r.topicId, r.position]))
+          const newMap = new Map(newRankings.map(r => [r.topicId, r.position]))
+          
+          // Generate events for removed, added, and moved topics
+          const removedEvents = oldRankings
+            .filter(old => !newMap.has(old.topicId))
+            .map(old => RankingEvent.make({
+              topicId: old.topicId as string,
+              studentId: args.studentId,
+              position: 0,
+              previousPosition: old.position,
+              action: "removed",
+              semesterId: activePeriod.semesterId,
+            }))
+          
+          const addedAndMovedEvents = newRankings
+            .map(newRank => {
+              const oldPosition = oldMap.get(newRank.topicId)
+              if (!oldPosition) {
+                return RankingEvent.make({
+                  topicId: newRank.topicId as string,
+                  studentId: args.studentId,
+                  position: newRank.position,
+                  action: "added",
+                  semesterId: activePeriod.semesterId,
+                })
+              } else if (oldPosition !== newRank.position) {
+                return RankingEvent.make({
+                  topicId: newRank.topicId as string,
+                  studentId: args.studentId,
+                  position: newRank.position,
+                  previousPosition: oldPosition,
+                  action: "moved",
+                  semesterId: activePeriod.semesterId,
+                })
+              }
+              return null
+            })
+            .filter(event => event !== null)
+          
+          return [...removedEvents, ...addedAndMovedEvents]
+        })()
+      : newRankings.map(newRank => 
+          RankingEvent.make({
+            topicId: newRank.topicId as string,
+            studentId: args.studentId,
+            position: newRank.position,
+            action: "added",
+            semesterId: activePeriod.semesterId,
+          })
+        )
+    
+    // Insert all ranking events in parallel
+    await Promise.all(
+      rankingEvents.map(event => ctx.db.insert("rankingEvents", event))
+    )
+
+    // Update rankings aggregate
     await ctx.runMutation(api.rankings.updateRankingsAggregate, {
       studentId: args.studentId,
       oldRankings,

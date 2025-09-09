@@ -33,6 +33,7 @@ import { formatDistanceToNow } from "date-fns"
 import { toast } from "sonner"
 import type { Item } from "@/components/ui/sortable-list"
 import type { Id } from "@/convex/_generated/dataModel"
+import { TopicPopularityChart } from "@/components/charts/topic-popularity-chart"
 
 // Pure function to get congestion color and styles
 const getCongestionStyles = (category: string) => {
@@ -91,6 +92,7 @@ type TopicItem = Item & {
   studentCount: number
   likelihoodCategory: string
   averagePosition: number | null
+  _id?: Id<"topics">
 }
 
 // Order Badge Component
@@ -191,7 +193,7 @@ const ExpandedDetails = ({ item }: { item: TopicItem }) => {
           <p className="text-sm text-muted-foreground mb-3">
             {item.description}
           </p>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-6 text-sm mb-4">
             <div className="flex items-center gap-1.5">
               <Icon className="h-4 w-4" />
               <span className="font-medium">Competition:</span>
@@ -211,6 +213,16 @@ const ExpandedDetails = ({ item }: { item: TopicItem }) => {
               </span>
             </div>
           </div>
+          
+          {/* Add the popularity chart */}
+          {item._id && (
+            <TopicPopularityChart 
+              topicId={item._id} 
+              topicTitle={item.text}
+              className="mb-3"
+            />
+          )}
+          
           {item.averagePosition !== null && (
             <div className="mt-3 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
               <Info className="h-3 w-3 inline mr-1" />
@@ -322,6 +334,7 @@ export default function SelectTopics() {
 
     return sortedTopics.map((topic) => ({
       id: topic._id as any,
+      _id: topic._id,
       text: topic.title,
       description: topic.description,
       checked: false,
