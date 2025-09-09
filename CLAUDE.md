@@ -36,7 +36,7 @@ Do **not** use pnpm or npm.
 
 - `bun run test` — Run all tests once
 - `bun run test:watch` — Run tests in watch mode
-- Uses Vitest with @effect/vitest for Effect-aware testing
+- Uses Vitest as the test runner
 - Test files: `src/convex/**/*.test.ts`
 
 **CRITICAL DEVELOPMENT RULE**: After EVERY file change in `src/convex`, you MUST:
@@ -57,28 +57,12 @@ This is non-negotiable and applies to every single file modification.
 ### Documentation
 
 > **Document only modules and services.**  
-> All public modules and services must be documented using the [Effect docgen](https://github.com/Effect-TS/docgen) style JSDoc format.
+> Use standard JSDoc for all public modules and services.
 
 - Each exported function, class, or constant in a module/service **must** have a JSDoc block with:
-  - `@category` — The category of the module/service (e.g., Domain Service, Repository, Combinator, etc.)
+  - `@category` — The category of the module/service (e.g., Domain Service, Repository, Utility)
   - `@since` — The version the API was introduced (e.g., 0.1.0)
-  - `@example` — At least one fully valid code example, including all necessary imports from `"@"` and variable definitions. Examples must be copy-paste runnable and demonstrate real usage.
-
-**Example:**
-/\*\*
-
-- Map a function over the item's amount while preserving currency.
--
-- @category Operations
-- @since 0.1.0
--
-- @example
-- import \* as LineItem from "@/schemas/LineItem";
-- import \* as Cents from "@/schemas/Cents";
--
-- // Apply 10% discount
-- const discounted = LineItem.mapPrice(item, amt => Cents.make(amt _ 9n / 10n));
-  _/
+  - `@example` — At least one runnable example demonstrating real usage
 
 ---
 
@@ -89,13 +73,11 @@ This is non-negotiable and applies to every single file modification.
 - **Runtime**: Bun (not Node.js)
 - **Language**: TypeScript with ES2022 target
 - **Module System**: ESNext with bundler module resolution
-- **Effect Ecosystem**: Uses Effect TypeScript library with language service plugin
 
 ### Code Style and Linting
 
-- Strict ESLint configuration with Effect-specific rules
-- Configured with @effect/eslint-plugin for Effect-specific patterns
-- Uses dprint for code formatting via @effect/dprint ESLint rule
+- Strict ESLint configuration
+- Uses a formatter (dprint or Prettier) via an ESLint rule
 - Import sorting and destructuring key sorting enforced
 - Line width: 120 characters, 2-space indentation
 - ASI (Automatic Semicolon Insertion) style, double quotes, no trailing commas
@@ -104,7 +86,6 @@ This is non-negotiable and applies to every single file modification.
 
 - Strict mode enabled with bundler module resolution
 - Allows importing `.ts` extensions (Bun runtime feature)
-- Effect language service plugin enabled for enhanced TypeScript support
 - No emit configuration (build handled by Bun runtime)
 - Incremental compilation with build info caching for faster type checking
 
@@ -189,7 +170,7 @@ For each feature, create a folder `specs/[feature-name]/` containing:
 #### 3. `design.md`
 
 - **Purpose**: Technical design and implementation strategy
-- **Content**: Architecture decisions, API design, data models, Error handling, Effect patterns to use
+- **Content**: Architecture decisions, API design, data models, error handling, operational concerns
 - **When**: Created after requirements are finalized
 
 #### 4. `plan.md`
@@ -213,201 +194,10 @@ Each specification file should follow consistent templates:
 - **Iterative refinement**: Specs can evolve but major changes should be documented
 - **Cross-reference**: Link between instruction/requirement/design/plan files
 - **Progress tracking**: Update plan.md regularly during implementation
-- **Effect-first design**: Consider Effect patterns and error handling in design phase
-- **Ask clarifyng questions**: Ask as many questions as needed to develop a propper spec you can work with
+- **Reliability-first design**: Consider robust error handling and clear failure modes in design phase
+- **Ask clarifyng questions**: Ask as many questions as needed to develop a proper spec you can work with
 
 ---
-
-## Effect TypeScript Development Patterns
-
-### Core Principles
-
-- **Type Safety First**: Never use `any` or type assertions — prefer explicit types or type inference
-- **Effect Patterns**: Use Effect's composable abstractions
-- **Early Returns**: Prefer early returns over deep nesting
-- **Input Validation**: Validate inputs at system boundaries
-- **Resource Safety**: Use Effect's resource management for automatic cleanup
-
-### Mandatory Development Workflow
-
-For every implementation task in `src/convex`:
-
-1. **Research**: Thoroughly understand the problem and requirements
-2. **Plan**: Create detailed implementation plan (in `specs/[feature]/plan.md`)
-3. **Implement**: Write the function/feature implementation
-4. **Format & Type Check**: Run `bun run format` and `bun run typecheck`
-5. **Test**: Write comprehensive tests using `@effect/vitest`
-6. **Validate**: Ensure all checks pass before moving forward
-
-### Effect-Specific Patterns
-
-#### Sequential Operations
-
-```typescript
-// Use Effect.gen() for sequential operations, but prefer pipelines if possible
-const program = Effect.gen(function* () {
-  const user = yield* getUser(id);
-  const profile = yield* getProfile(user.profileId);
-  return { user, profile };
-});
-```
-
-#### Error Handling
-
-```typescript
-// Use Data.TaggedError for custom errors
-class UserNotFound extends Data.TaggedError("UserNotFound")<{
-  readonly id: string;
-}> {}
-
-// Use Effect.tryPromise for Promise integration
-const fetchUser = (id: string) =>
-  Effect.tryPromise({
-    try: () => fetch(`/users/${id}`).then((r) => r.json()),
-    catch: () => new UserNotFound({ id }),
-  });
-```
-
-#### Testing Framework Selection
-
-**CRITICAL RULE**: Choose the correct testing framework based on what you're testing:
-
-**Use @effect/vitest for Effect code:**
-
-- **MANDATORY** for modules working with Effect, Stream, Layer, TestClock, etc.
-- Import pattern: `import { assert, describe, it } from "@effect/vitest"`
-- Test pattern: `it.effect("description", () => Effect.gen(function*() { ... }))`
-- **FORBIDDEN**: Never use `expect` from vitest in Effect tests - use `assert` methods
-- For type narrowing on discriminators use assert(discriminant === "value", "Some meaningful message")
-
-**Use regular vitest for pure TypeScript:**
-
-- **MANDATORY** for pure functions (Array, String, Number operations, etc.)
-- Import pattern: `import { describe, expect, it } from "vitest"`
-- Test pattern: `it("description", () => { ... })`
-
-#### Correct it.effect Pattern
-
-```typescript
-import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
-
-describe("UserService", () => {
-  it.effect("should fetch user successfully", () =>
-    Effect.gen(function* () {
-      const user = yield* fetchUser("123");
-
-      // Use assert methods, NOT expect
-      assert.strictEqual(user.id, "123");
-      assert.deepStrictEqual(user.profile, expectedProfile);
-      assert.isTrue(user.active);
-    }),
-  );
-});
-```
-
-**IMPORTANT**: `@effect/vitest` automatically provides `TestContext` - no need to manually provide it.
-
-#### Testing with Services
-
-```typescript
-it.effect("should work with dependency injection", () =>
-  Effect.gen(function* () {
-    const result = yield* UserService.getUser("123");
-    assert.strictEqual(result.name, "John");
-  }).pipe(Effect.provide(TestUserServiceLayer)),
-);
-```
-
-#### Time-dependent Testing
-
-```typescript
-import { TestClock } from "effect/TestClock";
-
-it.effect("should handle delays correctly", () =>
-  Effect.gen(function* () {
-    const fiber = yield* Effect.fork(
-      Effect.sleep("5 seconds").pipe(Effect.as("completed")),
-    );
-    yield* TestClock.advance("5 seconds");
-    const result = yield* Fiber.join(fiber);
-    assert.strictEqual(result, "completed");
-  }),
-);
-```
-
-#### Error Testing
-
-```typescript
-it.effect("should handle errors properly", () =>
-  Effect.gen(function* () {
-    const result = yield* Effect.flip(failingOperation());
-    assert.isTrue(result instanceof UserNotFoundError);
-  }),
-);
-```
-
-#### Console Testing Pattern
-
-For testing code that uses `Console.log`, `Console.error`, etc., use the provided `createMockConsole` utility:
-
-```typescript
-import { assert, describe, it } from "@effect/vitest";
-import { Effect } from "effect";
-import { createMockConsole } from "../utils/mockConsole";
-
-it.effect("should log messages correctly", () =>
-  Effect.gen(function* () {
-    const { mockConsole, messages } = createMockConsole();
-
-    yield* Console.log("Hello, World!").pipe(Effect.withConsole(mockConsole));
-
-    assert.strictEqual(messages.length, 1);
-    assert.strictEqual(messages[0], "Hello, World!");
-  }),
-);
-
-it.effect("should capture different console methods", () =>
-  Effect.gen(function* () {
-    const { mockConsole, messages } = createMockConsole();
-
-    yield* Effect.all([
-      Console.log("Info message"),
-      Console.error("Error message"),
-      Console.warn("Warning message"),
-    ]).pipe(Effect.withConsole(mockConsole));
-
-    assert.strictEqual(messages.length, 3);
-    assert.strictEqual(messages[0], "Info message");
-    assert.strictEqual(messages[1], "error: Error message");
-    assert.strictEqual(messages[2], "warn: Warning message");
-  }),
-);
-```
-
-**Mock Console Implementation:**
-
-The `createMockConsole` utility is available at `test/utils/mockConsole.ts` and provides:
-
-- **Complete Interface Coverage**: Implements both `UnsafeConsole` and `Console.Console` interfaces
-- **Message Capture**: All console output is captured in a `messages` array for assertions
-- **Type Safety**: No `as any` usage - proper interface implementation
-- **Effect Integration**: Wraps unsafe operations in `Effect.sync()` for the Console interface
-- **Special Handling**: Handles complex cases like group options (collapsed vs regular)
-
-**Architecture:**
-
-1. `UnsafeConsole` - Plain functions that capture messages to an array
-2. `Console.Console` - Wraps `UnsafeConsole` methods in `Effect.sync()` calls
-3. Returns both the `mockConsole` and `messages` array for testing
-
-**Key Points:**
-
-- Import `createMockConsole` from `test/utils/mockConsole`
-- Use `Effect.withConsole(mockConsole)` to provide the mock
-- Access captured output via the returned `messages` array
-- Each console method prefixes messages appropriately (e.g., "error:", "warn:")
-- The mock handles all Console interface methods for comprehensive testing
 
 ### Problem-Solving Strategy
 
@@ -418,7 +208,389 @@ The `createMockConsole` utility is available at `test/utils/mockConsole.ts` and 
 
 ## Notes
 
-- Vitest with @effect/vitest configured for Effect-aware testing
-- Project set up for with convex persistence
-- Effect TypeScript ecosystem integration for type-safe, composable architecture
+- Vitest configured for unit and integration testing
+- Project set up with Convex persistence
 - Comprehensive implementation patterns documented for consistency and reusability
+---
+
+## Style Guide
+
+### General Principles
+
+- **Prefer Composition Over Inheritance**  
+  Build functionality by composing small, focused functions and modules. Avoid class inheritance hierarchies; instead, use higher-order functions, closures, and module composition to share and extend behavior.
+
+- **Immutability by Default**  
+  - All data structures (objects, arrays, etc.) must be treated as immutable.
+  - Use `const` for all variable declarations.
+  - Use `readonly` in TypeScript types and interfaces to enforce immutability at compile time.
+  - Never mutate function arguments or shared state.
+
+- **Functional, Composable, and Lazy**  
+  - Write pure functions whenever possible.
+  - Favor function composition and point-free style for building complex logic from simple parts.
+  - Use lazy evaluation (e.g., generators, thunks) for expensive or deferred computations.
+  - Avoid side effects except at the boundaries (I/O, API calls, etc.).
+
+- **Promise Chains: Simple and Readable**  
+  - Build asynchronous flows using clear, linear Promise chains.
+  - Avoid deeply nested callbacks or complex async/await logic.
+  - Each `.then` should do one thing; chain for clarity.
+  - Always handle errors explicitly with `.catch` or equivalent.
+
+- **Declarative Over Imperative**  
+  - Express logic in terms of *what* should happen, not *how*.
+  - Use array methods (`map`, `filter`, `reduce`, etc.) and functional utilities instead of manual loops and mutation.
+
+### TypeScript Practices
+
+- Use `readonly` for all properties in interfaces and types.
+- Prefer type aliases and interfaces for data modeling; avoid classes.
+- Use union and intersection types for flexible, composable data structures.
+- **All types (validations) should be defined as:**
+  ```typescript
+  const Type = validator
+  export type Type = Readonly<typeof Type.type>
+  ```
+  in modules that provide both the type and methods to operate on it (typeclass-style).
+
+---
+
+### Example: Functional, Immutable, Composable
+
+#### 1. Immutable Data Modeling
+
+```typescript
+// Domain types are readonly and created via pure constructors
+export type UserId = Readonly<{ readonly value: string }>
+export type User = Readonly<{
+  readonly id: UserId
+  readonly firstName: string
+  readonly lastName: string
+  readonly active: boolean
+}>
+
+export const createUserId = (value: string): UserId => ({ value }) as const
+
+export const createUser = (params: {
+  id: string
+  firstName: string
+  lastName: string
+}): User =>
+  Object.freeze({
+    id: createUserId(params.id),
+    firstName: params.firstName,
+    lastName: params.lastName,
+    active: false,
+  })
+
+// Usage (no mutation):
+const u = createUser({ id: "u_1", firstName: "Ada", lastName: "Lovelace" })
+// u.active = true // <- Type error (readonly), and Object.freeze prevents runtime mutation
+```
+
+#### 2. Pure Functions and Composition
+
+```typescript
+// Small, single-purpose pure functions
+export const fullName = (user: User): string => `${user.firstName} ${user.lastName}`
+export const activate = (user: User): User => ({ ...user, active: true } as const)
+export const toGreeting = (name: string): string => `Hello, ${name}!`
+
+// Minimal compose utility for left-to-right composition
+export const pipe = <A>(a: A, ...fns: Array<(x: any) => any>) =>
+  fns.reduce((acc, fn) => fn(acc), a) as unknown
+
+// Compose behaviors declaratively
+const greeting = pipe(createUser({ id: "u_2", firstName: "Grace", lastName: "Hopper" }), activate, fullName, toGreeting)
+// => "Hello, Grace Hopper!"
+```
+
+#### 4. Promise Chains: Simple and Readable
+
+```typescript
+// Clear, linear async flow with explicit error handling
+const fetchJson = (url: string) =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    return r.json() as Promise<unknown>
+  })
+
+const getUser = (id: string) => fetchJson(`/api/users/${id}`)
+const getPosts = (userId: string) => fetchJson(`/api/users/${userId}/posts`)
+const summarize = (user: any, posts: any[]) => ({
+  user: { id: user.id, name: `${user.firstName} ${user.lastName}` },
+  postCount: posts.length,
+})
+
+getUser("u_3")
+  .then((user: any) =>
+    getPosts(user.id).then((posts: any[]) => summarize(user, posts)),
+  )
+  .then((summary) => console.log("summary", summary))
+  .catch((err) => console.error("failed", err))
+```
+
+#### 5. Declarative Transformations
+
+```typescript
+// Express intent with array methods instead of manual loops
+const amounts = [10, 25, 30, 5]
+
+const result = amounts
+  .filter((n) => n >= 10) // keep valid amounts
+  .map((n) => ({ gross: n, net: Math.round(n * 0.9) })) // apply 10% fee
+  .reduce(
+    (acc, x) => ({
+      totalGross: acc.totalGross + x.gross,
+      totalNet: acc.totalNet + x.net,
+    }),
+    { totalGross: 0, totalNet: 0 },
+  )
+
+// result => { totalGross: 65, totalNet: 59 }
+```
+
+#### 6. Discriminated Union Validator (Convex `v`) + ADTs and Thunks
+
+```typescript
+import { v } from "convex/values"
+import type { Validator } from "convex/values"
+import { pipe } from "effect/Function"
+
+// Date format atom
+export type DateFmt = "yyyy" | "yyyymm" | "yyyymmdd"
+
+/**
+ * Convex validator for Tracker objects.
+ *
+ * Validates all tracker variants using discriminated union pattern.
+ *
+ * @category Validators
+ * @since 0.1.0
+ */
+export const Tracker = v.union(
+  v.object({
+    kind: v.literal("SimpleCounter"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    padLength: v.number(),
+  }),
+  v.object({
+    kind: v.literal("PrefixedCounter"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    prefix: v.string(),
+    padLength: v.number(),
+  }),
+  v.object({
+    kind: v.literal("SuffixedCounter"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    suffix: v.string(),
+    padLength: v.number(),
+  }),
+  v.object({
+    kind: v.literal("WrappedCounter"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    prefix: v.string(),
+    suffix: v.string(),
+    padLength: v.number(),
+  }),
+  v.object({
+    kind: v.literal("PrefixedDate"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    type: v.union(
+      v.literal("yyyy"),
+      v.literal("yyyymm"),
+      v.literal("yyyymmdd"),
+    ) as Validator<DateFmt>,
+    separator: v.string(),
+    padLength: v.number(),
+  }),
+  v.object({
+    kind: v.literal("OnlyDate"),
+    key: v.string(),
+    locationId: v.optional(v.id("locations")),
+    lastIssuedAt: v.optional(v.number()),
+    currentValue: v.number(),
+    type: v.union(
+      v.literal("yyyy"),
+      v.literal("yyyymm"),
+      v.literal("yyyymmdd"),
+    ) as Validator<DateFmt>,
+  }),
+)
+
+/**
+ * Tracker type representing all supported tracker variants.
+ *
+ * A discriminated union of tracker patterns for serial number generation.
+ * Each variant has a different formatting strategy and optional features.
+ *
+ * @category Types
+ * @since 0.1.0
+ */
+export type Tracker = Readonly<typeof Tracker.type>
+
+// --- ADT Constructors (smart constructors for each variant) ---
+
+export const makeSimpleCounter = (args: {
+  key: string
+  currentValue: number
+  padLength: number
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "SimpleCounter",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  padLength: args.padLength,
+} as const)
+
+export const makePrefixedCounter = (args: {
+  key: string
+  currentValue: number
+  padLength: number
+  prefix: string
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "PrefixedCounter",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  prefix: args.prefix,
+  padLength: args.padLength,
+} as const)
+
+export const makeSuffixedCounter = (args: {
+  key: string
+  currentValue: number
+  padLength: number
+  suffix: string
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "SuffixedCounter",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  suffix: args.suffix,
+  padLength: args.padLength,
+} as const)
+
+export const makeWrappedCounter = (args: {
+  key: string
+  currentValue: number
+  padLength: number
+  prefix: string
+  suffix: string
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "WrappedCounter",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  prefix: args.prefix,
+  suffix: args.suffix,
+  padLength: args.padLength,
+} as const)
+
+export const makePrefixedDate = (args: {
+  key: string
+  currentValue: number
+  padLength: number
+  type: DateFmt
+  separator: string
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "PrefixedDate",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  type: args.type,
+  separator: args.separator,
+  padLength: args.padLength,
+} as const)
+
+export const makeOnlyDate = (args: {
+  key: string
+  currentValue: number
+  type: DateFmt
+  locationId?: string
+  lastIssuedAt?: number
+}): Tracker => ({
+  kind: "OnlyDate",
+  key: args.key,
+  locationId: args.locationId ? ({ _id: args.locationId } as any) : undefined,
+  lastIssuedAt: args.lastIssuedAt,
+  currentValue: args.currentValue,
+  type: args.type,
+} as const)
+
+// --- Lazy (thunked) formatting helpers using pipe ---
+
+const pad = (n: number, width: number) => n.toString().padStart(width, "0")
+
+const formatDateBy = (fmt: DateFmt) => (d: Date): string =>
+  fmt === "yyyy"
+    ? `${d.getUTCFullYear()}`
+    : fmt === "yyyymm"
+      ? `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1, 2)}`
+      : `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1, 2)}${pad(d.getUTCDate(), 2)}`
+
+export const nextValueThunk = (tracker: Tracker): (() => string) => {
+  const nowThunk = () => new Date()
+  const paddedThunk = (n: number, width: number) => () => pad(n, width)
+
+  switch (tracker.kind) {
+    case "SimpleCounter":
+      return () => paddedThunk(tracker.currentValue + 1, tracker.padLength)()
+    case "PrefixedCounter":
+      return () => `${tracker.prefix}${paddedThunk(tracker.currentValue + 1, tracker.padLength)()}`
+    case "SuffixedCounter":
+      return () => `${paddedThunk(tracker.currentValue + 1, tracker.padLength)()}${tracker.suffix}`
+    case "WrappedCounter":
+      return () => `${tracker.prefix}${paddedThunk(tracker.currentValue + 1, tracker.padLength)()}${tracker.suffix}`
+    case "PrefixedDate":
+      return () =>
+        pipe(
+          nowThunk(),
+          formatDateBy(tracker.type),
+          (dateStr) => `${tracker.prefix ?? ""}${dateStr}${tracker.separator}${paddedThunk(tracker.currentValue + 1, tracker.padLength)()}`,
+        )
+    case "OnlyDate":
+      return () =>
+        pipe(
+          nowThunk(),
+          formatDateBy(tracker.type),
+        )
+  }
+}
+
+// Usage (lazy):
+const t = makePrefixedCounter({ key: "order", currentValue: 41, padLength: 4, prefix: "ORD-" })
+const compute = nextValueThunk(t) // no work yet
+console.log(compute()) // performs formatting now, e.g. "ORD-0042"
+```
