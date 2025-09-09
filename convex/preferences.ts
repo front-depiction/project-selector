@@ -2,6 +2,8 @@ import { query, mutation } from "./_generated/server"
 import { v } from "convex/values"
 import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import { api } from "./_generated/api"
+import type { Id } from "./_generated/dataModel"
 
 /**
  * Saves or updates student preferences.
@@ -30,7 +32,7 @@ export const savePreferences = mutation({
       throw new Error("Selection period is closed")
     }
 
-    // Find existing preferences
+    // Save preferences (keeping existing system)
     const existing = await ctx.db
       .query("preferences")
       .withIndex("by_student", q =>
@@ -46,12 +48,28 @@ export const savePreferences = mutation({
     })
 
     if (existing) {
-      // Update existing preference
       await ctx.db.patch(existing._id, newPreference)
     } else {
-      // Create new preference
       await ctx.db.insert("preferences", newPreference)
     }
+
+    // Update rankings aggregate
+    const newRankings = args.topicOrder.map((topicId, index) => ({
+      topicId,
+      position: index + 1 // 1-based positioning
+    }))
+
+    // Get old rankings if updating
+    const oldRankings = existing ? existing.topicOrder.map((topicId, index) => ({
+      topicId,
+      position: index + 1
+    })) : undefined
+
+    await ctx.runMutation(api.rankings.updateRankingsAggregate, {
+      studentId: args.studentId,
+      oldRankings,
+      newRankings
+    })
 
     return { success: true }
   }

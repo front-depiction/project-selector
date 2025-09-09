@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -89,8 +89,8 @@ const getCongestionLabel = (category: string): string => {
 // Extended Item type for topics
 type TopicItem = Item & { 
   studentCount: number
-  congestionRatio: number
   likelihoodCategory: string
+  averagePosition: number | null
 }
 
 // Order Badge Component
@@ -130,10 +130,18 @@ const CongestionStats = ({
   const label = getCongestionLabel(item.likelihoodCategory)
   
   return (
-    <div className="flex items-center gap-3 w-48 flex-shrink-0 justify-end">
-      <div className="flex items-center gap-2 text-sm">
-        <Users className="h-4 w-4 text-muted-foreground" />
-        <span className="font-medium">{item.studentCount}</span>
+    <div className="flex items-center gap-3 w-56 flex-shrink-0 justify-end">
+      <div className="flex flex-col items-end gap-0.5">
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-xs text-muted-foreground">Avg:</span>
+          <span className="font-semibold">
+            {item.averagePosition !== null ? item.averagePosition.toFixed(1) : "—"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Users className="h-3 w-3" />
+          <span>{item.studentCount} ranked</span>
+        </div>
       </div>
       <Badge 
         variant="outline" 
@@ -186,26 +194,31 @@ const ExpandedDetails = ({ item }: { item: TopicItem }) => {
           <div className="flex items-center gap-6 text-sm">
             <div className="flex items-center gap-1.5">
               <Icon className="h-4 w-4" />
-              <span className="font-medium">Risk Level:</span>
+              <span className="font-medium">Competition:</span>
               <span className="text-muted-foreground">{label}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4" />
+              <span className="font-medium">Average Position:</span>
+              <span className="text-muted-foreground">
+                {item.averagePosition !== null ? item.averagePosition.toFixed(1) : "—"}
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="h-4 w-4" />
               <span className="text-muted-foreground">
-                {item.studentCount} {item.studentCount === 1 ? 'student' : 'students'} interested
+                {item.studentCount} {item.studentCount === 1 ? 'student has' : 'students have'} ranked this topic
               </span>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Capacity:</span>
-            <Progress 
-              value={item.congestionRatio * 100} 
-              className="h-2 flex-1 max-w-xs"
-            />
-            <span className="text-xs font-medium">
-              {Math.round(item.congestionRatio * 100)}%
-            </span>
-          </div>
+          {item.averagePosition !== null && (
+            <div className="mt-3 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+              <Info className="h-3 w-3 inline mr-1" />
+              An average position of {item.averagePosition.toFixed(1)} means most students are ranking this topic 
+              around position {Math.round(item.averagePosition)} in their preferences.
+              {item.averagePosition <= 3 && " This is a highly competitive topic!"}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
@@ -261,15 +274,25 @@ const TopicCard = ({
 
 export default function SelectTopics() {
   const router = useRouter()
-  const [studentId, setStudentId] = useState<string>("")
-  const [items, setItems] = useState<Item[]>([])
+  
+  // Get student ID from localStorage immediately
+  const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
+  
+  // Redirect if no student ID
+  useEffect(() => {
+    if (!studentId) {
+      router.push("/student")
+    }
+  }, [studentId, router])
+  
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
+  const [reorderedItems, setReorderedItems] = useState<Item[] | null>(null)
 
-  // Get data from Convex
-  const topics = useQuery(api.topics.getActiveTopicsWithCongestion)
+  // Get data from Convex using the new aggregate query
+  const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
   const preferences = useQuery(
     api.preferences.getPreferences,
     studentId ? { studentId } : "skip"
@@ -277,19 +300,9 @@ export default function SelectTopics() {
   const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
   const savePreferences = useMutation(api.preferences.savePreferences)
 
-  // Check for student ID
-  useEffect(() => {
-    const id = localStorage.getItem("studentId")
-    if (!id) {
-      router.push("/student")
-    } else {
-      setStudentId(id)
-    }
-  }, [router])
-
-  // Convert topics to sortable items and apply saved order
-  useEffect(() => {
-    if (!topics) return
+  // Build items directly from topics and preferences
+  const items = useMemo(() => {
+    if (!topics) return []
 
     let sortedTopics = [...topics]
 
@@ -307,18 +320,19 @@ export default function SelectTopics() {
       })
     }
 
-    setItems(
-      sortedTopics.map((topic: any) => ({
-        id: topic._id as any,
-        text: topic.title,
-        description: topic.description,
-        checked: false,
-        studentCount: topic.studentCount,
-        congestionRatio: topic.congestionRatio,
-        likelihoodCategory: topic.likelihoodCategory
-      }))
-    )
+    return sortedTopics.map((topic) => ({
+      id: topic._id as any,
+      text: topic.title,
+      description: topic.description,
+      checked: false,
+      studentCount: topic.studentCount,
+      likelihoodCategory: topic.likelihoodCategory,
+      averagePosition: topic.averagePosition
+    }))
   }, [topics, preferences])
+  
+  // Use reordered items if available, otherwise use computed items
+  const displayItems = reorderedItems || items
 
   // Toggle expanded state for items
   const toggleExpanded = useCallback((itemId: string | number) => {
@@ -335,7 +349,7 @@ export default function SelectTopics() {
 
   // Update items without saving (called during drag)
   const handleReorder = (newItems: Item[]) => {
-    setItems(newItems)
+    setReorderedItems(newItems)
     setHasChanges(true)
   }
 
@@ -347,9 +361,10 @@ export default function SelectTopics() {
     setError(null)
 
     try {
-      const topicOrder = items.map((item) => item.id as any as Id<"topics">)
+      const topicOrder = displayItems.map((item) => item.id as any as Id<"topics">)
       await savePreferences({ studentId, topicOrder })
       setHasChanges(false)
+      setReorderedItems(null) // Clear local state after save
       toast.success("Preferences saved")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save preferences")
@@ -357,7 +372,7 @@ export default function SelectTopics() {
     } finally {
       setSaving(false)
     }
-  }, [items, hasChanges, studentId, savePreferences])
+  }, [displayItems, hasChanges, studentId, savePreferences])
 
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
@@ -565,10 +580,10 @@ export default function SelectTopics() {
 
           <div onMouseUp={handleDragEnd} onTouchEnd={handleDragEnd}>
             <SortableList
-              items={items}
+              items={displayItems}
               setItems={(newItems: Item[] | ((prevItems: Item[]) => Item[])) => {
                 if (typeof newItems === 'function') {
-                  handleReorder(newItems(items))
+                  handleReorder(newItems(displayItems))
                 } else {
                   handleReorder(newItems)
                 }
