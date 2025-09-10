@@ -18,6 +18,7 @@ import {
 import useMeasure from "react-use-measure"
 
 import { cn } from "@/lib/utils"
+import type { Easing } from "motion"
 
 const springConfig = { stiffness: 200, damping: 20, bounce: 0.2 }
 
@@ -27,7 +28,7 @@ interface ExpandableContextType {
   expandDirection: "vertical" | "horizontal" | "both" // Direction of expansion
   expandBehavior: "replace" | "push" // How the expansion affects surrounding content
   transitionDuration: number // Duration of the expansion/collapse animation
-  easeType: string // Easing function for the animation
+  easeType: Easing | Easing[] // Easing function for the animation
   initialDelay: number // Delay before the animation starts
   onExpandEnd?: () => void // Callback function when expansion ends
   onCollapseEnd?: () => void // Callback function when collapse ends
@@ -36,7 +37,7 @@ interface ExpandableContextType {
 // Create a context with default values
 const ExpandableContext = createContext<ExpandableContextType>({
   isExpanded: false,
-  toggleExpand: () => {},
+  toggleExpand: () => { },
   expandDirection: "vertical", // 'vertical' | 'horizontal' | 'both' // Direction of expansion
   expandBehavior: "replace", // How the expansion affects surrounding content
   transitionDuration: 0.3, // Duration of the expansion/collapse animation
@@ -54,7 +55,7 @@ interface ExpandableProps extends ExpandablePropsBase {
   expanded?: boolean
   onToggle?: () => void
   transitionDuration?: number
-  easeType?: string
+  easeType?: Easing | Easing[]
   expandDirection?: "vertical" | "horizontal" | "both"
   expandBehavior?: "replace" | "push"
   initialDelay?: number

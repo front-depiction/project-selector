@@ -7,17 +7,18 @@ import { ArrowLeft, TrendingUp, Users, Activity, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import { cn } from "@/lib/utils"
 
 export default function AnalyticsPage() {
   const trends = useQuery(api.analytics.getOverallRankingTrends, { days: 7 })
   const allMetrics = useQuery(api.rankings.getAllTopicMetrics)
-  
+
   // Calculate summary statistics
   const totalStudents = allMetrics?.reduce((acc, m) => acc + m.studentCount, 0) || 0
   const totalTopics = allMetrics?.length || 0
   const avgStudentsPerTopic = totalTopics > 0 ? (totalStudents / totalTopics).toFixed(1) : "0"
   const mostPopular = allMetrics?.[0]
-  
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto py-6 px-4 max-w-7xl">
@@ -33,7 +34,7 @@ export default function AnalyticsPage() {
               Back to Admin
             </Button>
           </Link>
-          
+
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
@@ -112,7 +113,7 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Competition Chart */}
           <TopicCompetitionChart className="lg:col-span-2" />
-          
+
           {/* Trending Topics */}
           <Card>
             <CardHeader>
@@ -231,11 +232,11 @@ export default function AnalyticsPage() {
                 </thead>
                 <tbody>
                   {allMetrics?.slice(0, 10).map((metric, index) => {
-                    const competition = 
+                    const competition =
                       metric.averagePosition <= 2 && metric.studentCount > 5 ? "Very High" :
-                      metric.averagePosition <= 3.5 && metric.studentCount > 3 ? "High" :
-                      metric.averagePosition <= 5 ? "Moderate" : "Low"
-                    
+                        metric.averagePosition <= 3.5 && metric.studentCount > 3 ? "High" :
+                          metric.averagePosition <= 5 ? "Moderate" : "Low"
+
                     return (
                       <tr key={metric.topicId} className="border-b hover:bg-muted/50">
                         <td className="p-2">{index + 1}</td>
