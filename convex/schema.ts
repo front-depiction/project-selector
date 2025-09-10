@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server"
 import * as Topic from "./schemas/Topic"
+import * as Subtopic from "./schemas/Subtopic"
 import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as RankingEvent from "./schemas/RankingEvent"
@@ -8,6 +9,8 @@ export default defineSchema({
   topics: defineTable(Topic.Topic)
     .index("by_semester", ["semesterId"])
     .index("by_active", ["isActive"]),
+
+  subtopics: defineTable(Subtopic.Subtopic),
 
   preferences: defineTable(Preference.Preference)
     .index("by_student", ["studentId", "semesterId"])

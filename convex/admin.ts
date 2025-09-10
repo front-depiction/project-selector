@@ -98,14 +98,16 @@ export const createTopic = mutation({
   args: {
     title: v.string(),
     description: v.string(),
-    semesterId: v.string()
+    semesterId: v.string(),
+    subtopicIds: v.optional(v.array(v.id("subtopics")))
   },
   handler: async (ctx, args) => {
     const topic = Topic.make({
       title: args.title,
       description: args.description,
       semesterId: args.semesterId,
-      isActive: true
+      isActive: true,
+      subtopicIds: args.subtopicIds?.map(id => id as string)
     })
 
     const id = await ctx.db.insert("topics", topic)
@@ -124,7 +126,8 @@ export const updateTopic = mutation({
     id: v.id("topics"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    isActive: v.optional(v.boolean())
+    isActive: v.optional(v.boolean()),
+    subtopicIds: v.optional(v.array(v.id("subtopics")))
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id)
@@ -136,6 +139,7 @@ export const updateTopic = mutation({
     if (args.title !== undefined) updates.title = args.title
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
+    if (args.subtopicIds !== undefined) updates.subtopicIds = args.subtopicIds
 
     await ctx.db.patch(args.id, updates)
     return { success: true }

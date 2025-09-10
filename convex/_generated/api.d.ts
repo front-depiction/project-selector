@@ -16,8 +16,11 @@ import type * as rankings from "../rankings.js";
 import type * as schemas_Preference from "../schemas/Preference.js";
 import type * as schemas_RankingEvent from "../schemas/RankingEvent.js";
 import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
+import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
 import type * as stats from "../stats.js";
+import type * as subtopics from "../subtopics.js";
+import type * as topicAnalytics from "../topicAnalytics.js";
 import type * as topics from "../topics.js";
 
 import type {
@@ -43,8 +46,11 @@ declare const fullApi: ApiFromModules<{
   "schemas/Preference": typeof schemas_Preference;
   "schemas/RankingEvent": typeof schemas_RankingEvent;
   "schemas/SelectionPeriod": typeof schemas_SelectionPeriod;
+  "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/Topic": typeof schemas_Topic;
   stats: typeof stats;
+  subtopics: typeof subtopics;
+  topicAnalytics: typeof topicAnalytics;
   topics: typeof topics;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
