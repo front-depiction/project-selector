@@ -66,6 +66,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import type { Id } from "@/convex/_generated/dataModel"
+import SelectionPeriodForm from "@/components/forms/selection-period-form"
+import TopicForm from "@/components/forms/topic-form"
 
 // Topic form state type
 type TopicForm = {
@@ -207,10 +209,10 @@ export default function AdminDashboard() {
   const openCreateDialog = () => {
     setEditingTopic(null)
     const activePeriod = allPeriods?.find(p => p.isActive)
-    setTopicForm({ 
-      title: "", 
-      description: "", 
-      semesterId: activePeriod?.semesterId || "2024-spring" 
+    setTopicForm({
+      title: "",
+      description: "",
+      semesterId: activePeriod?.semesterId || "2024-spring"
     })
     setIsTopicDialogOpen(true)
   }
@@ -505,8 +507,8 @@ export default function AdminDashboard() {
                   <p className="text-lg font-medium">No Selection Period Available</p>
                   <p className="text-sm mt-2">Please create a selection period first before adding topics.</p>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => {
                     setIsTopicDialogOpen(false)
                     setActiveTab("periods")
@@ -516,74 +518,25 @@ export default function AdminDashboard() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title">Title</Label>
-                  <Input
-                    id="title"
-                    value={topicForm.title}
-                    onChange={(e) => setTopicForm({ ...topicForm, title: e.target.value })}
-                    placeholder="Enter topic title"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    value={topicForm.description}
-                    onChange={(e) => setTopicForm({ ...topicForm, description: e.target.value })}
-                    placeholder="Enter topic description"
-                    rows={4}
-                  />
-                </div>
-              {!editingTopic && (
-                <div>
-                  <Label htmlFor="semester">Selection Period</Label>
-                  {allPeriods && allPeriods.length > 0 ? (
-                    <Combobox
-                      data={allPeriods.map((period) => ({
-                        value: period.semesterId,
-                        label: `${period.title} (${period.semesterId})`
-                      }))}
-                      type="period"
-                      value={topicForm.semesterId}
-                      onValueChange={(value) => setTopicForm({ ...topicForm, semesterId: value })}
-                    >
-                      <ComboboxTrigger className="w-full" />
-                      <ComboboxContent>
-                        <ComboboxInput />
-                        <ComboboxList>
-                          <ComboboxEmpty>No periods found</ComboboxEmpty>
-                          <ComboboxGroup>
-                            {allPeriods.map((period) => (
-                              <ComboboxItem key={period._id} value={period.semesterId}>
-                                {period.title} ({period.semesterId})
-                              </ComboboxItem>
-                            ))}
-                          </ComboboxGroup>
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                  ) : (
-                    <div className="text-sm text-muted-foreground p-3 border rounded-md bg-muted/50">
-                      No selection periods available. Please create a period first.
-                    </div>
-                  )}
-                </div>
-              )}
-              </div>
+              <TopicForm
+                periods={(allPeriods || []).map(p => ({ value: p.semesterId, label: `${p.title} (${p.semesterId})` }))}
+                initialValues={editingTopic ? {
+                  title: topicForm.title,
+                  description: topicForm.description,
+                  selection_period_id: topicForm.semesterId,
+                } : undefined}
+                onSubmit={async (values) => {
+                  if (editingTopic) {
+                    setTopicForm({ title: values.title, description: values.description, semesterId: values.selection_period_id })
+                    await handleUpdateTopic()
+                  } else {
+                    setTopicForm({ title: values.title, description: values.description, semesterId: values.selection_period_id })
+                    await handleCreateTopic()
+                  }
+                }}
+              />
             )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsTopicDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={editingTopic ? handleUpdateTopic : handleCreateTopic}
-                disabled={!editingTopic && (!allPeriods || allPeriods.length === 0)}
-              >
-                {editingTopic ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
+            {/* TopicForm handles its own submission; remove outer footer actions to avoid duplicates */}
           </DialogContent>
         </Dialog>
 
@@ -596,86 +549,31 @@ export default function AdminDashboard() {
                 Set the time window for student selections
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="period-semester">Semester ID</Label>
-                <Input
-                  id="period-semester"
-                  value={periodForm.semesterId}
-                  onChange={(e) => setPeriodForm({ ...periodForm, semesterId: e.target.value })}
-                  placeholder="e.g., 2024-spring"
-                />
-              </div>
-              <div>
-                <Label htmlFor="period-title">Title</Label>
-                <Input
-                  id="period-title"
-                  value={periodForm.title}
-                  onChange={(e) => setPeriodForm({ ...periodForm, title: e.target.value })}
-                  placeholder="e.g., Spring 2024 Project Selection"
-                />
-              </div>
-              <div>
-                <Label htmlFor="period-description">Description</Label>
-                <Textarea
-                  id="period-description"
-                  value={periodForm.description}
-                  onChange={(e) => setPeriodForm({ ...periodForm, description: e.target.value })}
-                  placeholder="Describe the selection period and any important information for students"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <Label>Open Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {periodForm.openDate ? format(periodForm.openDate, "PPP") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={periodForm.openDate}
-                      onSelect={(date) => setPeriodForm({ ...periodForm, openDate: date })}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
-                <Label>Close Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {periodForm.closeDate ? format(periodForm.closeDate, "PPP") : "Select date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={periodForm.closeDate}
-                      onSelect={(date) => setPeriodForm({ ...periodForm, closeDate: date })}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="active"
-                  checked={periodForm.isActive}
-                  onCheckedChange={(checked) => setPeriodForm({ ...periodForm, isActive: checked })}
-                />
-                <Label htmlFor="active">Set as active period</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsPeriodDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSavePeriod}>Save Period</Button>
-            </DialogFooter>
+            <SelectionPeriodForm
+              initialValues={currentPeriod ? {
+                title: currentPeriod.title,
+                selection_period_id: currentPeriod.semesterId,
+                start_deadline: new Date(currentPeriod.openDate),
+                end_deadline: new Date(currentPeriod.closeDate),
+                isActive: currentPeriod.isActive,
+              } : undefined}
+              onSubmit={async (values) => {
+                try {
+                  await upsertPeriod({
+                    semesterId: values.selection_period_id,
+                    title: values.title,
+                    description: "",
+                    openDate: values.start_deadline.getTime(),
+                    closeDate: values.end_deadline.getTime(),
+                    isActive: values.isActive,
+                  })
+                  toast.success("Selection period updated")
+                  setIsPeriodDialogOpen(false)
+                } catch (error) {
+                  toast.error("Failed to update selection period")
+                }
+              }}
+            />
           </DialogContent>
         </Dialog>
 
