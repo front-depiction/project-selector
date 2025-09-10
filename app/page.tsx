@@ -7,20 +7,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import { 
-  ArrowRight, 
-  Users, 
-  FileText, 
-  Clock, 
-  TrendingUp, 
+import {
+  ArrowRight,
+  Users,
+  FileText,
+  Clock,
+  TrendingUp,
   TrendingDown,
   Calendar,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Activity,
+  BarChart3
 } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
+import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
+import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
 
 // Pure function to get status color
 const getStatusColor = (status: string): string => {
@@ -52,8 +56,144 @@ const getStatusText = (status: string): string => {
   }
 }
 
+function StatusBanner({ stats }: { stats: any }) {
+  return (
+    <Card className="mb-8">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon(stats.periodStatus)}
+            <CardTitle>{getStatusText(stats.periodStatus)}</CardTitle>
+          </div>
+          <Badge className={getStatusColor(stats.periodStatus)}>
+            {stats.periodStatus.toUpperCase()}
+          </Badge>
+        </div>
+        {stats.isActive && stats.openDate && stats.closeDate && (
+          <CardDescription className="mt-2">
+            {stats.periodStatus === "open" && (
+              <>Closes {formatDistanceToNow(new Date(stats.closeDate), { addSuffix: true })}</>
+            )}
+            {stats.periodStatus === "upcoming" && (
+              <>Opens {formatDistanceToNow(new Date(stats.openDate), { addSuffix: true })}</>
+            )}
+            {stats.periodStatus === "closed" && (
+              <>Closed {format(new Date(stats.closeDate), "PPP")}</>
+            )}
+          </CardDescription>
+        )}
+      </CardHeader>
+    </Card>
+  )
+}
+
+function ActionButtons() {
+  return (
+    <div className="grid md:grid-cols-2 gap-4 mb-8">
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <Link href="/student">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-2xl font-bold">Student Portal</CardTitle>
+            <Users className="h-8 w-8 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Select and rank your preferred project topics
+            </p>
+            <Button className="w-full" size="lg">
+              Enter Selection <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Link>
+      </Card>
+
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <Link href="/admin">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
+            <FileText className="h-8 w-8 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Manage topics and view selection statistics
+            </p>
+            <Button className="w-full" size="lg">
+              Admin Access <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </CardContent>
+        </Link>
+      </Card>
+    </div>
+  )
+}
+
+function Statistics({ stats, progressPercentage }: { stats: any, progressPercentage: number }) {
+  return (
+    <div className="grid md:grid-cols-3 gap-4 mb-8">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Topics</CardTitle>
+          <FileText className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalTopics}</div>
+          <p className="text-xs text-muted-foreground">Available projects</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Students Participated</CardTitle>
+          <Users className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalStudents}</div>
+          <p className="text-xs text-muted-foreground">
+            Avg {stats.averageSelectionsPerStudent.toFixed(1)} selections each
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Selection Progress</CardTitle>
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{stats.totalSelections}</div>
+          <p className="text-xs text-muted-foreground">Total selections made</p>
+          <Progress value={progressPercentage} className="mt-2" />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function AnalyticsCharts({ competitionData }: { competitionData: any }) {
+  return (
+    <div className="space-y-8 mb-8">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold mb-2">Live Analytics</h2>
+        <p className="text-muted-foreground">Real-time insights into the selection process</p>
+      </div>
+      {/* Stack charts vertically instead of horizontally */}
+      <div className="flex flex-col gap-6">
+        {/* Selection Activity Chart */}
+        <RankingEventsChart granularity="hourly" hours={48} />
+
+        {/* Competition Levels Chart */}
+        {competitionData && competitionData.length > 0 && (
+          <TopicCompetitionMixedChart className="h-full" />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const stats = useQuery(api.stats.getLandingStats)
+  const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
+  // overallTrends is unused in this file, so omitting for clarity
 
   if (!stats) {
     return (
@@ -66,8 +206,8 @@ export default function LandingPage() {
     )
   }
 
-  const progressPercentage = stats.totalTopics > 0 
-    ? (stats.totalStudents / (stats.totalTopics * 5)) * 100 
+  const progressPercentage = stats.totalTopics > 0
+    ? (stats.totalStudents / (stats.totalTopics * 5)) * 100
     : 0
 
   return (
@@ -79,173 +219,23 @@ export default function LandingPage() {
             Project Topic Selection System
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Choose your preferred project topics with real-time congestion feedback 
+            Choose your preferred project topics with real-time congestion feedback
             to maximize your chances of getting your top choices.
           </p>
         </div>
 
         {/* Status Banner */}
-        <Card className="mb-8">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {getStatusIcon(stats.periodStatus)}
-                <CardTitle>{getStatusText(stats.periodStatus)}</CardTitle>
-              </div>
-              <Badge className={getStatusColor(stats.periodStatus)}>
-                {stats.periodStatus.toUpperCase()}
-              </Badge>
-            </div>
-            {stats.isActive && stats.openDate && stats.closeDate && (
-              <CardDescription className="mt-2">
-                {stats.periodStatus === "open" && (
-                  <>Closes {formatDistanceToNow(new Date(stats.closeDate), { addSuffix: true })}</>
-                )}
-                {stats.periodStatus === "upcoming" && (
-                  <>Opens {formatDistanceToNow(new Date(stats.openDate), { addSuffix: true })}</>
-                )}
-                {stats.periodStatus === "closed" && (
-                  <>Closed {format(new Date(stats.closeDate), "PPP")}</>
-                )}
-              </CardDescription>
-            )}
-          </CardHeader>
-        </Card>
+        <StatusBanner stats={stats} />
 
         {/* Action Buttons */}
-        <div className="grid md:grid-cols-2 gap-4 mb-8">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <Link href="/student">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-2xl font-bold">Student Portal</CardTitle>
-                <Users className="h-8 w-8 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Select and rank your preferred project topics
-                </p>
-                <Button className="w-full" size="lg">
-                  Enter Selection <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Link>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-            <Link href="/admin">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
-                <FileText className="h-8 w-8 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Manage topics and view selection statistics
-                </p>
-                <Button className="w-full" size="lg">
-                  Admin Access <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Link>
-          </Card>
-        </div>
+        <ActionButtons />
 
         {/* Statistics */}
         {stats.isActive && (
           <>
             <Separator className="my-8" />
-            
-            <div className="grid md:grid-cols-3 gap-4 mb-8">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Topics</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalTopics}</div>
-                  <p className="text-xs text-muted-foreground">Available projects</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Students Participated</CardTitle>
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalStudents}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Avg {stats.averageSelectionsPerStudent.toFixed(1)} selections each
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Selection Progress</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalSelections}</div>
-                  <p className="text-xs text-muted-foreground">Total selections made</p>
-                  <Progress value={progressPercentage} className="mt-2" />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Popular Topics */}
-            <div className="grid md:grid-cols-2 gap-8">
-              {stats.mostPopularTopics.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-green-500" />
-                      Most Popular Topics
-                    </CardTitle>
-                    <CardDescription>Highest congestion risk</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {stats.mostPopularTopics.map((topic, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <span className="text-sm font-medium truncate flex-1">
-                            {index + 1}. {topic.title}
-                          </span>
-                          <Badge variant="secondary" className="ml-2">
-                            {topic.count} students
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {stats.leastPopularTopics.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingDown className="h-5 w-5 text-blue-500" />
-                      Least Popular Topics
-                    </CardTitle>
-                    <CardDescription>Best chance of selection</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {stats.leastPopularTopics.map((topic, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <span className="text-sm font-medium truncate flex-1">
-                            {index + 1}. {topic.title}
-                          </span>
-                          <Badge variant="secondary" className="ml-2">
-                            {topic.count} students
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            <Statistics stats={stats} progressPercentage={progressPercentage} />
+            <AnalyticsCharts competitionData={competitionData} />
           </>
         )}
 

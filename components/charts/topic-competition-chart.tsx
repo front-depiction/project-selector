@@ -17,13 +17,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart"
-import { Users } from "lucide-react"
-
-const chartConfig = {
-  students: {
-    label: "Students",
-  },
-} satisfies ChartConfig
+import { TrendingUp, Users } from "lucide-react"
 
 export function TopicCompetitionChart({ className }: { className?: string }) {
   const data = useQuery(api.analytics.getTopicCompetitionLevels)
@@ -38,11 +32,29 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
     )
   }
 
-  // Take top 10 most popular topics
-  const chartData = data.slice(0, 10).map(d => ({
-    ...d,
-    topic: d.topic.length > 20 ? d.topic.substring(0, 20) + "..." : d.topic
+  // Take top 10 most popular topics and prepare chart data
+  const chartData = data.slice(0, 10).map((d, index) => ({
+    topic: d.topic.length > 15 ? d.topic.substring(0, 15) + "..." : d.topic,
+    students: d.students,
+    fill: `var(--color-topic-${index})`,
+    averageRank: d.averageRank,
+    top3Percentage: d.top3Percentage,
+    competitionLevel: d.competitionLevel
   }))
+
+  // Build chart config dynamically
+  const chartConfig: ChartConfig = {
+    students: {
+      label: "Students",
+    },
+    ...chartData.reduce((acc, item, index) => ({
+      ...acc,
+      [`topic-${index}`]: {
+        label: item.topic,
+        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+      },
+    }), {})
+  }
 
   return (
     <Card className={className}>
@@ -53,16 +65,13 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+        <ChartContainer config={chartConfig}>
           <BarChart
             accessibilityLayer
             data={chartData}
-            layout="horizontal"
+            layout="vertical"
             margin={{
-              left: 80,
-              right: 20,
-              top: 10,
-              bottom: 10,
+              left: 0,
             }}
           >
             <YAxis
@@ -71,74 +80,53 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
               tickLine={false}
               tickMargin={10}
               axisLine={false}
-              width={75}
-              style={{ fontSize: 12 }}
+              tickFormatter={(value) => value}
+              width={100}
             />
-            <XAxis 
-              dataKey="students" 
-              type="number"
-              tickLine={false}
-              axisLine={false}
-            />
+            <XAxis dataKey="students" type="number" hide />
             <ChartTooltip
               cursor={false}
               content={
-                <ChartTooltipContent 
-                  formatter={(value, name) => {
-                    const item = chartData.find(d => d.students === value)
+                <ChartTooltipContent
+                  formatter={(value, name, item) => {
+                    const data = item.payload
                     return (
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <Users className="h-3 w-3" />
                           <span className="font-semibold">{value} students</span>
                         </div>
-                        {item && (
+                        {data && (
                           <>
                             <div className="text-xs text-muted-foreground">
-                              Avg Rank: {item.averageRank?.toFixed(1) || "—"}
+                              Avg Rank: {data.averageRank?.toFixed(1) || "—"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Top 3: {item.top3Percentage.toFixed(0)}%
+                              Top 3: {data.top3Percentage?.toFixed(0) || 0}%
                             </div>
                             <div className="text-xs font-medium">
-                              Competition: {item.competitionLevel}
+                              Competition: {data.competitionLevel}
                             </div>
                           </>
                         )}
                       </div>
                     )
                   }}
-                  hideLabel 
+                  hideLabel
                 />
               }
             />
-            <Bar 
-              dataKey="students" 
-              layout="horizontal" 
-              radius={[0, 5, 5, 0]}
-              fill={(data: any) => data.fill}
-            />
+            <Bar dataKey="students" layout="vertical" radius={5} />
           </BarChart>
         </ChartContainer>
       </CardContent>
       <CardFooter className="flex-col items-start gap-2 text-sm">
-        <div className="flex gap-4 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: "var(--chart-1)" }} />
-            <span>Very High Competition</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: "var(--chart-2)" }} />
-            <span>High</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: "var(--chart-3)" }} />
-            <span>Moderate</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 rounded" style={{ backgroundColor: "var(--chart-4)" }} />
-            <span>Low</span>
-          </div>
+        <div className="flex gap-2 leading-none font-medium">
+          <TrendingUp className="h-4 w-4" />
+          Competition levels based on average ranking positions
+        </div>
+        <div className="text-muted-foreground leading-none">
+          Lower average rank indicates higher competition
         </div>
       </CardFooter>
     </Card>

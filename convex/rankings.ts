@@ -29,14 +29,14 @@ export const updateRankingsAggregate = mutation({
     // Clear old rankings in parallel (if they exist)
     const deletions = args.oldRankings
       ? Promise.all(
-          args.oldRankings.map(ranking =>
-            rankingsAggregate.deleteIfExists(ctx, {
-              namespace: ranking.topicId,
-              key: ranking.position,
-              id: args.studentId,
-            })
-          )
+        args.oldRankings.map(ranking =>
+          rankingsAggregate.deleteIfExists(ctx, {
+            namespace: ranking.topicId,
+            key: ranking.position,
+            id: args.studentId,
+          })
         )
+      )
       : Promise.resolve([]);
 
     // Insert new rankings in parallel
@@ -142,10 +142,10 @@ export const rebuildRankingsAggregate = mutation({
       ctx.db.query("topics").collect(),
       ctx.db.query("preferences").collect()
     ]);
-    
+
     // Clear all topic namespaces in parallel
     await Promise.all(
-      topics.map(topic => 
+      topics.map(topic =>
         rankingsAggregate.clear(ctx, { namespace: topic._id })
       )
     );

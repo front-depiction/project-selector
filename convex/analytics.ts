@@ -156,6 +156,29 @@ export const getOverallRankingTrends = query({
  * @category Queries
  * @since 0.2.0
  */
+/**
+ * Get all recent ranking events for general analytics.
+ * 
+ * @category Queries
+ * @since 0.2.1
+ */
+export const getRecentRankingEvents = query({
+  args: {
+    hours: v.optional(v.number()), // Default 24 hours
+  },
+  handler: async (ctx, args) => {
+    const hours = args.hours || 24
+    const startTime = Date.now() - (hours * 60 * 60 * 1000)
+
+    const events = await ctx.db
+      .query("rankingEvents")
+      .filter(q => q.gte(q.field("_creationTime"), startTime))
+      .collect()
+
+    return events
+  },
+})
+
 export const getTopicCompetitionLevels = query({
   args: {},
   handler: async (ctx) => {

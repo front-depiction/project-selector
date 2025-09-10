@@ -31,23 +31,20 @@ export const getActiveTopicsWithCongestion = query({
       .withIndex("by_active", q => q.eq("isActive", true))
       .first()
 
-    if (!activePeriod) return []
+    if (!activePeriod || !SelectionPeriod.isOpen()(activePeriod)) return []
 
-    // Check if period is open
-    if (!SelectionPeriod.isOpen()(activePeriod)) return []
-
-    // Get all active topics for this semester
-    const topics = await ctx.db
-      .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .filter(q => q.eq(q.field("isActive"), true))
-      .collect()
-
-    // Get all preferences for congestion calculation
-    const allPreferences = await ctx.db
-      .query("preferences")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .collect()
+    // Get all active topics and all preferences for this semester in parallel
+    const [topics, allPreferences] = await Promise.all([
+      ctx.db
+        .query("topics")
+        .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
+        .filter(q => q.eq(q.field("isActive"), true))
+        .collect(),
+      ctx.db
+        .query("preferences")
+        .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
+        .collect()
+    ])
 
     // Calculate congestion for each topic
     const totalStudents = allPreferences.length
@@ -109,11 +106,11 @@ export const getActiveTopicsWithMetrics = query({
           rankingsAggregate.count(ctx, { namespace: topic._id }),
           rankingsAggregate.sum(ctx, { namespace: topic._id })
         ])
-        
+
         const averagePosition = count > 0 ? sum / count : null
-        
+
         // Calculate competition level based on average position
-        const likelihoodCategory = count === 0 
+        const likelihoodCategory = count === 0
           ? "low"
           : averagePosition === null
             ? "unknown"
@@ -124,7 +121,7 @@ export const getActiveTopicsWithMetrics = query({
                 : averagePosition <= 5
                   ? "moderate"
                   : "low"
-        
+
         return {
           _id: topic._id,
           title: topic.title,
