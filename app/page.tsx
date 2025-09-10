@@ -213,7 +213,7 @@ function AnalyticsCharts({ competitionData }: { competitionData: any }) {
       {/* Stack charts vertically instead of horizontally */}
       <div className="flex flex-col gap-6">
         {/* Selection Activity Chart */}
-        <RankingEventsChart granularity="hourly" hours={48} />
+        <RankingEventsChart granularity="by-minute" hours={48} />
 
         {/* Competition Levels Chart */}
         {competitionData && competitionData.length > 0 && (

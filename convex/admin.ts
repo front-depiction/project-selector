@@ -24,7 +24,7 @@ export const seedTestData = mutation({
       closeDate: thirtyDaysFromNow,
       isActive: true,
       title: "Test Period",
-      description: "This is an auto generate test period"
+      description: "This is an auto generated test period"
     })
 
     await ctx.db.insert("selectionPeriods", period)

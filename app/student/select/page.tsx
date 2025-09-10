@@ -88,7 +88,7 @@ const getCongestionLabel = (category: string): string => {
 }
 
 // Extended Item type for topics
-type TopicItem = Item & { 
+type TopicItem = Item & {
   studentCount: number
   likelihoodCategory: string
   averagePosition: number | null
@@ -118,19 +118,19 @@ const TopicTitle = ({ title, description }: { title: string; description: string
 )
 
 // Congestion Stats Component
-const CongestionStats = ({ 
-  item, 
-  isExpanded, 
-  onToggleExpand 
-}: { 
+const CongestionStats = ({
+  item,
+  isExpanded,
+  onToggleExpand
+}: {
   item: TopicItem
   isExpanded: boolean
-  onToggleExpand: () => void 
+  onToggleExpand: () => void
 }) => {
   const styles = getCongestionStyles(item.likelihoodCategory)
   const Icon = styles.icon
   const label = getCongestionLabel(item.likelihoodCategory)
-  
+
   return (
     <div className="flex items-center gap-3 w-56 flex-shrink-0 justify-end">
       <div className="flex flex-col items-end gap-0.5">
@@ -145,8 +145,8 @@ const CongestionStats = ({
           <span>{item.studentCount} ranked</span>
         </div>
       </div>
-      <Badge 
-        variant="outline" 
+      <Badge
+        variant="outline"
         className={cn(
           "text-xs border min-w-[90px] justify-center",
           styles.badge
@@ -179,7 +179,7 @@ const ExpandedDetails = ({ item }: { item: TopicItem }) => {
   const styles = getCongestionStyles(item.likelihoodCategory)
   const Icon = styles.icon
   const label = getCongestionLabel(item.likelihoodCategory)
-  
+
   return (
     <motion.div
       initial={{ height: 0, opacity: 0 }}
@@ -213,20 +213,20 @@ const ExpandedDetails = ({ item }: { item: TopicItem }) => {
               </span>
             </div>
           </div>
-          
+
           {/* Add the popularity chart */}
           {item._id && (
-            <TopicPopularityChart 
-              topicId={item._id} 
+            <TopicPopularityChart
+              topicId={item._id}
               topicTitle={item.text}
               className="mb-3"
             />
           )}
-          
+
           {item.averagePosition !== null && (
             <div className="mt-3 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
               <Info className="h-3 w-3 inline mr-1" />
-              An average position of {item.averagePosition.toFixed(1)} means most students are ranking this topic 
+              An average position of {item.averagePosition.toFixed(1)} means most students are ranking this topic
               around position {Math.round(item.averagePosition)} in their preferences.
               {item.averagePosition <= 3 && " This is a highly competitive topic!"}
             </div>
@@ -268,13 +268,13 @@ const TopicCard = ({
           <div className="flex items-center w-full p-4">
             <OrderBadge order={order} />
             <TopicTitle title={item.text} description={item.description} />
-            <CongestionStats 
-              item={item} 
-              isExpanded={isExpanded} 
-              onToggleExpand={onToggleExpand} 
+            <CongestionStats
+              item={item}
+              isExpanded={isExpanded}
+              onToggleExpand={onToggleExpand}
             />
           </div>
-          
+
           <AnimatePresence>
             {isExpanded && <ExpandedDetails item={item} />}
           </AnimatePresence>
@@ -286,17 +286,17 @@ const TopicCard = ({
 
 export default function SelectTopics() {
   const router = useRouter()
-  
+
   // Get student ID from localStorage immediately
   const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
-  
+
   // Redirect if no student ID
   useEffect(() => {
     if (!studentId) {
       router.push("/student")
     }
   }, [studentId, router])
-  
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
@@ -343,7 +343,7 @@ export default function SelectTopics() {
       averagePosition: topic.averagePosition
     }))
   }, [topics, preferences])
-  
+
   // Use reordered items if available, otherwise use computed items
   const displayItems = reorderedItems || items
 
@@ -660,6 +660,9 @@ export default function SelectTopics() {
                   <TrendingUp className="h-4 w-4" />
                   Congestion Levels
                 </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  Indicates your likelihood of being assigned to a topic based on current selections.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-3">
