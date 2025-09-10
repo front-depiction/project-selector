@@ -25,6 +25,8 @@ import Link from "next/link"
 import { formatDistanceToNow, format } from "date-fns"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
+import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
+import React from "react"
 
 // Pure function to get status color
 const getStatusColor = (status: string): string => {
@@ -56,34 +58,66 @@ const getStatusText = (status: string): string => {
   }
 }
 
+// Simple countdown hook (ms resolution) for D:HH:MM:SS display
+function useCountdown(targetMs: number | null) {
+  const [now, setNow] = React.useState<number>(() => Date.now())
+
+  React.useEffect(() => {
+    if (!targetMs) return
+    let raf: number
+    let timer: number
+    const tick = () => {
+      setNow(Date.now())
+      raf = requestAnimationFrame(() => { })
+    }
+    timer = window.setInterval(tick, 250)
+    return () => {
+      clearInterval(timer)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [targetMs])
+
+  if (!targetMs) return { remainingMs: 0, formatted: "--:--:--:--" }
+  const remaining = Math.max(0, targetMs - now)
+  const totalSeconds = Math.floor(remaining / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const formatted = `${days.toString().padStart(2, "0")}:${hours
+    .toString()
+    .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`
+  return { remainingMs: remaining, formatted }
+}
+
 function StatusBanner({ stats }: { stats: any }) {
+  const isOpen = stats.periodStatus === "open"
+  const target = isOpen ? stats.closeDate : null
+  const { formatted } = useCountdown(target ?? null)
+
+  if (!stats.isActive) return null
+
   return (
-    <Card className="mb-8">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {getStatusIcon(stats.periodStatus)}
-            <CardTitle>{getStatusText(stats.periodStatus)}</CardTitle>
-          </div>
-          <Badge className={getStatusColor(stats.periodStatus)}>
-            {stats.periodStatus.toUpperCase()}
-          </Badge>
+    <div className="mb-8">
+      <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+        {/* Left: Title + status */}
+        <div className="flex items-center gap-3">
+          <span>{getStatusIcon("open")}</span>
+          <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
+          <span className={getStatusColor("open") + " px-2 py-1 rounded text-sm font-semibold"}>OPEN</span>
         </div>
-        {stats.isActive && stats.openDate && stats.closeDate && (
-          <CardDescription className="mt-2">
-            {stats.periodStatus === "open" && (
-              <>Closes {formatDistanceToNow(new Date(stats.closeDate), { addSuffix: true })}</>
-            )}
-            {stats.periodStatus === "upcoming" && (
-              <>Opens {formatDistanceToNow(new Date(stats.openDate), { addSuffix: true })}</>
-            )}
-            {stats.periodStatus === "closed" && (
-              <>Closed {format(new Date(stats.closeDate), "PPP")}</>
-            )}
-          </CardDescription>
-        )}
-      </CardHeader>
-    </Card>
+
+        {/* Right: Timer only */}
+        <div className="flex flex-col items-center md:items-start gap-2">
+          <TimerRoot size="2xl" variant="outline" loading>
+            <TimerIcon size="2xl" loading className="text-muted-foreground" />
+            <TimerDisplay size="2xl" time={formatted} />
+          </TimerRoot>
+        </div>
+      </div>
+    </div>
   )
 }
 

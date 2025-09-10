@@ -1,84 +1,58 @@
 "use client"
 
-import { useState } from "react"
+import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 
-// Pure validation function
-const validateStudentId = (id: string): boolean =>
-  /^[A-Z0-9]{6,12}$/.test(id)
-
-// Pure error message function
-const getErrorMessage = (id: string): string | null => {
-  if (id.length === 0) return null
-  if (id.length < 6) return "Student ID must be at least 6 characters"
-  if (id.length > 12) return "Student ID must be at most 12 characters"
-  if (!validateStudentId(id)) return "Student ID must contain only letters and numbers"
-  return null
-}
+// 7-digit numeric student ID, e.g., 7896729
+const STUDENT_ID_LENGTH = 7
+const DIGITS_ONLY = /^[0-9]+$/
 
 export default function StudentEntry() {
-  const [studentId, setStudentId] = useState("")
-  const [touched, setTouched] = useState(false)
   const router = useRouter()
+  const [value, setValue] = React.useState("")
 
-  const errorMessage = touched ? getErrorMessage(studentId) : null
-  const isValid = validateStudentId(studentId)
+  const isComplete = value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setTouched(true)
-    
-    if (isValid) {
-      localStorage.setItem("studentId", studentId)
+  React.useEffect(() => {
+    if (isComplete) {
+      localStorage.setItem("studentId", value)
       router.push("/student/select")
     }
-  }
-
-  const handleChange = (value: string) => {
-    setStudentId(value.toUpperCase())
-  }
+  }, [isComplete, value, router])
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Project Topic Selection</CardTitle>
-          <CardDescription>
-            Enter your student ID to access the topic selection system
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="studentId">Student ID</Label>
-              <Input
-                id="studentId"
-                type="text"
-                value={studentId}
-                onChange={(e) => handleChange(e.target.value)}
-                onBlur={() => setTouched(true)}
-                placeholder="Enter your Student ID"
-                className={errorMessage ? "border-red-500" : ""}
-                autoComplete="off"
-                required
-              />
-              {errorMessage && (
-                <p className="text-sm text-red-500">{errorMessage}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                6-12 alphanumeric characters (e.g., ABC123)
-              </p>
-            </div>
-            <Button type="submit" className="w-full" disabled={!studentId}>
-              Continue to Selection
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="w-full max-w-3xl flex flex-col items-center text-center gap-6">
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+            Enter Your Student ID
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Type your 7-digit ID to continue to topic selection
+          </p>
+        </div>
+
+        <InputOTP
+          maxLength={STUDENT_ID_LENGTH}
+          value={value}
+          onChange={(v) => {
+            // keep only digits
+            const digits = v.replace(/\D/g, "")
+            setValue(digits)
+          }}
+          containerClassName="justify-center"
+          className="text-2xl sm:text-3xl"
+        >
+          <InputOTPGroup>
+            {Array.from({ length: STUDENT_ID_LENGTH }).map((_, i) => (
+              <InputOTPSlot key={i} index={i} />
+            ))}
+          </InputOTPGroup>
+        </InputOTP>
+
+        <p className="text-xs text-muted-foreground">Digits only • 7 characters</p>
+      </div>
     </div>
   )
 }

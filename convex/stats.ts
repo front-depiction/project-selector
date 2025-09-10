@@ -20,6 +20,7 @@ export const getLandingStats = query({
       return {
         isActive: false,
         periodStatus: "inactive" as const,
+        title: undefined,
         totalTopics: 0,
         totalStudents: 0,
         averageSelectionsPerStudent: 0,
@@ -50,7 +51,7 @@ export const getLandingStats = query({
         counts.set(topicId, (counts.get(topicId) || 0) + 1)
         return counts
       }, new Map<string, number>())
-    
+
     const totalSelections = preferences
       .reduce((sum, pref) => sum + pref.topicOrder.length, 0)
 
@@ -64,12 +65,13 @@ export const getLandingStats = query({
     const mostPopular = sortedByPopularity.slice(0, 3)
     const leastPopular = sortedByPopularity.slice(-3).reverse()
 
-    const averageSelectionsPerStudent = 
+    const averageSelectionsPerStudent =
       preferences.length > 0 ? totalSelections / preferences.length : 0
 
     return {
       isActive: true,
       periodStatus,
+      title: activePeriod.title,
       openDate: activePeriod.openDate,
       closeDate: activePeriod.closeDate,
       totalTopics: topics.length,

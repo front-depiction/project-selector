@@ -8,8 +8,7 @@ import { cn } from "@/lib/utils"
 
 const timerVariants = cva(
     [
-        "inline-flex items-center gap-2 font-medium rounded-full transition-all duration-200",
-        "",
+        "inline-flex items-center font-medium rounded-full transition-all duration-200",
     ],
     {
         variants: {
@@ -18,7 +17,7 @@ const timerVariants = cva(
                     "bg-background text-foreground border border-border shadow-[0_2px_4px_rgba(0,0,0,0.02),_0px_1px_2px_rgba(0,0,0,0.04)] shadow-[inset_0px_-2.10843px_0px_0px_hsl(var(--muted)),_0px_1.20482px_6.3253px_0px_hsl(var(--muted))]",
                 outline:
                     "border border-input bg-background text-foreground  shadow-[0px_1px_0px_0px_hsla(0,_0%,_0%,_0.02)_inset,_0px_0px_0px_1px_hsla(0,_0%,_0%,_0.02)_inset,_0px_0px_0px_1px_rgba(255,_255,_255,_0.25)]",
-                ghost: "bg-transparent text-foreground ",
+                ghost: "bg-transparent text-foreground",
                 destructive:
                     "bg-destructive/10 text-destructive border border-destructive/20",
             },
@@ -26,6 +25,9 @@ const timerVariants = cva(
                 sm: "text-xs px-2 py-1 h-6 gap-1.5",
                 md: "text-sm px-2.5 py-1.5 h-7 gap-2",
                 lg: "text-base px-3 py-2 h-8 gap-2.5",
+                xl: "text-xl px-4 py-2.5 h-10 gap-3",
+                "2xl": "text-2xl px-5 py-3 h-12 gap-3.5",
+                "3xl": "text-3xl px-6 py-4 h-14 gap-4",
             },
         },
         defaultVariants: {
@@ -35,12 +37,25 @@ const timerVariants = cva(
     }
 )
 
+// Map timer size to icon size for consistency
+const timerIconSizeMap: Record<string, string> = {
+    sm: "w-3 h-3",
+    md: "w-3.5 h-3.5",
+    lg: "w-4 h-4",
+    xl: "w-5 h-5",
+    "2xl": "w-6 h-6",
+    "3xl": "w-7 h-7",
+}
+
 const timerIconVariants = cva("transition-transform duration-[2000ms]", {
     variants: {
         size: {
-            sm: "w-3 h-3",
-            md: "w-3.5 h-3.5",
-            lg: "w-4 h-4",
+            sm: timerIconSizeMap.sm,
+            md: timerIconSizeMap.md,
+            lg: timerIconSizeMap.lg,
+            xl: timerIconSizeMap.xl,
+            "2xl": timerIconSizeMap["2xl"],
+            "3xl": timerIconSizeMap["3xl"],
         },
         loading: {
             true: "animate-spin",
@@ -53,12 +68,25 @@ const timerIconVariants = cva("transition-transform duration-[2000ms]", {
     },
 })
 
+// Map timer size to display text size for consistency
+const timerDisplaySizeMap: Record<string, string> = {
+    sm: "text-xs",
+    md: "text-sm",
+    lg: "text-base",
+    xl: "text-lg",
+    "2xl": "text-xl",
+    "3xl": "text-2xl",
+}
+
 const timerDisplayVariants = cva("font-mono tabular-nums tracking-tight", {
     variants: {
         size: {
-            sm: "text-xs",
-            md: "text-sm",
-            lg: "text-base",
+            sm: timerDisplaySizeMap.sm,
+            md: timerDisplaySizeMap.md,
+            lg: timerDisplaySizeMap.lg,
+            xl: timerDisplaySizeMap.xl,
+            "2xl": timerDisplaySizeMap["2xl"],
+            "3xl": timerDisplaySizeMap["3xl"],
         },
     },
     defaultVariants: {
