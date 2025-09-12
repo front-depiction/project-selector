@@ -63,6 +63,8 @@ import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import DockLayout from "@/components/layouts/DockLayout"
 import TopicAnalyticsCard from "@/components/analytics/TopicAnalyticsCard"
 import { MultiSelector } from "@/components/ui/multi-select"
+import { AssignNowButton } from "@/components/admin/AssignNowButton"
+import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 
 type SubtopicForm = {
   title: string
@@ -180,7 +182,7 @@ export default function AdminDashboard() {
       await createSubtopic({
         ...subtopicForm
       })
-      
+
       toast.success("Subtopic created successfully")
       setIsSubtopicDialogOpen(false)
       setSubtopicForm({ title: "", description: "" })
@@ -249,7 +251,7 @@ export default function AdminDashboard() {
                 <p className="text-muted-foreground">Detailed insights into topic popularity and performance</p>
               </div>
             </div>
-            
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {topicAnalytics?.map((topic) => (
                 <TopicAnalyticsCard
@@ -293,8 +295,8 @@ export default function AdminDashboard() {
                     const selectionCount = preferences?.filter(p =>
                       p.topicOrder.includes(topic._id)
                     ).length || 0
-                    
-                    const topicSubtopics = topic.subtopicIds?.map(id => 
+
+                    const topicSubtopics = topic.subtopicIds?.map(id =>
                       subtopics?.find(s => s._id === id)
                     ).filter(Boolean) || []
 
@@ -371,7 +373,7 @@ export default function AdminDashboard() {
                 <TableBody>
                   {subtopics?.map((subtopic) => {
                     // Find which topics use this subtopic
-                    const associatedTopics = topics?.filter(t => 
+                    const associatedTopics = topics?.filter(t =>
                       t.subtopicIds?.includes(subtopic._id)
                     ) || []
                     return (
@@ -416,33 +418,66 @@ export default function AdminDashboard() {
 
       case "period":
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Selection Period Settings</CardTitle>
-              <CardDescription>Configure when students can select topics</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {currentPeriod && (
-                <div className="p-4 border rounded-lg space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">Current Period</span>
-                    <Badge className={currentPeriod.isActive ? "bg-green-500" : "bg-gray-500"}>
-                      {currentPeriod.isActive ? "Active" : "Inactive"}
-                    </Badge>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Selection Period Settings</CardTitle>
+                <CardDescription>Configure when students can select topics</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {currentPeriod && (
+                  <div className="p-4 border rounded-lg space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Current Period</span>
+                      <div className="flex items-center gap-2">
+                        <Badge className={
+                          currentPeriod.status === "assigned" ? "bg-blue-500" :
+                            currentPeriod.isActive ? "bg-green-500" : "bg-gray-500"
+                        }>
+                          {currentPeriod.status === "assigned" ? "Assigned" :
+                            currentPeriod.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <p>Semester: {currentPeriod.semesterId}</p>
+                      <p>Opens: {format(new Date(currentPeriod.openDate), "PPP")}</p>
+                      <p>Closes: {format(new Date(currentPeriod.closeDate), "PPP")}</p>
+                    </div>
+                    {currentPeriod.isActive && currentPeriod.status !== "assigned" && (
+                      <div className="flex gap-2 pt-2">
+                        <AssignNowButton
+                          periodId={currentPeriod._id}
+                          status={currentPeriod.status}
+                        />
+                        <Button onClick={() => setIsPeriodDialogOpen(true)} variant="outline">
+                          Update Period
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    <p>Semester: {currentPeriod.semesterId}</p>
-                    <p>Opens: {format(new Date(currentPeriod.openDate), "PPP")}</p>
-                    <p>Closes: {format(new Date(currentPeriod.closeDate), "PPP")}</p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              <Button onClick={() => setIsPeriodDialogOpen(true)} className="w-full">
-                {currentPeriod ? "Update" : "Create"} Selection Period
-              </Button>
-            </CardContent>
-          </Card>
+                {!currentPeriod && (
+                  <Button onClick={() => setIsPeriodDialogOpen(true)} className="w-full">
+                    Create Selection Period
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            {currentPeriod?.status === "assigned" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assignment Results</CardTitle>
+                  <CardDescription>Students have been assigned to topics</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AssignmentDisplay periodId={currentPeriod._id} />
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )
 
       case "students":
@@ -662,7 +697,7 @@ export default function AdminDashboard() {
                   {editingTopic ? "Update the topic details and associated subtopics" : "Add a new project topic with optional subtopics"}
                 </DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="title">Title</Label>
@@ -673,7 +708,7 @@ export default function AdminDashboard() {
                     placeholder="Enter topic title"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="description">Description</Label>
                   <Textarea
@@ -720,7 +755,7 @@ export default function AdminDashboard() {
                   Add a new subtopic that can be associated with main topics
                 </DialogDescription>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="subtopic-title">Title</Label>
@@ -731,7 +766,7 @@ export default function AdminDashboard() {
                     placeholder="Enter subtopic title"
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="subtopic-description">Description</Label>
                   <Textarea
@@ -818,7 +853,7 @@ export default function AdminDashboard() {
                   {detailedAnalytics?.topic.title}
                 </DialogDescription>
               </DialogHeader>
-              
+
               {detailedAnalytics && (
                 <div className="space-y-6">
                   <Card>

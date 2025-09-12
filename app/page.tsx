@@ -22,11 +22,15 @@ import {
   BarChart3
 } from "lucide-react"
 import Link from "next/link"
-import { formatDistanceToNow, format } from "date-fns"
+import { motion } from "framer-motion"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
 import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
+import { AssignmentDisplay } from "@/components/AssignmentDisplay"
+import { getStudentId } from "@/lib/student"
+import { cn } from "@/lib/utils"
 import React from "react"
+import { Id } from "@/convex/_generated/dataModel"
 
 // Pure function to get status color
 const getStatusColor = (status: string): string => {
@@ -34,6 +38,7 @@ const getStatusColor = (status: string): string => {
     case "open": return "bg-green-500"
     case "upcoming": return "bg-blue-500"
     case "closed": return "bg-red-500"
+    case "assigned": return "bg-purple-500"
     default: return "bg-gray-500"
   }
 }
@@ -44,6 +49,7 @@ const getStatusIcon = (status: string) => {
     case "open": return <CheckCircle className="h-4 w-4" />
     case "upcoming": return <Clock className="h-4 w-4" />
     case "closed": return <XCircle className="h-4 w-4" />
+    case "assigned": return <Users className="h-4 w-4" />
     default: return <AlertCircle className="h-4 w-4" />
   }
 }
@@ -54,6 +60,7 @@ const getStatusText = (status: string): string => {
     case "open": return "Selection Open"
     case "upcoming": return "Opening Soon"
     case "closed": return "Selection Closed"
+    case "assigned": return "Topics Assigned"
     default: return "No Active Period"
   }
 }
@@ -97,25 +104,33 @@ function StatusBanner({ stats }: { stats: any }) {
   const target = isOpen ? stats.closeDate : null
   const { formatted } = useCountdown(target ?? null)
 
-  if (!stats.isActive) return null
+  // Don't show banner if no active period or if assigned
+  if (!stats.isActive || stats.periodStatus === "assigned") return null
 
   return (
     <div className="mb-8">
       <div className="flex flex-col md:flex-row items-center justify-center gap-6">
         {/* Left: Title + status */}
         <div className="flex items-center gap-3">
-          <span>{getStatusIcon("open")}</span>
+          <span>{getStatusIcon(stats.periodStatus)}</span>
           <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
-          <span className={getStatusColor("open") + " px-2 py-1 rounded text-sm font-semibold"}>OPEN</span>
+          <Badge className={cn(
+            "px-2 py-1 text-sm font-semibold",
+            getStatusColor(stats.periodStatus)
+          )}>
+            {getStatusText(stats.periodStatus).toUpperCase()}
+          </Badge>
         </div>
 
-        {/* Right: Timer only */}
-        <div className="flex flex-col items-center md:items-start gap-2">
-          <TimerRoot size="2xl" variant="outline" loading>
-            <TimerIcon size="2xl" loading className="text-muted-foreground" />
-            <TimerDisplay size="2xl" time={formatted} />
-          </TimerRoot>
-        </div>
+        {/* Right: Timer only for open periods */}
+        {isOpen && (
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <TimerRoot size="2xl" variant="outline" loading>
+              <TimerIcon size="2xl" loading className="text-muted-foreground" />
+              <TimerDisplay size="2xl" time={formatted} />
+            </TimerRoot>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -161,7 +176,11 @@ function ActionButtons() {
   )
 }
 
-function Statistics({ stats, progressPercentage }: { stats: any, progressPercentage: number }) {
+function Statistics({ stats }: { stats: any }) {
+  const progressPercentage = stats.totalTopics > 0
+    ? Math.min(100, Math.round((stats.totalSelections / (stats.totalTopics * 5)) * 100))
+    : 0
+
   return (
     <div className="grid md:grid-cols-3 gap-4 mb-8">
       <Card>
@@ -224,26 +243,69 @@ function AnalyticsCharts({ competitionData }: { competitionData: any }) {
   )
 }
 
-export default function LandingPage() {
-  const stats = useQuery(api.stats.getLandingStats)
-  const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
-  // overallTrends is unused in this file, so omitting for clarity
+// Component for showing a student's personal assignment
+function PersonalAssignmentView({ assignment }: { assignment: any }) {
+  // assignment is the full response from getMyAssignment which includes assignment.topic
+  const topic = assignment.topic
 
-  if (!stats) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse space-y-4">
-          <div className="h-12 w-48 bg-gray-200 rounded"></div>
-          <div className="h-4 w-32 bg-gray-200 rounded"></div>
+  if (!topic) return null
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+      <div className="text-center px-4">
+        <h1 className="text-4xl font-bold tracking-tight mb-4">
+          Project Topic Selection System
+        </h1>
+        <p className="text-xl text-muted-foreground mb-8">
+          You have been assigned to:
+        </p>
+        <h2 className="text-3xl font-bold text-primary">
+          {topic.title}
+        </h2>
+      </div>
+    </div>
+  )
+}
+
+// Component for showing all assignments when no student ID
+function AllAssignmentsView({ periodId, studentId }: { periodId: Id<"selectionPeriods">, studentId?: string | null }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <div className="container mx-auto py-12 px-4">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            Project Topic Selection System
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            Topics have been assigned to all students
+          </p>
+        </div>
+
+        {/* Assignment Display */}
+        <Card className="border-primary/50 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-2xl">Assignment Results</CardTitle>
+            <CardDescription>
+              {studentId ? studentId + " Loading your assignment..." : "Enter your student ID to view your assignment"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AssignmentDisplay periodId={periodId} studentId={studentId || undefined} />
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <div className="mt-12 text-center text-sm text-muted-foreground">
+          <p>University Project Topic Selection System</p>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
+}
 
-  const progressPercentage = stats.totalTopics > 0
-    ? (stats.totalStudents / (stats.totalTopics * 5)) * 100
-    : 0
-
+// Component for active selection period
+function SelectionView({ stats, competitionData }: { stats: any, competitionData: any }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="container mx-auto py-12 px-4">
@@ -265,13 +327,11 @@ export default function LandingPage() {
         <ActionButtons />
 
         {/* Statistics */}
-        {stats.isActive && (
-          <>
-            <Separator className="my-8" />
-            <Statistics stats={stats} progressPercentage={progressPercentage} />
-            <AnalyticsCharts competitionData={competitionData} />
-          </>
-        )}
+        <Separator className="my-8" />
+        <Statistics stats={stats} />
+
+        {/* Analytics Charts */}
+        <AnalyticsCharts competitionData={competitionData} />
 
         {/* Footer */}
         <div className="mt-12 text-center text-sm text-muted-foreground">
@@ -284,3 +344,144 @@ export default function LandingPage() {
     </div>
   )
 }
+
+// Component for inactive/no period
+function InactivePeriodView() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      <div className="container mx-auto py-12 px-4">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">
+            Project Topic Selection System
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            No active selection period at this time
+          </p>
+        </div>
+
+        {/* Info Card */}
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <AlertCircle className="h-6 w-6" />
+              No Active Selection Period
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              There is currently no active project selection period. Please check back later
+              or contact your administrator for more information about upcoming selection periods.
+            </p>
+
+            <Separator />
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <Link href="/student">
+                <Button className="w-full" variant="outline">
+                  <Users className="mr-2 h-4 w-4" />
+                  Student Portal
+                </Button>
+              </Link>
+              <Link href="/admin">
+                <Button className="w-full" variant="outline">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Admin Portal
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Footer */}
+        <div className="mt-12 text-center text-sm text-muted-foreground">
+          <p>University Project Topic Selection System</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function LandingPage() {
+  const stats = useQuery(api.stats.getLandingStats)
+  const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
+  const currentPeriod = useQuery(api.admin.getCurrentPeriod)
+  const [studentId, setStudentId] = React.useState<string | null>(null)
+
+  // Get student ID from localStorage
+  React.useEffect(() => {
+    const id = getStudentId()
+    setStudentId(id)
+  }, [])
+
+  // Get student's assignment if period is assigned
+  const myAssignment = useQuery(
+    api.assignments.getMyAssignment,
+    currentPeriod?.status === "assigned" && studentId
+      ? { periodId: currentPeriod._id, studentId }
+      : "skip"
+  )
+
+  // Loading state
+  if (!stats || !currentPeriod) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse space-y-4">
+          <div className="h-12 w-48 bg-gray-200 rounded"></div>
+          <div className="h-4 w-32 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
+  }
+
+  // Simple switch based on period status
+  switch (currentPeriod.status) {
+    case "assigned":
+      // If we have a student ID, ALWAYS show simple view (loading or assignment)
+      if (studentId) {
+        // Check if assignment query is still loading (undefined means loading, null means not found)
+        if (myAssignment === undefined) {
+          return (
+            <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+              <div className="text-center px-4">
+                <h1 className="text-4xl font-bold tracking-tight mb-4">
+                  Hey {studentId}
+                </h1>
+                <p className="text-xl text-muted-foreground animate-pulse">
+                  Loading your assignment...
+                </p>
+              </div>
+            </div>
+          )
+        }
+        // If assignment found, show it
+        if (myAssignment) {
+          return <PersonalAssignmentView assignment={myAssignment} />
+        }
+        // If no assignment found for this student, show error message
+        return (
+          <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+            <div className="text-center px-4">
+              <h1 className="text-4xl font-bold tracking-tight mb-4">
+                Hey {studentId}
+              </h1>
+              <p className="text-xl text-muted-foreground">
+                No assignment found for your student ID
+              </p>
+            </div>
+          </div>
+        )
+      }
+      // Show all assignments only when NO student ID
+      return <AllAssignmentsView periodId={currentPeriod._id} studentId={studentId} />
+
+    case "open":
+      // Show the normal selection interface
+      return <SelectionView stats={stats} competitionData={competitionData} />
+
+    default:
+      // No active period
+      return <InactivePeriodView />
+  }
+}
+
