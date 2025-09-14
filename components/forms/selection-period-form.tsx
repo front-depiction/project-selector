@@ -40,8 +40,8 @@ import {
 } from "@/components/ui/switch"
 
 const formSchema = z.object({
-    title: z.string().min(1).min(3),
-    selection_period_id: z.string().min(1),
+    title: z.string().min(3, "Title must be at least 3 characters"),
+    selection_period_id: z.string().min(1, "Selection period ID is required"),
     start_deadline: z.date(),
     end_deadline: z.date(),
     isActive: z.boolean()
@@ -182,8 +182,6 @@ export default function SelectionPeriodForm({
                                 <Switch
                                     checked={field.value}
                                     onCheckedChange={field.onChange}
-                                    disabled
-                                    aria-readonly
                                 />
                             </FormControl>
                         </FormItem>

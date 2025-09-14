@@ -20,6 +20,7 @@ import type * as schemas_RankingEvent from "../schemas/RankingEvent.js";
 import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
 import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
+import type * as selectionPeriods from "../selectionPeriods.js";
 import type * as stats from "../stats.js";
 import type * as subtopics from "../subtopics.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   "schemas/SelectionPeriod": typeof schemas_SelectionPeriod;
   "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/Topic": typeof schemas_Topic;
+  selectionPeriods: typeof selectionPeriods;
   stats: typeof stats;
   subtopics: typeof subtopics;
   topicAnalytics: typeof topicAnalytics;
