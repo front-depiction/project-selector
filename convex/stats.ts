@@ -11,10 +11,24 @@ export const getLandingStats = query({
   args: {},
   handler: async (ctx) => {
     // Get active selection period
-    const activePeriod = await ctx.db
+    let activePeriod = await ctx.db
       .query("selectionPeriods")
       .withIndex("by_active", q => q.eq("isActive", true))
       .first()
+
+    // If no active period, check for recently assigned periods
+    if (!activePeriod) {
+      const allPeriods = await ctx.db
+        .query("selectionPeriods")
+        .collect()
+      
+      // Find the most recent assigned period
+      const assignedPeriods = allPeriods
+        .filter(p => p.status === "assigned")
+        .sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))
+      
+      activePeriod = assignedPeriods[0]
+    }
 
     if (!activePeriod) {
       return {
@@ -25,7 +39,8 @@ export const getLandingStats = query({
         totalStudents: 0,
         averageSelectionsPerStudent: 0,
         mostPopularTopics: [],
-        leastPopularTopics: []
+        leastPopularTopics: [],
+        totalSelections: 0
       }
     }
 

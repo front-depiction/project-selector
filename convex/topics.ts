@@ -161,3 +161,18 @@ export const getAllTopics = query({
     return await ctx.db.query("topics").collect()
   }
 })
+
+/**
+ * Gets a single topic by ID.
+ * 
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getTopic = query({
+  args: {
+    id: v.id("topics")
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id)
+  }
+})
