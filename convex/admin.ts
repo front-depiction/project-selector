@@ -1,10 +1,10 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
-import { internal } from "./_generated/api"
+import { api, internal } from "./_generated/api"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as Preference from "./schemas/Preference"
-import { api } from "./_generated/api"
+import * as RankingEvent from "./schemas/RankingEvent"
 
 /**
  * Seeds test data for development.
@@ -97,16 +97,37 @@ export const seedTestData = mutation({
     )
 
     const numOfStudents = 60
-    for (let i = 1; i <= numOfStudents; i++) {
-      const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
-      
-      const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
+    await Promise.all(
+      Array.from({ length: numOfStudents }, () => {
+        const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
+        const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
 
-      await ctx.runMutation(api.preferences.savePreferences, {
-        studentId,
-        topicOrder: shuffledTopicIds
-      })
-    }
+        const preference = Preference.make({studentId, semesterId, topicOrder: shuffledTopicIds})
+
+        // Track ranking events for analytics
+        const rankings = shuffledTopicIds.map((topicId, index) => ({
+          topicId: topicId,
+          position: index + 1 // 1-based positioning
+        }))
+        const rankingEvents = rankings.map(newRank => 
+          RankingEvent.make({
+            topicId: newRank.topicId as string,
+            studentId: studentId,
+            position: newRank.position,
+            action: "added",
+            semesterId: semesterId,
+          })
+        )
+        rankingEvents.map(event => ctx.db.insert("rankingEvents", event))
+
+        // Update rankings aggregate
+        ctx.runMutation(api.rankings.updateRankingsAggregate, {
+          studentId,
+          newRankings: rankings
+        })
+
+        return ctx.db.insert("preferences", preference)
+      }))
 
     return { success: true, message: "Test data created successfully" }
   }
