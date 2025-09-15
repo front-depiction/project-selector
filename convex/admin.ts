@@ -2,6 +2,8 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import * as Preference from "./schemas/Preference"
+import { api } from "./_generated/api"
 
 /**
  * Seeds test data for development.
@@ -73,7 +75,7 @@ export const seedTestData = mutation({
       }
     ]
 
-    await Promise.all(
+    const topicIds = await Promise.all(
       topicData.map(data => {
         const topic = Topic.make({
           ...data,
@@ -83,6 +85,18 @@ export const seedTestData = mutation({
         return ctx.db.insert("topics", topic)
       })
     )
+
+    const numOfStudents = 60
+    for (let i = 1; i <= numOfStudents; i++) {
+      const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
+      
+      const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
+
+      await ctx.runMutation(api.preferences.savePreferences, {
+        studentId,
+        topicOrder: shuffledTopicIds
+      })
+    }
 
     return { success: true, message: "Test data created successfully" }
   }
