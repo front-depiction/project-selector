@@ -1,10 +1,10 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
-import { api, internal } from "./_generated/api"
+import { internal } from "./_generated/api"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as Preference from "./schemas/Preference"
-import * as RankingEvent from "./schemas/RankingEvent"
+import { getActiveSelectionPeriod, createRankingEventsAndUpdateAggregate } from "./lib/common"
 
 /**
  * Seeds test data for development.
@@ -97,37 +97,25 @@ export const seedTestData = mutation({
     )
 
     const numOfStudents = 60
+    const students = Array.from({ length: numOfStudents }, () => {
+      const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
+      const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
+      return {id: studentId, topics: shuffledTopicIds}
+    })
+
     await Promise.all(
-      Array.from({ length: numOfStudents }, () => {
-        const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
-        const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
-
-        const preference = Preference.make({studentId, semesterId, topicOrder: shuffledTopicIds})
-
-        // Track ranking events for analytics
-        const rankings = shuffledTopicIds.map((topicId, index) => ({
-          topicId: topicId,
-          position: index + 1 // 1-based positioning
-        }))
-        const rankingEvents = rankings.map(newRank => 
-          RankingEvent.make({
-            topicId: newRank.topicId as string,
-            studentId: studentId,
-            position: newRank.position,
-            action: "added",
-            semesterId: semesterId,
-          })
+      students.map(student =>
+        ctx.db.insert(
+          "preferences",
+          Preference.make({ studentId: student.id, semesterId, topicOrder: student.topics })
         )
-        rankingEvents.map(event => ctx.db.insert("rankingEvents", event))
-
-        // Update rankings aggregate
-        ctx.runMutation(api.rankings.updateRankingsAggregate, {
-          studentId,
-          newRankings: rankings
-        })
-
-        return ctx.db.insert("preferences", preference)
-      }))
+      )
+    )
+    await Promise.all(
+      students.map(({ id: studentId, topics: topicOrder }) =>
+        createRankingEventsAndUpdateAggregate(
+          ctx, { studentId, semesterId, topicOrder })
+    ))
 
     return { success: true, message: "Test data created successfully" }
   }
@@ -335,10 +323,7 @@ export const getCurrentPeriod = query({
   args: {},
   handler: async (ctx) => {
     // First try to get any active period
-    const activePeriod = await ctx.db
-      .query("selectionPeriods")
-      .withIndex("by_active", q => q.eq("isActive", true))
-      .first()
+    const activePeriod = await getActiveSelectionPeriod(ctx)
     
     if (activePeriod) return activePeriod
     

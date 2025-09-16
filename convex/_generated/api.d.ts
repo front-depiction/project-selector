@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as assignments from "../assignments.js";
+import type * as lib_common from "../lib/common.js";
 import type * as lib_congestion from "../lib/congestion.js";
 import type * as preferences from "../preferences.js";
 import type * as rankings from "../rankings.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
   assignments: typeof assignments;
+  "lib/common": typeof lib_common;
   "lib/congestion": typeof lib_congestion;
   preferences: typeof preferences;
   rankings: typeof rankings;
