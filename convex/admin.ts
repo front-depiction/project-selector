@@ -3,6 +3,8 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import * as Preference from "./schemas/Preference"
+import { getActiveSelectionPeriod, createRankingEventsAndUpdateAggregate } from "./lib/common"
 
 /**
  * Seeds test data for development.
@@ -83,7 +85,7 @@ export const seedTestData = mutation({
       }
     ]
 
-    await Promise.all(
+    const topicIds = await Promise.all(
       topicData.map(data => {
         const topic = Topic.make({
           ...data,
@@ -93,6 +95,27 @@ export const seedTestData = mutation({
         return ctx.db.insert("topics", topic)
       })
     )
+
+    const numOfStudents = 60
+    const students = Array.from({ length: numOfStudents }, () => {
+      const shuffledTopicIds = [...topicIds].sort(() => Math.random() - 0.5)
+      const studentId = `${Math.round(Math.random()*8999999) + 1000000}`
+      return {id: studentId, topics: shuffledTopicIds}
+    })
+
+    await Promise.all(
+      students.map(student =>
+        ctx.db.insert(
+          "preferences",
+          Preference.make({ studentId: student.id, semesterId, topicOrder: student.topics })
+        )
+      )
+    )
+    await Promise.all(
+      students.map(({ id: studentId, topics: topicOrder }) =>
+        createRankingEventsAndUpdateAggregate(
+          ctx, { studentId, semesterId, topicOrder })
+    ))
 
     return { success: true, message: "Test data created successfully" }
   }
@@ -300,10 +323,7 @@ export const getCurrentPeriod = query({
   args: {},
   handler: async (ctx) => {
     // First try to get any active period
-    const activePeriod = await ctx.db
-      .query("selectionPeriods")
-      .withIndex("by_active", q => q.eq("isActive", true))
-      .first()
+    const activePeriod = await getActiveSelectionPeriod(ctx)
     
     if (activePeriod) return activePeriod
     
