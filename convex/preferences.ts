@@ -2,7 +2,8 @@ import { query, mutation } from "./_generated/server"
 import { v } from "convex/values"
 import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
-import { getActiveSelectionPeriod, createRankingEventsAndUpdateAggregate } from "./lib/common"
+import { getActiveSelectionPeriod } from "./share/selection_periods"
+import { createRankingEventsAndUpdateAggregate } from "./share/rankings"
 
 /**
  * Saves or updates student preferences.

@@ -3,7 +3,7 @@ import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { updateRankingsAggregateUtil } from "./lib/common";
+import { updateRankingsAggregateUtil } from "./share/rankings";
 
 // Direct aggregate for rankings (not tied to a table)
 // Namespace by topicId, sort by position

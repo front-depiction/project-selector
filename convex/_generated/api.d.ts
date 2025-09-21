@@ -11,7 +11,6 @@
 import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as assignments from "../assignments.js";
-import type * as lib_common from "../lib/common.js";
 import type * as lib_congestion from "../lib/congestion.js";
 import type * as preferences from "../preferences.js";
 import type * as rankings from "../rankings.js";
@@ -22,6 +21,8 @@ import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
 import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
 import type * as selectionPeriods from "../selectionPeriods.js";
+import type * as share_rankings_index from "../share/rankings/index.js";
+import type * as share_selection_periods_index from "../share/selection_periods/index.js";
 import type * as stats from "../stats.js";
 import type * as subtopics from "../subtopics.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
@@ -45,7 +46,6 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
   assignments: typeof assignments;
-  "lib/common": typeof lib_common;
   "lib/congestion": typeof lib_congestion;
   preferences: typeof preferences;
   rankings: typeof rankings;
@@ -56,6 +56,8 @@ declare const fullApi: ApiFromModules<{
   "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/Topic": typeof schemas_Topic;
   selectionPeriods: typeof selectionPeriods;
+  "share/rankings/index": typeof share_rankings_index;
+  "share/selection_periods/index": typeof share_selection_periods_index;
   stats: typeof stats;
   subtopics: typeof subtopics;
   topicAnalytics: typeof topicAnalytics;

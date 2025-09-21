@@ -4,7 +4,8 @@ import { internal } from "./_generated/api"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as Preference from "./schemas/Preference"
-import { getActiveSelectionPeriod, createRankingEventsAndUpdateAggregate } from "./lib/common"
+import { getActiveSelectionPeriod } from "./share/selection_periods"
+import { createRankingEventsAndUpdateAggregate } from "./share/rankings"
 
 /**
  * Seeds test data for development.
@@ -103,19 +104,22 @@ export const seedTestData = mutation({
       return {id: studentId, topics: shuffledTopicIds}
     })
 
-    await Promise.all(
+    const prefPromise = Promise.all(
       students.map(student =>
         ctx.db.insert(
           "preferences",
           Preference.make({ studentId: student.id, semesterId, topicOrder: student.topics })
         )
       )
-    )
-    await Promise.all(
+    );
+
+    const rankingPromise = Promise.all(
       students.map(({ id: studentId, topics: topicOrder }) =>
-        createRankingEventsAndUpdateAggregate(
-          ctx, { studentId, semesterId, topicOrder })
-    ))
+        createRankingEventsAndUpdateAggregate(ctx, { studentId, semesterId, topicOrder })
+      )
+    );
+
+    await Promise.all([prefPromise, rankingPromise]);
 
     return { success: true, message: "Test data created successfully" }
   }
