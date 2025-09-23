@@ -4,6 +4,7 @@ import * as React from "react"
 import * as LP from "./LandingPage"
 import { Separator } from "@/components/ui/separator"
 import { Id } from "@/convex/_generated/dataModel"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 
 // ============================================================================
 // COMPOSED VIEWS - Built from atomic components
@@ -80,27 +81,28 @@ export const LandingPageContent: React.FC = () => {
     return <InactivePeriodView />
   }
 
-  // Handle assigned period
-  if (currentPeriod.status === "assigned" && !studentId) {
-    return <AllAssignmentsView periodId={currentPeriod._id} />
-  }
-  if (currentPeriod.status === "assigned" && studentId && myAssignment === undefined) {
-    return <LP.LoadingAssignment studentId={studentId} />
-  }
-  if (currentPeriod.status === "assigned" && studentId && myAssignment) {
-    return <PersonalAssignmentView />
-  }
-  if (currentPeriod.status === "assigned" && studentId && !myAssignment) {
-    return <LP.NoAssignmentFound studentId={studentId} />
-  }
+  // Use pattern matching for different period states
+  return SelectionPeriod.match(currentPeriod)({
+    inactive: () => <InactivePeriodView />,
 
-  // Handle open period
-  if (currentPeriod.status === "open") {
-    return <SelectionView />
-  }
+    open: () => <SelectionView />,
 
-  // Default: no active period
-  return <InactivePeriodView />
+    closed: () => <InactivePeriodView />,
+
+    assigned: (period) => {
+      if (!studentId)
+        return <AllAssignmentsView periodId={period._id} />
+
+      switch (myAssignment) {
+        case undefined:
+          return <LP.LoadingAssignment studentId={studentId} />
+        case null:
+          return <LP.NoAssignmentFound studentId={studentId} />
+        default:
+          return <PersonalAssignmentView />
+      }
+    }
+  })
 }
 
 // ============================================================================

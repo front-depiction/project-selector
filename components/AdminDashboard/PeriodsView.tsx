@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,7 +22,7 @@ import SelectionPeriodForm, { SelectionPeriodFormValues } from "@/components/for
 export const PeriodsView: React.FC = () => {
   const { currentPeriod, createPeriod, updatePeriod, assignments } = AD.useDashboard()
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
-  const [editingPeriod, setEditingPeriod] = React.useState<AD.SelectionPeriod | null>(null)
+  const [editingPeriod, setEditingPeriod] = React.useState<AD.Period | null>(null)
 
   const handleCreatePeriod = async (values: SelectionPeriodFormValues) => {
     await createPeriod({
@@ -50,7 +51,7 @@ export const PeriodsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Assignment Results - Clean data table format */}
-      {currentPeriod?.status === "assigned" && assignments && assignments.length > 0 && (
+      {currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && assignments && assignments.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Assignment Results</CardTitle>
@@ -75,7 +76,7 @@ export const PeriodsView: React.FC = () => {
       </div>
 
       {/* Selection Periods Table - Clean table format */}
-      <AD.PeriodsTable />
+      <AD.PeriodsTable onEdit={setEditingPeriod} />
 
       {/* Create Dialog */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

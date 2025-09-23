@@ -32,32 +32,47 @@ export const createPeriod = mutation({
     if (args.setAsActive) {
       const allPeriods = await ctx.db.query("selectionPeriods").collect()
       await Promise.all(
-        allPeriods.map(period => 
-          ctx.db.patch(period._id, { isActive: false })
-        )
+        allPeriods.map(async period => {
+          // Close any open periods
+          if (SelectionPeriod.isOpen(period)) {
+            await ctx.db.replace(period._id, SelectionPeriod.close(period))
+          }
+        })
       )
     }
 
-    // Create the period
-    const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeOpen({
+    // Create the period as inactive first
+    const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeInactive({
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
       openDate: args.openDate,
-      closeDate: args.closeDate,
-      isActive: args.setAsActive || false
+      closeDate: args.closeDate
     }))
 
     // Schedule automatic assignment at close date if in the future
+    let scheduledId: Id<"_scheduled_functions"> | undefined
     if (args.closeDate > now) {
-      const scheduledId = await ctx.scheduler.runAt(
+      scheduledId = await ctx.scheduler.runAt(
         args.closeDate,
         internal.assignments.assignPeriod,
         { periodId }
       )
-      
-      await ctx.db.patch(periodId, { scheduledFunctionId: scheduledId })
     }
+
+    // Update to open state if requested and we have a scheduled function
+    if (scheduledId && args.setAsActive) {
+      const finalPeriod = SelectionPeriod.makeOpen({
+        semesterId: args.semesterId,
+        title: args.title,
+        description: args.description,
+        openDate: args.openDate,
+        closeDate: args.closeDate,
+        scheduledFunctionId: scheduledId
+      })
+      await ctx.db.replace(periodId, finalPeriod)
+    }
+    // Otherwise leave as inactive (already created above)
 
     return { success: true, periodId }
   }
@@ -84,25 +99,23 @@ export const updatePeriod = mutation({
     }
 
     // Don't allow updating if already assigned
-    if (existing.status === "assigned") {
+    if (SelectionPeriod.isAssigned(existing)) {
       throw new Error("Cannot update a period that has already been assigned")
     }
 
-    const updates: Partial<typeof existing> = {}
-    
-    if (args.title !== undefined) updates.title = args.title
-    if (args.description !== undefined) updates.description = args.description
-    if (args.openDate !== undefined) updates.openDate = args.openDate
-    
+    // Build updated values
+    const title = args.title ?? existing.title
+    const description = args.description ?? existing.description
+    const openDate = args.openDate ?? existing.openDate
+    const closeDate = args.closeDate ?? existing.closeDate
+
     // Handle close date changes
     if (args.closeDate !== undefined && args.closeDate !== existing.closeDate) {
-      updates.closeDate = args.closeDate
-      
       // Cancel old scheduled function
-      if (existing.scheduledFunctionId) {
+      if (SelectionPeriod.hasScheduledFunction(existing)) {
         await ctx.scheduler.cancel(existing.scheduledFunctionId)
       }
-      
+
       // Create new scheduled function if close date is in the future
       const now = Date.now()
       if (args.closeDate > now) {
@@ -111,11 +124,56 @@ export const updatePeriod = mutation({
           internal.assignments.assignPeriod,
           { periodId: args.periodId }
         )
-        updates.scheduledFunctionId = scheduledId
-      }
-    }
 
-    await ctx.db.patch(args.periodId, updates)
+        // Update as open period with new scheduled function
+        await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
+          semesterId: existing.semesterId,
+          title,
+          description,
+          openDate,
+          closeDate,
+          scheduledFunctionId: scheduledId
+        }))
+      } else {
+        // Update as closed period if past close date
+        await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
+          semesterId: existing.semesterId,
+          title,
+          description,
+          openDate,
+          closeDate
+        }))
+      }
+    } else {
+      // Just update fields without changing scheduled function
+      if (SelectionPeriod.isOpen(existing)) {
+        await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
+          semesterId: existing.semesterId,
+          title,
+          description,
+          openDate,
+          closeDate,
+          scheduledFunctionId: existing.scheduledFunctionId
+        }))
+      } else if (SelectionPeriod.isClosed(existing)) {
+        await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
+          semesterId: existing.semesterId,
+          title,
+          description,
+          openDate,
+          closeDate
+        }))
+      } else if (SelectionPeriod.isInactive(existing)) {
+        await ctx.db.replace(args.periodId, SelectionPeriod.makeInactive({
+          semesterId: existing.semesterId,
+          title,
+          description,
+          openDate,
+          closeDate
+        }))
+      }
+      // Don't update if assigned
+    }
     return { success: true }
   }
 })
@@ -137,7 +195,7 @@ export const deletePeriod = mutation({
     }
 
     // Don't allow deleting if already assigned
-    if (period.status === "assigned") {
+    if (SelectionPeriod.isAssigned(period)) {
       throw new Error("Cannot delete a period that has already been assigned")
     }
 
@@ -152,7 +210,7 @@ export const deletePeriod = mutation({
     }
 
     // Cancel scheduled function if exists
-    if (period.scheduledFunctionId) {
+    if (SelectionPeriod.hasScheduledFunction(period)) {
       await ctx.scheduler.cancel(period.scheduledFunctionId)
     }
 
@@ -177,12 +235,27 @@ export const setActivePeriod = mutation({
       throw new Error("Period not found")
     }
 
-    // Deactivate all periods
+    // First close all open periods
     const allPeriods = await ctx.db.query("selectionPeriods").collect()
     await Promise.all(
-      allPeriods.map(p => 
-        ctx.db.patch(p._id, { isActive: p._id === args.periodId })
-      )
+      allPeriods.map(async p => {
+        if (p._id === args.periodId) {
+          // Open the selected period if it has a scheduled function and isn't assigned
+          if (SelectionPeriod.hasScheduledFunction(p) && !SelectionPeriod.isAssigned(p)) {
+            await ctx.db.replace(p._id, SelectionPeriod.makeOpen({
+              semesterId: p.semesterId,
+              title: p.title,
+              description: p.description,
+              openDate: p.openDate,
+              closeDate: p.closeDate,
+              scheduledFunctionId: p.scheduledFunctionId
+            }))
+          }
+        } else if (SelectionPeriod.isOpen(p)) {
+          // Close other open periods
+          await ctx.db.replace(p._id, SelectionPeriod.close(p))
+        }
+      })
     )
 
     return { success: true }
@@ -211,7 +284,7 @@ export const getAllPeriodsWithStats = query({
         
         // Count assignments if assigned
         let assignmentCount = 0
-        if (period.status === "assigned") {
+        if (SelectionPeriod.isAssigned(period)) {
           const assignments = await ctx.db
             .query("assignments")
             .withIndex("by_period", q => q.eq("periodId", period._id))

@@ -1,8 +1,9 @@
 import { DirectAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { updateRankingsAggregateUtil, createRankingEventsAndUpdateAggregate } from "./share/rankings";
 
 // Direct aggregate for rankings (not tied to a table)
 // Namespace by topicId, sort by position
@@ -12,7 +13,6 @@ const rankingsAggregate = new DirectAggregate<{
   Id: string; // studentId
 }>(components.aggregate);
 
-// Update rankings in the aggregate (called when preferences change)
 export const updateRankingsAggregate = mutation({
   args: {
     studentId: v.string(),
@@ -26,39 +26,11 @@ export const updateRankingsAggregate = mutation({
     })),
   },
   handler: async (ctx, args) => {
-    // Clear old rankings in parallel (if they exist)
-    const deletions = args.oldRankings
-      ? Promise.all(
-        args.oldRankings.map(ranking =>
-          rankingsAggregate.deleteIfExists(ctx, {
-            namespace: ranking.topicId,
-            key: ranking.position,
-            id: args.studentId,
-          })
-        )
-      )
-      : Promise.resolve([]);
-
-    // Insert new rankings in parallel
-    const insertions = Promise.all(
-      args.newRankings.map(ranking =>
-        rankingsAggregate.replaceOrInsert(ctx,
-          {
-            namespace: ranking.topicId,
-            key: ranking.position,
-            id: args.studentId,
-          },
-          {
-            namespace: ranking.topicId,
-            key: ranking.position,
-            sumValue: ranking.position, // For average calculation
-          }
-        )
-      )
-    );
-
-    // Execute both operations in parallel
-    await Promise.all([deletions, insertions]);
+    await updateRankingsAggregateUtil(ctx, {
+      studentId: args.studentId,
+      oldRankings: args.oldRankings,
+      newRankings: args.newRankings
+    });
 
     return { success: true };
   },
@@ -172,4 +144,30 @@ export const rebuildRankingsAggregate = mutation({
       message: `Cleared ${topics.length} topic namespaces and rebuilt aggregate with ${allRankings.length} rankings from ${preferences.length} preferences`
     };
   },
+});
+
+/**
+ * Internal mutation for batch processing rankings.
+ * Used by seedTestData to defer ranking aggregation.
+ *
+ * @category Internal Mutations
+ * @since 0.1.0
+ */
+export const processRankingBatch = internalMutation({
+  args: {
+    students: v.array(v.object({
+      studentId: v.string(),
+      semesterId: v.string(),
+      topicOrder: v.array(v.id("topics"))
+    }))
+  },
+  handler: async (ctx, args) => {
+    // Process all rankings in parallel
+
+    return await Promise.all(
+      args.students.map(({ studentId, semesterId, topicOrder }) =>
+        createRankingEventsAndUpdateAggregate(ctx, { studentId, semesterId, topicOrder })
+      )
+    )
+  }
 });
