@@ -7,7 +7,7 @@ import type { Id } from "../_generated/dataModel"
 
 export interface StudentPreference {
   studentId: string
-  rankings: number[] // Index = topicIndex, Value = rank (1-based)
+  topicIds: Id<"topics">[] // Ordered list of topics by preference (first = most preferred)
 }
 
 export interface Assignment {

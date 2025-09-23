@@ -10,21 +10,23 @@ import {
   getTopNPercentage
 } from "./utils"
 import type { StudentPreference } from "./types"
+import type { Id } from "../_generated/dataModel"
 
 describe("HungarianAllocator", () => {
   describe("Basic Allocation", () => {
     test("should assign all students with perfect matching", () => {
       // 3 students, 3 topics, perfect preferences
+      const topicIds = ["topic_0", "topic_1", "topic_2"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 2, 3] }, // Wants topic 0
-        { studentId: "s2", rankings: [2, 1, 3] }, // Wants topic 1
-        { studentId: "s3", rankings: [3, 2, 1] }  // Wants topic 2
+        { studentId: "s1", topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] }, // Wants topic 0 first
+        { studentId: "s2", topicIds: ["topic_1", "topic_0", "topic_2"] as Id<"topics">[] }, // Wants topic 1 first
+        { studentId: "s3", topicIds: ["topic_2", "topic_1", "topic_0"] as Id<"topics">[] }  // Wants topic 2 first
       ]
 
       const allocator = new HungarianAllocator(
         3,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never
+        topicIds
       )
 
       const { assignments, statistics } = allocator.solve(preferences, "squared")
@@ -43,19 +45,20 @@ describe("HungarianAllocator", () => {
 
     test("should handle more students than topics", () => {
       // 5 students, 3 topics
+      const topicIds = ["topic_0", "topic_1", "topic_2"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 2, 3] },
-        { studentId: "s2", rankings: [1, 2, 3] },
-        { studentId: "s3", rankings: [2, 1, 3] },
-        { studentId: "s4", rankings: [3, 1, 2] },
-        { studentId: "s5", rankings: [3, 2, 1] }
+        { studentId: "s1", topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] },
+        { studentId: "s2", topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] },
+        { studentId: "s3", topicIds: ["topic_1", "topic_0", "topic_2"] as Id<"topics">[] },
+        { studentId: "s4", topicIds: ["topic_2", "topic_0", "topic_1"] as Id<"topics">[] },
+        { studentId: "s5", topicIds: ["topic_2", "topic_1", "topic_0"] as Id<"topics">[] }
       ]
 
       const capacities = [2, 2, 1] // Total capacity = 5
       const allocator = new HungarianAllocator(
         5,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never,
+        topicIds,
         capacities
       )
 
@@ -69,16 +72,17 @@ describe("HungarianAllocator", () => {
 
     test("should handle more topics than students", () => {
       // 3 students, 5 topics
+      const topicIds = Array(5).fill(null).map((_, i) => `topic_${i}`) as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 2, 3, 4, 5] },
-        { studentId: "s2", rankings: [2, 1, 3, 4, 5] },
-        { studentId: "s3", rankings: [3, 2, 1, 4, 5] }
+        { studentId: "s1", topicIds: ["topic_0", "topic_1", "topic_2", "topic_3", "topic_4"] as Id<"topics">[] },
+        { studentId: "s2", topicIds: ["topic_1", "topic_0", "topic_2", "topic_3", "topic_4"] as Id<"topics">[] },
+        { studentId: "s3", topicIds: ["topic_2", "topic_1", "topic_0", "topic_3", "topic_4"] as Id<"topics">[] }
       ]
 
       const allocator = new HungarianAllocator(
         3,
         5,
-        Array(5).fill(null).map((_, i) => `topic_${i}`) as never
+        topicIds
       )
 
       const { assignments, statistics } = allocator.solve(preferences, "squared")
@@ -90,17 +94,18 @@ describe("HungarianAllocator", () => {
   })
 
   describe("Regret Strategies", () => {
+    const topicIds = ["topic_0", "topic_1", "topic_2"] as Id<"topics">[]
     const preferences: StudentPreference[] = [
-      { studentId: "s1", rankings: [3, 1, 2] }, // Will get rank 3
-      { studentId: "s2", rankings: [1, 2, 3] }, // Will get rank 1
-      { studentId: "s3", rankings: [2, 3, 1] }  // Will get rank 2
+      { studentId: "s1", topicIds: ["topic_1", "topic_2", "topic_0"] as Id<"topics">[] }, // topic_0 is 3rd choice
+      { studentId: "s2", topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] }, // topic_0 is 1st choice
+      { studentId: "s3", topicIds: ["topic_2", "topic_0", "topic_1"] as Id<"topics">[] }  // topic_0 is 2nd choice
     ]
 
     test("linear regret strategy", () => {
       const allocator = new HungarianAllocator(
         3,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never
+        topicIds
       )
 
       const { statistics } = allocator.solve(preferences, "linear")
@@ -114,7 +119,7 @@ describe("HungarianAllocator", () => {
       const allocator = new HungarianAllocator(
         3,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never
+        topicIds
       )
 
       const { statistics } = allocator.solve(preferences, "squared")
@@ -128,7 +133,7 @@ describe("HungarianAllocator", () => {
       const allocator = new HungarianAllocator(
         3,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never
+        topicIds
       )
 
       const { statistics } = allocator.solve(preferences, "exponential")
@@ -141,16 +146,17 @@ describe("HungarianAllocator", () => {
   describe("Capacity Constraints", () => {
     test("should respect topic capacities", () => {
       // 6 students all wanting topic 0
+      const topicIds = ["topic_0", "topic_1", "topic_2"] as Id<"topics">[]
       const preferences: StudentPreference[] = Array(6).fill(null).map((_, i) => ({
         studentId: `s${i}`,
-        rankings: [1, 2, 3] // Everyone prefers topic 0
+        topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] // Everyone prefers topic 0 first
       }))
 
       const capacities = [2, 2, 2] // Each topic can only take 2 students
       const allocator = new HungarianAllocator(
         6,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never,
+        topicIds,
         capacities
       )
 
@@ -171,13 +177,14 @@ describe("HungarianAllocator", () => {
     })
 
     test("should handle uneven capacity distribution", () => {
-      const preferences = generateRandomPreferences(10, 4)
+      const topicIds = Array(4).fill(null).map((_, i) => `topic_${i}`) as Id<"topics">[]
+      const preferences = generateRandomPreferences(10, 4, topicIds)
       const capacities = [5, 3, 1, 1] // Very uneven
 
       const allocator = new HungarianAllocator(
         10,
         4,
-        Array(4).fill(null).map((_, i) => `topic_${i}`) as never,
+        topicIds,
         capacities
       )
 
@@ -190,12 +197,13 @@ describe("HungarianAllocator", () => {
 
   describe("Performance", () => {
     test("should handle 100 students efficiently", () => {
-      const preferences = generateRandomPreferences(100, 10)
+      const topicIds = Array(10).fill(null).map((_, i) => `topic_${i}`) as Id<"topics">[]
+      const preferences = generateRandomPreferences(100, 10, topicIds)
 
       const allocator = new HungarianAllocator(
         100,
         10,
-        Array(10).fill(null).map((_, i) => `topic_${i}`) as never
+        topicIds
       )
 
       const startTime = performance.now()
@@ -208,12 +216,13 @@ describe("HungarianAllocator", () => {
     })
 
     test("should handle 300 students efficiently", () => {
-      const preferences = generateRandomPreferences(300, 30)
+      const topicIds = Array(30).fill(null).map((_, i) => `topic_${i}`) as Id<"topics">[]
+      const preferences = generateRandomPreferences(300, 30, topicIds)
 
       const allocator = new HungarianAllocator(
         300,
         30,
-        Array(30).fill(null).map((_, i) => `topic_${i}`) as never
+        topicIds
       )
 
       const startTime = performance.now()
@@ -228,14 +237,15 @@ describe("HungarianAllocator", () => {
 
   describe("Edge Cases", () => {
     test("should handle single student", () => {
+      const topicIds = ["topic_0", "topic_1", "topic_2"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 2, 3] }
+        { studentId: "s1", topicIds: ["topic_0", "topic_1", "topic_2"] as Id<"topics">[] }
       ]
 
       const allocator = new HungarianAllocator(
         1,
         3,
-        ["topic_0", "topic_1", "topic_2"] as never
+        topicIds
       )
 
       const { assignments, statistics } = allocator.solve(preferences, "squared")
@@ -246,16 +256,17 @@ describe("HungarianAllocator", () => {
     })
 
     test("should handle single topic", () => {
+      const topicIds = ["topic_0"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1] },
-        { studentId: "s2", rankings: [1] },
-        { studentId: "s3", rankings: [1] }
+        { studentId: "s1", topicIds: ["topic_0"] as Id<"topics">[] },
+        { studentId: "s2", topicIds: ["topic_0"] as Id<"topics">[] },
+        { studentId: "s3", topicIds: ["topic_0"] as Id<"topics">[] }
       ]
 
       const allocator = new HungarianAllocator(
         3,
         1,
-        ["topic_0"] as never,
+        topicIds,
         [3] // Topic can accommodate all students
       )
 
@@ -304,34 +315,37 @@ describe("Utility Functions", () => {
 
   describe("validatePreferences", () => {
     test("should validate correct preferences", () => {
+      const topicIds = ["t1", "t2", "t3"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 2, 3] },
-        { studentId: "s2", rankings: [3, 1, 2] }
+        { studentId: "s1", topicIds: ["t1", "t2", "t3"] as Id<"topics">[] },
+        { studentId: "s2", topicIds: ["t3", "t1", "t2"] as Id<"topics">[] }
       ]
 
-      const result = validatePreferences(preferences, 3)
+      const result = validatePreferences(preferences, topicIds)
       expect(result.valid).toBe(true)
       expect(result.errors).toHaveLength(0)
     })
 
-    test("should detect duplicate ranks", () => {
+    test("should detect duplicate topics", () => {
+      const topicIds = ["t1", "t2", "t3"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [1, 1, 3] }
+        { studentId: "s1", topicIds: ["t1", "t1", "t3"] as Id<"topics">[] }
       ]
 
-      const result = validatePreferences(preferences, 3)
+      const result = validatePreferences(preferences, topicIds)
       expect(result.valid).toBe(false)
-      expect(result.errors).toContain("Student s1 has duplicate rank 1")
+      expect(result.errors).toContain("Student s1 has duplicate topic t1")
     })
 
-    test("should detect invalid ranks", () => {
+    test("should detect invalid topics", () => {
+      const topicIds = ["t1", "t2", "t3"] as Id<"topics">[]
       const preferences: StudentPreference[] = [
-        { studentId: "s1", rankings: [0, 2, 3] }
+        { studentId: "s1", topicIds: ["t4", "t2", "t3"] as Id<"topics">[] }
       ]
 
-      const result = validatePreferences(preferences, 3)
+      const result = validatePreferences(preferences, topicIds)
       expect(result.valid).toBe(false)
-      expect(result.errors.some(e => e.includes("invalid rank"))).toBe(true)
+      expect(result.errors.some(e => e.includes("invalid topic"))).toBe(true)
     })
   })
 
@@ -353,20 +367,21 @@ describe("Utility Functions", () => {
 
   describe("generateClusteredPreferences", () => {
     test("should generate clustered preferences", () => {
-      const preferences = generateClusteredPreferences(20, 5, 0.4)
+      const topicIds = Array(5).fill(null).map((_, i) => `t${i}`) as Id<"topics">[]
+      const preferences = generateClusteredPreferences(20, 5, 0.4, topicIds)
 
       expect(preferences).toHaveLength(20)
 
       // Check that preferences are valid
       for (const pref of preferences) {
-        expect(pref.rankings).toHaveLength(5)
-        const uniqueRanks = new Set(pref.rankings)
-        expect(uniqueRanks.size).toBe(5)
+        expect(pref.topicIds).toHaveLength(5)
+        const uniqueTopics = new Set(pref.topicIds)
+        expect(uniqueTopics.size).toBe(5)
       }
 
       // First 2 topics (40% of 5) should appear more frequently in top positions
       // This is statistical so we just check structure
-      const firstChoices = preferences.map(p => p.rankings.indexOf(1))
+      const firstChoices = preferences.map(p => p.topicIds[0])
       expect(firstChoices.length).toBe(20)
     })
   })

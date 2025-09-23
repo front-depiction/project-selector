@@ -5,6 +5,7 @@ import type {
   RankCount
 } from "./types"
 import { ALLOCATION_CONSTANTS } from "./types"
+import type { Id } from "../_generated/dataModel"
 
 // ============================================================================
 // Capacity Distribution
@@ -108,42 +109,35 @@ export function getTopNPercentage(
  */
 export function validatePreferences(
   preferences: StudentPreference[],
-  numTopics: number
+  topicIds: Id<"topics">[]
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = []
+  const topicIdSet = new Set(topicIds)
 
   for (const pref of preferences) {
-    // Check if rankings array has correct length
-    if (pref.rankings.length !== numTopics) {
-      errors.push(
-        `Student ${pref.studentId} has ${pref.rankings.length} rankings but there are ${numTopics} topics`
-      )
-    }
+    // Check if all topics in preference list are valid
+    const seenTopics = new Set<Id<"topics">>()
 
-    // Check for valid rank values (1 to numTopics)
-    const validRanks = new Set<number>()
-    for (let i = 0; i < pref.rankings.length; i++) {
-      const rank = pref.rankings[i]
-
-      if (rank < 1 || rank > numTopics) {
+    for (const topicId of pref.topicIds) {
+      if (!topicIdSet.has(topicId)) {
         errors.push(
-          `Student ${pref.studentId} has invalid rank ${rank} for topic ${i}`
+          `Student ${pref.studentId} has invalid topic ${topicId}`
         )
       }
 
-      if (validRanks.has(rank)) {
+      if (seenTopics.has(topicId)) {
         errors.push(
-          `Student ${pref.studentId} has duplicate rank ${rank}`
+          `Student ${pref.studentId} has duplicate topic ${topicId}`
         )
       }
 
-      validRanks.add(rank)
+      seenTopics.add(topicId)
     }
 
-    // Check that all ranks are present
-    if (validRanks.size !== numTopics) {
+    // Check if student ranked all topics
+    if (pref.topicIds.length !== topicIds.length) {
       errors.push(
-        `Student ${pref.studentId} is missing some ranks`
+        `Student ${pref.studentId} ranked ${pref.topicIds.length} topics but there are ${topicIds.length} topics`
       )
     }
   }
@@ -218,23 +212,30 @@ export async function withRetry<T>(
  */
 export function generateRandomPreferences(
   numStudents: number,
-  numTopics: number
+  numTopics: number,
+  topicIds?: Id<"topics">[]
 ): StudentPreference[] {
   const preferences: StudentPreference[] = []
 
+  // Generate topic IDs if not provided
+  const topics = topicIds || Array.from(
+    { length: numTopics },
+    (_, i) => `topic_${i}` as Id<"topics">
+  )
+
   for (let i = 0; i < numStudents; i++) {
-    // Create a random ranking by shuffling 1 to numTopics
-    const rankings = Array.from({ length: numTopics }, (_, idx) => idx + 1)
+    // Create a copy of topics array and shuffle it
+    const shuffledTopics = [...topics]
 
     // Fisher-Yates shuffle
-    for (let j = rankings.length - 1; j > 0; j--) {
+    for (let j = shuffledTopics.length - 1; j > 0; j--) {
       const k = Math.floor(Math.random() * (j + 1));
-      [rankings[j], rankings[k]] = [rankings[k], rankings[j]]
+      [shuffledTopics[j], shuffledTopics[k]] = [shuffledTopics[k], shuffledTopics[j]]
     }
 
     preferences.push({
       studentId: `student_${i}`,
-      rankings
+      topicIds: shuffledTopics
     })
   }
 
@@ -247,34 +248,55 @@ export function generateRandomPreferences(
 export function generateClusteredPreferences(
   numStudents: number,
   numTopics: number,
-  popularityBias: number = 0.3
+  popularityBias: number = 0.3,
+  topicIds?: Id<"topics">[]
 ): StudentPreference[] {
   const preferences: StudentPreference[] = []
 
+  // Generate topic IDs if not provided
+  const topics = topicIds || Array.from(
+    { length: numTopics },
+    (_, i) => `topic_${i}` as Id<"topics">
+  )
+
   // Make first few topics more popular
-  const popularTopics = Math.floor(numTopics * popularityBias)
+  const popularTopicCount = Math.floor(numTopics * popularityBias)
+  const popularTopics = topics.slice(0, popularTopicCount)
+  const unpopularTopics = topics.slice(popularTopicCount)
 
   for (let i = 0; i < numStudents; i++) {
-    const rankings = Array.from({ length: numTopics }, (_, idx) => idx + 1)
+    let topicOrder: Id<"topics">[]
 
     // Bias towards popular topics
     if (Math.random() < 0.7) {
       // 70% chance to prefer popular topics
-      for (let j = 0; j < popularTopics; j++) {
-        const swapWith = Math.floor(Math.random() * popularTopics);
-        [rankings[j], rankings[swapWith]] = [rankings[swapWith], rankings[j]]
+      const shuffledPopular = [...popularTopics]
+      const shuffledUnpopular = [...unpopularTopics]
+
+      // Shuffle each group
+      for (let j = shuffledPopular.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [shuffledPopular[j], shuffledPopular[k]] = [shuffledPopular[k], shuffledPopular[j]]
       }
+      for (let j = shuffledUnpopular.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [shuffledUnpopular[j], shuffledUnpopular[k]] = [shuffledUnpopular[k], shuffledUnpopular[j]]
+      }
+
+      // Popular topics come first
+      topicOrder = [...shuffledPopular, ...shuffledUnpopular]
     } else {
       // 30% chance for completely random
-      for (let j = rankings.length - 1; j > 0; j--) {
+      topicOrder = [...topics]
+      for (let j = topicOrder.length - 1; j > 0; j--) {
         const k = Math.floor(Math.random() * (j + 1));
-        [rankings[j], rankings[k]] = [rankings[k], rankings[j]]
+        [topicOrder[j], topicOrder[k]] = [topicOrder[k], topicOrder[j]]
       }
     }
 
     preferences.push({
       studentId: `student_${i}`,
-      rankings
+      topicIds: topicOrder
     })
   }
 

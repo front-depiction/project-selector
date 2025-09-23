@@ -7,4 +7,4 @@ import * as Chunk from "effect/Chunk"
  * @param array The array to shuffle
  * @returns A shuffled array (Effect-wrapped)
  */
-export const shuffleArray = <A>(array: readonly A[]): readonly A[] => Random.shuffle(array).pipe(Effect.runSync, Chunk.toReadonlyArray)
+export const shuffleArray = <A>(array: readonly A[]): readonly A[] => Random.shuffle(array).pipe(Effect.runSync, Chunk.toArray)
