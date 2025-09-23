@@ -3,6 +3,8 @@
 import * as React from "react"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
+import { Doc, Id } from "@/convex/_generated/dataModel"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -40,7 +42,7 @@ export interface PopularTopic {
 export interface LandingStats {
   readonly isActive: boolean
   readonly title?: string
-  readonly periodStatus: "open" | "upcoming" | "closed" | "assigned" | "inactive"
+  readonly periodStatus: string // This comes from SelectionPeriod.getStatus() which returns a string
   readonly closeDate?: number
   readonly openDate?: number
   readonly totalTopics: number
@@ -51,13 +53,8 @@ export interface LandingStats {
   readonly leastPopularTopics?: readonly PopularTopic[]
 }
 
-export interface CurrentPeriod {
-  readonly _id: Id<"selectionPeriods">
-  readonly title: string
-  readonly status: "open" | "upcoming" | "closed" | "assigned"
-  readonly openDate: number
-  readonly closeDate: number
-}
+// Use actual SelectionPeriod type from Convex
+export type CurrentPeriod = Doc<"selectionPeriods"> | null
 
 export interface CompetitionData {
   readonly topicId?: Id<"topics">
@@ -73,40 +70,18 @@ export interface CompetitionData {
   readonly fill?: string
 }
 
-export interface AssignmentDetails {
-  readonly _id: Id<"assignments">
-  readonly _creationTime?: number
-  readonly originalRank?: number
-  readonly studentId: string
-  readonly topicId: Id<"topics">
-  readonly periodId: Id<"selectionPeriods">
-  readonly batchId?: string
-  readonly assignedAt: number
-}
-
-export interface Topic {
-  readonly _id: Id<"topics">
-  readonly title: string
-  readonly description: string
-}
-
-export interface Assignment {
-  readonly assignment?: AssignmentDetails
+// Use actual types from Convex
+export type Topic = Doc<"topics">
+export type Assignment = Doc<"assignments"> & {
   readonly topic?: Topic | null
   readonly wasPreference?: boolean
   readonly wasTopChoice?: boolean
-  // Alternative structure (for backward compatibility)
-  readonly _id?: Id<"assignments">
-  readonly studentId?: string
-  readonly topicId?: Id<"topics">
-  readonly periodId?: Id<"selectionPeriods">
-  readonly assignedAt?: number
 }
 
 export interface LandingPageState {
   readonly stats: LandingStats | null | undefined
   readonly competitionData: readonly CompetitionData[] | null | undefined
-  readonly currentPeriod: CurrentPeriod | null | undefined
+  readonly currentPeriod: CurrentPeriod | undefined
   readonly studentId: string | null
   readonly myAssignment: Assignment | null | undefined
 }
@@ -152,7 +127,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   const myAssignment = useQuery(
     api.assignments.getMyAssignment,
-    currentPeriod?.status === "assigned" && studentId
+    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId
       ? { periodId: currentPeriod._id, studentId }
       : "skip"
   )

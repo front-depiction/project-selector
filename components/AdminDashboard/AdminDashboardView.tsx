@@ -29,7 +29,39 @@ import { SettingsView } from "./SettingsView"
 // ============================================================================
 
 const OverviewView: React.FC = () => {
-  const { currentPeriod, assignments } = AD.useDashboard()
+  const { currentPeriod, assignments, periods, updatePeriod, updateTopic } = AD.useDashboard()
+  const [editingPeriod, setEditingPeriod] = React.useState<AD.Period | null>(null)
+  const [editingTopic, setEditingTopic] = React.useState<AD.Topic | null>(null)
+
+  // Format periods for the form
+  const periodOptions = React.useMemo(() => {
+    return periods?.map(p => ({
+      value: p.semesterId,
+      label: p.title
+    })) || []
+  }, [periods])
+
+  const handleUpdatePeriod = async (values: SelectionPeriodFormValues) => {
+    if (!editingPeriod) return
+    await updatePeriod(editingPeriod._id, {
+      title: values.title,
+      description: values.title,
+      semesterId: values.selection_period_id,
+      openDate: values.start_deadline,
+      closeDate: values.end_deadline
+    })
+    setEditingPeriod(null)
+  }
+
+  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
+    if (!editingTopic) return
+    await updateTopic(editingTopic._id, {
+      title: values.title,
+      description: values.description,
+      semesterId: values.selection_period_id
+    })
+    setEditingTopic(null)
+  }
 
   return (
     <div className="space-y-6">
@@ -57,7 +89,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Manage when students can select topics</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.PeriodsTable />
+            <AD.PeriodsTable onEdit={setEditingPeriod} />
           </CardContent>
         </Card>
 
@@ -67,10 +99,57 @@ const OverviewView: React.FC = () => {
             <CardDescription>Available topics for selection</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.TopicsTable />
+            <AD.TopicsTable onEdit={setEditingTopic} />
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Period Dialog */}
+      <Dialog open={!!editingPeriod} onOpenChange={(open) => !open && setEditingPeriod(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Selection Period</DialogTitle>
+            <DialogDescription>
+              Update the details of this selection period.
+            </DialogDescription>
+          </DialogHeader>
+          {editingPeriod && (
+            <SelectionPeriodForm
+              initialValues={{
+                title: editingPeriod.title,
+                selection_period_id: editingPeriod.semesterId,
+                start_deadline: new Date(editingPeriod.openDate),
+                end_deadline: new Date(editingPeriod.closeDate),
+                isActive: editingPeriod.kind === "open"
+              }}
+              onSubmit={handleUpdatePeriod}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Topic Dialog */}
+      <Dialog open={!!editingTopic} onOpenChange={(open) => !open && setEditingTopic(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Topic</DialogTitle>
+            <DialogDescription>
+              Update the details of this topic.
+            </DialogDescription>
+          </DialogHeader>
+          {editingTopic && (
+            <TopicForm
+              periods={periodOptions}
+              initialValues={{
+                title: editingTopic.title,
+                description: editingTopic.description,
+                selection_period_id: editingTopic.semesterId
+              }}
+              onSubmit={handleUpdateTopic}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

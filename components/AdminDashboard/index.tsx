@@ -526,7 +526,11 @@ export const AssignmentTable: React.FC = () => {
   )
 }
 
-export const TopicsTable: React.FC = () => {
+export interface TopicsTableProps {
+  readonly onEdit?: (topic: Topic) => void
+}
+
+export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
   const { topics, deleteTopic } = useDashboard()
 
   if (!topics || topics.length === 0) {
@@ -573,10 +577,12 @@ export const TopicsTable: React.FC = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
+                    {onEdit && (
+                      <DropdownMenuItem onClick={() => onEdit(topic)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-red-600"
@@ -596,7 +602,11 @@ export const TopicsTable: React.FC = () => {
   )
 }
 
-export const PeriodsTable: React.FC = () => {
+export interface PeriodsTableProps {
+  readonly onEdit?: (period: Period) => void
+}
+
+export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
   const { periods, setActivePeriod, deletePeriod } = useDashboard()
 
   if (!periods || periods.length === 0) {
@@ -651,10 +661,12 @@ export const PeriodsTable: React.FC = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
+                      {onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(period)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                      )}
                       {period.kind !== "open" && periodId && (
                         <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
                           <Power className="mr-2 h-4 w-4" />

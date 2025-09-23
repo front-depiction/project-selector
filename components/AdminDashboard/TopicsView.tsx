@@ -130,7 +130,7 @@ export const TopicsView: React.FC = () => {
       )}
 
       {/* Topics Table - Clean data table format */}
-      <AD.TopicsTable />
+      <AD.TopicsTable onEdit={setEditingTopic} />
 
       {/* Create Topic Dialog */}
       <Dialog open={isCreateTopicOpen} onOpenChange={setIsCreateTopicOpen}>

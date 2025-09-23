@@ -36,7 +36,6 @@ export const seedTestData = mutation({
         insertTestPreferences(ctx, students, semesterId),
         createTestRankings(ctx, students, semesterId)]
       ))
-      .then(() => "Test data created successfully. Rankings are being processed in the background.")
   }
 })
 
