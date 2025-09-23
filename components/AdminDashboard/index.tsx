@@ -50,15 +50,15 @@ import { cn } from "@/lib/utils"
 
 export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "settings"
 
-export interface SelectionPeriod {
-  readonly _id: Id<"selectionPeriods">
+export interface Period {
+  readonly _id?: Id<"selectionPeriods">
+  readonly _creationTime?: number
   readonly title: string
   readonly description: string
   readonly semesterId: string
   readonly openDate: number
   readonly closeDate: number
-  readonly status: "open" | "upcoming" | "closed" | "assigned"
-  readonly isActive: boolean
+  readonly kind: "inactive" | "open" | "closed" | "assigned"
   readonly studentCount?: number
   readonly assignmentCount?: number
 }
@@ -90,10 +90,10 @@ export interface Assignment {
 
 export interface DashboardState {
   readonly activeView: ViewType
-  readonly periods: readonly SelectionPeriod[] | undefined
+  readonly periods: readonly Period[] | undefined
   readonly topics: readonly Topic[] | undefined
   readonly subtopics: readonly Subtopic[] | undefined
-  readonly currentPeriod: SelectionPeriod | null | undefined
+  readonly currentPeriod: Period | null | undefined
   readonly assignments: readonly Assignment[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
   readonly stats: {
@@ -174,7 +174,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   // Mock assignments for now - replace with real query
   const assignments: Assignment[] = React.useMemo(() => {
-    if (currentPeriod?.status === "assigned") {
+    if (currentPeriod?.kind === "assigned") {
       return [
         { studentId: "#6367261", topicTitle: "ML Recommendation System", preferenceRank: 5, isMatched: true, status: "assigned" },
         { studentId: "#6367262", topicTitle: "Blockchain Smart Contracts", preferenceRank: 1, isMatched: true, status: "assigned" },
@@ -182,7 +182,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       ]
     }
     return []
-  }, [currentPeriod?.status])
+  }, [currentPeriod?.kind])
 
   // Calculate stats
   const stats = React.useMemo(() => {
@@ -446,11 +446,11 @@ export const MetricsGrid: React.FC = () => {
       />
       <MetricCard
         title="Current Period"
-        value={currentPeriod?.status.toUpperCase() || "NONE"}
+        value={currentPeriod?.kind.toUpperCase() || "NONE"}
         icon={<Clock className="h-4 w-4" />}
         className={cn(
-          currentPeriod?.status === "open" && "border-green-200 bg-green-50/50",
-          currentPeriod?.status === "assigned" && "border-purple-200 bg-purple-50/50"
+          currentPeriod?.kind === "open" && "border-green-200 bg-green-50/50",
+          currentPeriod?.kind === "assigned" && "border-purple-200 bg-purple-50/50"
         )}
       />
     </div>
@@ -624,53 +624,59 @@ export const PeriodsTable: React.FC = () => {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {periods.map((period) => (
-            <TableRow key={period._id}>
-              <TableCell className="font-medium">{period.title}</TableCell>
-              <TableCell>
-                <Badge className={cn(
-                  period.status === "open" && "bg-green-600 text-white",
-                  period.status === "upcoming" && "bg-blue-600 text-white",
-                  period.status === "closed" && "bg-red-600 text-white",
-                  period.status === "assigned" && "bg-purple-600 text-white"
-                )}>
-                  {period.status}
-                </Badge>
-              </TableCell>
-              <TableCell>{format(period.openDate, "MMM d, yyyy")}</TableCell>
-              <TableCell>{format(period.closeDate, "MMM d, yyyy")}</TableCell>
-              <TableCell>{period.studentCount || 0}</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    {!period.isActive && (
-                      <DropdownMenuItem onClick={() => setActivePeriod(period._id)}>
-                        <Power className="mr-2 h-4 w-4" />
-                        Set Active
+          {periods.map((period) => {
+            const periodId = period._id
+            const rowKey = periodId ?? `${period.semesterId}-${period.openDate}-${period.closeDate}-${period.title}`
+            return (
+              <TableRow key={rowKey}>
+                <TableCell className="font-medium">{period.title}</TableCell>
+                <TableCell>
+                  <Badge className={cn(
+                    period.kind === "open" && "bg-green-600 text-white",
+                    period.kind === "inactive" && "bg-blue-600 text-white",
+                    period.kind === "closed" && "bg-red-600 text-white",
+                    period.kind === "assigned" && "bg-purple-600 text-white"
+                  )}>
+                    {period.kind}
+                  </Badge>
+                </TableCell>
+                <TableCell>{format(period.openDate, "MMM d, yyyy")}</TableCell>
+                <TableCell>{format(period.closeDate, "MMM d, yyyy")}</TableCell>
+                <TableCell>{period.studentCount || 0}</TableCell>
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => deletePeriod(period._id)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          ))}
+                      {period.kind !== "open" && periodId && (
+                        <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                          <Power className="mr-2 h-4 w-4" />
+                          Set Active
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      {periodId && (
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={() => deletePeriod(periodId)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

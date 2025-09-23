@@ -28,10 +28,10 @@ export const getActiveTopicsWithCongestion = query({
     // Get active selection period
     const activePeriod = await ctx.db
       .query("selectionPeriods")
-      .withIndex("by_active", q => q.eq("isActive", true))
+      .withIndex("by_kind", q => q.eq("kind", "open"))
       .first()
 
-    if (!activePeriod || !SelectionPeriod.isOpen()(activePeriod)) return []
+    if (!activePeriod || !SelectionPeriod.isOpen(activePeriod)) return []
 
     // Get all active topics and all preferences for this semester in parallel
     const [topics, allPreferences] = await Promise.all([
@@ -83,13 +83,13 @@ export const getActiveTopicsWithMetrics = query({
     // Get active selection period
     const activePeriod = await ctx.db
       .query("selectionPeriods")
-      .withIndex("by_active", q => q.eq("isActive", true))
+      .withIndex("by_kind", q => q.eq("kind", "open"))
       .first()
 
     if (!activePeriod) return []
 
     // Check if period is open
-    if (!SelectionPeriod.isOpen()(activePeriod)) return []
+    if (!SelectionPeriod.isOpen(activePeriod)) return []
 
     // Get all active topics for this semester
     const topics = await ctx.db

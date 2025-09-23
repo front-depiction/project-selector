@@ -25,7 +25,7 @@ export const savePreferences = mutation({
     }
 
     // Check if period is open
-    if (!SelectionPeriod.isOpen()(activePeriod)) {
+    if (!SelectionPeriod.isOpen(activePeriod)) {
       throw new Error("Selection period is closed")
     }
 

@@ -12,6 +12,7 @@ import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as assignments from "../assignments.js";
 import type * as lib_congestion from "../lib/congestion.js";
+import type * as lib_utils from "../lib/utils.js";
 import type * as preferences from "../preferences.js";
 import type * as rankings from "../rankings.js";
 import type * as schemas_Assignment from "../schemas/Assignment.js";
@@ -21,8 +22,9 @@ import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
 import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
 import type * as selectionPeriods from "../selectionPeriods.js";
-import type * as share_rankings_index from "../share/rankings/index.js";
-import type * as share_selection_periods_index from "../share/selection_periods/index.js";
+import type * as share_admin_helpers from "../share/admin_helpers.js";
+import type * as share_rankings from "../share/rankings.js";
+import type * as share_selection_periods from "../share/selection_periods.js";
 import type * as stats from "../stats.js";
 import type * as subtopics from "../subtopics.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
@@ -47,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   assignments: typeof assignments;
   "lib/congestion": typeof lib_congestion;
+  "lib/utils": typeof lib_utils;
   preferences: typeof preferences;
   rankings: typeof rankings;
   "schemas/Assignment": typeof schemas_Assignment;
@@ -56,8 +59,9 @@ declare const fullApi: ApiFromModules<{
   "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/Topic": typeof schemas_Topic;
   selectionPeriods: typeof selectionPeriods;
-  "share/rankings/index": typeof share_rankings_index;
-  "share/selection_periods/index": typeof share_selection_periods_index;
+  "share/admin_helpers": typeof share_admin_helpers;
+  "share/rankings": typeof share_rankings;
+  "share/selection_periods": typeof share_selection_periods;
   stats: typeof stats;
   subtopics: typeof subtopics;
   topicAnalytics: typeof topicAnalytics;
@@ -83,6 +87,12 @@ export declare const components: {
         { k1?: any; k2?: any; namespace?: any },
         { count: number; sum: number }
       >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
       atNegativeOffset: FunctionReference<
         "query",
         "internal",
@@ -94,6 +104,19 @@ export declare const components: {
         "internal",
         { k1?: any; k2?: any; namespace?: any; offset: number },
         { k: any; s: number; v: any }
+      >;
+      atOffsetBatch: FunctionReference<
+        "query",
+        "internal",
+        {
+          queries: Array<{
+            k1?: any;
+            k2?: any;
+            namespace?: any;
+            offset: number;
+          }>;
+        },
+        Array<{ k: any; s: number; v: any }>
       >;
       get: FunctionReference<
         "query",

@@ -1,9 +1,9 @@
-import * as RankingEvent from "../../schemas/RankingEvent"
-import { Id } from "../../_generated/dataModel"
-import { QueryCtx, MutationCtx } from "../../_generated/server"
+import * as RankingEvent from "../schemas/RankingEvent"
+import { Id } from "../_generated/dataModel"
+import { QueryCtx, MutationCtx } from "../_generated/server"
 import { DirectAggregate } from "@convex-dev/aggregate"
-import { components } from "../../_generated/api"
-import type { Id as DataModelId } from "../../_generated/dataModel"
+import { components } from "../_generated/api"
+import type { Id as DataModelId } from "../_generated/dataModel"
 
 // Direct aggregate for rankings (not tied to a table)
 // Namespace by topicId, sort by position
@@ -116,8 +116,8 @@ export const createRankingEventsAndUpdateAggregate = async (
   args: {
     studentId: string
     semesterId: string
-    topicOrder: Id<"topics">[]
-    existingTopicOrder?: Id<"topics">[]
+    topicOrder: ReadonlyArray<Id<"topics">>
+    existingTopicOrder?: ReadonlyArray<Id<"topics">>
   }
 ) => {
   // Track ranking events for analytics
@@ -141,7 +141,7 @@ export const createRankingEventsAndUpdateAggregate = async (
   const eventsPromise = Promise.all(
     rankingEvents.map(event => ctx.db.insert("rankingEvents", event))
   )
-  const aggregatePromise = updateRankingsAggregateUtil(ctx, {studentId: args.studentId, oldRankings, newRankings})
+  const aggregatePromise = updateRankingsAggregateUtil(ctx, { studentId: args.studentId, oldRankings, newRankings })
 
   await Promise.all([eventsPromise, aggregatePromise])
 }
