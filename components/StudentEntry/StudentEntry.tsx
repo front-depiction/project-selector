@@ -63,14 +63,14 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       localStorage.setItem("studentId", value)
       router.push("/student/select")
     }
-  }, [isComplete, value, prevValue, router])
+  }, [isComplete, value, prevValue])
   
   const handleComplete = React.useCallback(() => {
     if (isComplete) {
       localStorage.setItem("studentId", value)
       router.push("/student/select")
     }
-  }, [isComplete, value, router])
+  }, [isComplete, value])
   
   const setDigitsOnly = React.useCallback((v: string) => {
     const digits = v.replace(/\D/g, "")

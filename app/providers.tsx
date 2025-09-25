@@ -1,19 +1,40 @@
 "use client"
 
-import { ConvexProvider, ConvexReactClient } from "convex/react"
+import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react"
 import { ConvexQueryCacheProvider } from "convex-helpers/react/cache/provider"
+import { useAuth } from "@clerk/nextjs"
 import { ReactNode } from "react"
 import { Toaster } from "sonner"
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
-export function Providers({ children }: { children: ReactNode }) {
+function ConvexClientProvider({ children }: { children: ReactNode }) {
+  const { getToken } = useAuth()
+  
   return (
-    <ConvexProvider client={convex}>
+    <ConvexProviderWithAuth 
+      client={convex}
+      useAuth={() => ({
+        isLoading: false,
+        isAuthenticated: !!getToken,
+        fetchAccessToken: async () => {
+          const token = await getToken({ template: "convex" })
+          return token
+        }
+      })}
+    >
       <ConvexQueryCacheProvider>
         {children}
         <Toaster />
       </ConvexQueryCacheProvider>
-    </ConvexProvider>
+    </ConvexProviderWithAuth>
+  )
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <ConvexClientProvider>
+      {children}
+    </ConvexClientProvider>
   )
 }
