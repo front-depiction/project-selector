@@ -34,6 +34,7 @@ import { toast } from "sonner"
 import type { Item } from "@/components/ui/sortable-list"
 import type { Id } from "@/convex/_generated/dataModel"
 import { TopicPopularityChart } from "@/components/charts/topic-popularity-chart"
+import { useUser } from "@clerk/nextjs"
 
 // Pure function to get congestion color and styles
 const getCongestionStyles = (category: string) => {
@@ -286,22 +287,41 @@ const TopicCard = ({
 
 export default function SelectTopics() {
   const router = useRouter()
+  const { user, isLoaded } = useUser()
+  
+  // Get current user from Convex to get studentId
+  const currentUser = useQuery(
+    api.users.getUserByClerkId,
+    user ? { clerkUserId: user.id } : "skip"
+  )
 
-  // Get student ID from localStorage immediately
-  const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
+  const [hasRedirected, setHasRedirected] = useState(false)
 
-  // Redirect if no student ID
+  // Redirect if user is not authenticated or doesn't have studentId
   useEffect(() => {
-    if (!studentId) {
-      router.push("/student")
+    if (isLoaded && !user && !hasRedirected) {
+      console.log("No user in select page, redirecting to sign-in")
+      setHasRedirected(true)
+      router.push("/sign-in")
+      return
     }
-  }, [studentId, router])
+    
+    if (currentUser !== undefined && !currentUser?.studentId && !hasRedirected) {
+      console.log("No studentId in select page, redirecting to student entry")
+      setHasRedirected(true)
+      router.push("/student")
+      return
+    }
+  }, [isLoaded, user, currentUser, router, hasRedirected])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
   const [reorderedItems, setReorderedItems] = useState<Item[] | null>(null)
+
+  // Use studentId from Convex database
+  const studentId = currentUser?.studentId || ""
 
   // Get data from Convex using the new aggregate query
   const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
@@ -389,6 +409,24 @@ export default function SelectTopics() {
 
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
+
+  // Show loading while checking authentication
+  if (!isLoaded || currentUser === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  // Don't render anything if redirecting
+  if (hasRedirected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
 
   if (!topics) {
     return (

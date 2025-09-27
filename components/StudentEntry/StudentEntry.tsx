@@ -56,19 +56,21 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   
   const isComplete = value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
   
-  // Handle completion during render (no useEffect needed)
-  if (isComplete && value !== prevValue) {
-    setPrevValue(value)
-    localStorage.setItem("studentId", value)
-    router.push("/student/select")
-  }
+  // Move the completion logic to useEffect
+  React.useEffect(() => {
+    if (isComplete && value !== prevValue) {
+      setPrevValue(value)
+      localStorage.setItem("studentId", value)
+      router.push("/student/select")
+    }
+  }, [isComplete, value, prevValue])
   
   const handleComplete = React.useCallback(() => {
     if (isComplete) {
       localStorage.setItem("studentId", value)
       router.push("/student/select")
     }
-  }, [isComplete, value, router])
+  }, [isComplete, value])
   
   const setDigitsOnly = React.useCallback((v: string) => {
     const digits = v.replace(/\D/g, "")
