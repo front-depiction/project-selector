@@ -10,10 +10,10 @@ import * as SelectionPeriod from "./schemas/SelectionPeriod"
 export const getLandingStats = query({
   args: {},
   handler: async (ctx) => {
-    // Get active selection period
+    // Get active selection period (open)
     let activePeriod = await ctx.db
       .query("selectionPeriods")
-      .withIndex("by_active", q => q.eq("isActive", true))
+      .withIndex("by_kind", q => q.eq("kind", "open"))
       .first()
 
     // If no active period, check for recently assigned periods
@@ -24,7 +24,7 @@ export const getLandingStats = query({
       
       // Find the most recent assigned period
       const assignedPeriods = allPeriods
-        .filter(p => p.status === "assigned")
+        .filter(p => SelectionPeriod.isAssigned(p))
         .sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))
       
       activePeriod = assignedPeriods[0]

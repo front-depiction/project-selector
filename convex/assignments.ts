@@ -32,12 +32,12 @@ export const assignNow = mutation({
       throw new Error("Selection period not found")
     }
 
-    if (period.status === "assigned") {
+    if (SelectionPeriod.isAssigned(period)) {
       throw new Error("Period already assigned")
     }
 
     // Cancel scheduled function if exists
-    if (period.scheduledFunctionId) {
+    if (SelectionPeriod.hasScheduledFunction(period)) {
       await ctx.scheduler.cancel(period.scheduledFunctionId)
     }
 
@@ -62,8 +62,8 @@ async function assignPeriodInternal(
     throw new Error("Selection period not found")
   }
 
-  if (period.status === "assigned") {
-    return period.assignmentBatchId! // Already assigned
+  if (SelectionPeriod.isAssigned(period)) {
+    return period.assignmentBatchId // Already assigned
   }
 
   // Get all preferences for this semester
@@ -117,8 +117,18 @@ async function assignPeriodInternal(
     }))
   }
 
-  // Update period status
-  await ctx.db.patch(periodId, SelectionPeriod.markAssigned(batchId)(period))
+  // Update period status to assigned
+  await ctx.db.replace(periodId, SelectionPeriod.assign(batchId)(
+    SelectionPeriod.isClosed(period)
+      ? period
+      : SelectionPeriod.makeClosed({
+          semesterId: period.semesterId,
+          title: period.title,
+          description: period.description,
+          openDate: period.openDate,
+          closeDate: period.closeDate
+        })
+  ))
 
   return batchId
 }
@@ -178,7 +188,7 @@ export const getAssignments = query({
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
 
-    if (!period || period.status !== "assigned") {
+    if (!period || !SelectionPeriod.isAssigned(period)) {
       return null
     }
 

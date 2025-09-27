@@ -33,7 +33,7 @@ export default defineSchema({
     .index("by_semester", ["semesterId"]),
 
   selectionPeriods: defineTable(SelectionPeriod.SelectionPeriod)
-    .index("by_active", ["isActive"])
+    .index("by_kind", ["kind"])
     .index("by_semester", ["semesterId"]),
 
   rankingEvents: defineTable(RankingEvent.RankingEvent)
