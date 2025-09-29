@@ -27,15 +27,16 @@ export const seedTestData = mutation({
     const now = Date.now()
     const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
-    return await Promise.all([
+    const [, topicIds] = await Promise.all([
       createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
       createTestTopics(ctx, semesterId)
     ])
-      .then(([, topicIds]) => generateTestStudents(topicIds, 60))
-      .then(students => Promise.all([
-        insertTestPreferences(ctx, students, semesterId),
-        createTestRankings(ctx, students, semesterId)]
-      ))
+
+    const students = generateTestStudents(topicIds, 60)
+    const preferenceIds = await insertTestPreferences(ctx, students, semesterId)
+
+    await createTestRankings(ctx, students, semesterId)
+    return preferenceIds
   }
 })
 
