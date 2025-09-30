@@ -19,7 +19,7 @@ export const getOrCreateUser = mutation({
     if (!identity) {
       throw new Error("Not authenticated")
     }
-    
+
     // Check if user already exists
     const existingUser = await ctx.db
       .query("users")
@@ -91,18 +91,32 @@ export const updateStudentId = mutation({
 })
 
 /**
- * Get user by Clerk ID
+/**
+ * Get user by Clerk ID (generic, takes clerkUserId as argument)
  */
 export const getUserByClerkId = query({
   args: { clerkUserId: v.string() },
-  handler: async (ctx, args) => {
-    const user = await ctx.db
+  handler: (ctx, args) =>
+    ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkUserId", args.clerkUserId))
-      .first()
+      .withIndex("by_clerk_id", q => q.eq("clerkUserId", args.clerkUserId))
+      .unique()
+})
 
-    return user
-  },
+/**
+ * Get current user (from auth context)
+ */
+export const getCurrentUser = query({
+  args: {},
+  handler: (ctx, args) =>
+    ctx.auth.getUserIdentity()
+      .then(user => user ? user.subject : Promise.reject("Missing auth"))
+      .then(id =>
+        ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", q => q.eq("clerkUserId", id))
+          .unique()
+      )
 })
 
 /**
