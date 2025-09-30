@@ -8,42 +8,39 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
+import { redirect } from "next/navigation"
 
 const STUDENT_ID_LENGTH = 7
 const DIGITS_ONLY = /^[0-9]+$/
 
 export function StudentIdForm() {
   const { user } = useUser()
-  const router = useRouter()
+  const userId = user?.id
+  const userEmail = user?.primaryEmailAddress?.emailAddress
+  const userFirstName = user?.firstName
+  const userLastName = user?.lastName
+  
   const [studentId, setStudentId] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const currentUser = useQuery(
     api.users.getUserByClerkId, 
-    user ? { clerkUserId: user.id } : "skip"
+    userId ? { clerkUserId: userId } : "skip"
   )
   const updateStudentId = useMutation(api.users.updateStudentId)
   const getOrCreateUser = useMutation(api.users.getOrCreateUser)
 
-  // Initialize user when they first sign in
+  // Initialize user when they first sign in (sync with external system)
   React.useEffect(() => {
-    if (user && !currentUser) {
-      getOrCreateUser({
-        clerkUserId: user.id,
-        email: user.primaryEmailAddress?.emailAddress || "",
-        firstName: user.firstName || undefined,
-        lastName: user.lastName || undefined,
-      }).catch(console.error)
-    }
-  }, [user, currentUser, getOrCreateUser])
-
-  // Redirect if user already has student ID
-  React.useEffect(() => {
-    if (currentUser?.studentId) {
-      router.push("/student/select")
-    }
-  }, [currentUser, router])
+    if (!userId || !userEmail || currentUser !== null) return
+    
+    getOrCreateUser({
+      clerkUserId: userId,
+      email: userEmail,
+      firstName: userFirstName || undefined,
+      lastName: userLastName || undefined,
+    }).catch(console.error)
+  }, [userId, userEmail, userFirstName, userLastName, currentUser, getOrCreateUser])
 
   const handleSubmit = async () => {
     if (studentId.length !== STUDENT_ID_LENGTH || !DIGITS_ONLY.test(studentId)) {
@@ -51,7 +48,7 @@ export function StudentIdForm() {
       return
     }
 
-    if (!user) {
+    if (!userId) {
       toast.error("Not authenticated")
       return
     }
@@ -59,15 +56,15 @@ export function StudentIdForm() {
     setIsSubmitting(true)
     try {
       await updateStudentId({ 
-        clerkUserId: user.id,
+        clerkUserId: userId,
         studentId 
       })
       toast.success("Student ID linked successfully!")
-      router.push("/student/select")
+      // Use window.location for navigation after successful mutation
+      window.location.href = "/student/select"
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to link student ID"
       toast.error(message)
-    } finally {
       setIsSubmitting(false)
     }
   }
@@ -81,13 +78,18 @@ export function StudentIdForm() {
     return null
   }
 
+  // Redirect if user already has student ID
+  if (currentUser?.studentId) {
+    redirect("/student/select")
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Link Your Student ID</CardTitle>
           <p className="text-muted-foreground">
-            Welcome {user.firstName}! Please enter your 7-digit student ID to continue.
+            Welcome {userFirstName}! Please enter your 7-digit student ID to continue.
           </p>
         </CardHeader>
         <CardContent className="space-y-6">

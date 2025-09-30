@@ -3,8 +3,8 @@
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
-import { useEffect, useState, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useCallback, useMemo } from "react"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -286,33 +286,14 @@ const TopicCard = ({
 }
 
 export default function SelectTopics() {
-  const router = useRouter()
   const { user, isLoaded } = useUser()
+  const userId = user?.id
   
   // Get current user from Convex to get studentId
   const currentUser = useQuery(
     api.users.getUserByClerkId,
-    user ? { clerkUserId: user.id } : "skip"
+    userId ? { clerkUserId: userId } : "skip"
   )
-
-  const [hasRedirected, setHasRedirected] = useState(false)
-
-  // Redirect if user is not authenticated or doesn't have studentId
-  useEffect(() => {
-    if (isLoaded && !user && !hasRedirected) {
-      console.log("No user in select page, redirecting to sign-in")
-      setHasRedirected(true)
-      router.push("/sign-in")
-      return
-    }
-    
-    if (currentUser !== undefined && !currentUser?.studentId && !hasRedirected) {
-      console.log("No studentId in select page, redirecting to student entry")
-      setHasRedirected(true)
-      router.push("/student")
-      return
-    }
-  }, [isLoaded, user, currentUser, router, hasRedirected])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -419,13 +400,16 @@ export default function SelectTopics() {
     )
   }
 
-  // Don't render anything if redirecting
-  if (hasRedirected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
+  // Not authenticated - redirect to sign in
+  if (!user) {
+    console.log("No user in select page, redirecting to sign-in")
+    redirect("/sign-in")
+  }
+
+  // No student ID - redirect to student entry
+  if (!currentUser?.studentId) {
+    console.log("No studentId in select page, redirecting to student entry")
+    redirect("/student")
   }
 
   if (!topics) {
