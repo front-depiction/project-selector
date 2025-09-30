@@ -29,6 +29,7 @@ import type * as stats from "../stats.js";
 import type * as subtopics from "../subtopics.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
 import type * as topics from "../topics.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   subtopics: typeof subtopics;
   topicAnalytics: typeof topicAnalytics;
   topics: typeof topics;
+  users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
