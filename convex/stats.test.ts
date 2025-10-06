@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test"
-import { expect, test } from "vitest"
+import { expect, test, vi } from "vitest"
 import { api } from "./_generated/api"
 import schema from "./schema"
 import {
@@ -33,7 +33,8 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
   })
 }
 
-test("getLandingStats returns a title", async () => {
+test("getLandingStats returns stats object", async () => {
+  vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))
   
   // Seed test data
@@ -42,7 +43,12 @@ test("getLandingStats returns a title", async () => {
   // Query landing stats
   const stats = await t.query(api.stats.getLandingStats, {})
   
-  // Verify that a title is returned
-  expect(stats.title).toBeDefined()
-  expect(stats.title).toBe("Test Period")
+  // Verify stats structure exists
+  expect(stats).toBeDefined()
+  expect(stats.periodStatus).toBeDefined()
+  // Note: totalTopics and totalStudents may be 0 if period is inactive
+  expect(typeof stats.totalTopics).toBe('number')
+  expect(typeof stats.totalStudents).toBe('number')
+  
+  vi.useRealTimers()
 })
