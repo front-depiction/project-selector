@@ -25,7 +25,6 @@ import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { getStudentId } from "@/lib/student"
 import { cn } from "@/lib/utils"
-import { Id } from "@/convex/_generated/dataModel"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
 
@@ -54,11 +53,11 @@ export interface LandingStats {
 }
 
 // Use actual SelectionPeriod type from Convex
-export type CurrentPeriod = Doc<"selectionPeriods"> | null
+export type CurrentPeriod = Doc<"selectionPeriods"> | SelectionPeriod.SelectionPeriod | null
 
 export interface CompetitionData {
   readonly topicId?: Id<"topics">
-  readonly topic?: string  
+  readonly topic?: string
   readonly title?: string
   readonly students?: number
   readonly studentCount?: number
@@ -72,10 +71,11 @@ export interface CompetitionData {
 
 // Use actual types from Convex
 export type Topic = Doc<"topics">
-export type Assignment = Doc<"assignments"> & {
-  readonly topic?: Topic | null
-  readonly wasPreference?: boolean
-  readonly wasTopChoice?: boolean
+export type Assignment = {
+  readonly assignment: Doc<"assignments">
+  readonly topic: Topic | null
+  readonly wasPreference: boolean
+  readonly wasTopChoice: boolean
 }
 
 export interface LandingPageState {
@@ -127,8 +127,8 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   const myAssignment = useQuery(
     api.assignments.getMyAssignment,
-    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId
-      ? { periodId: currentPeriod._id, studentId }
+    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId && '_id' in currentPeriod
+      ? { periodId: currentPeriod._id as Id<"selectionPeriods">, studentId }
       : "skip"
   )
 
@@ -277,7 +277,7 @@ function useCountdown(targetMs: number | null) {
 
 export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) => {
   const { formatted } = useCountdown(targetDate)
-  
+
   if (!targetDate) return null
 
   return (
@@ -296,7 +296,7 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 
 export const StatusBanner: React.FC = () => {
   const { stats } = useLandingPage()
-  
+
   if (!stats || !stats.isActive || stats.periodStatus === "assigned") return null
 
   const isOpen = stats.periodStatus === "open"
@@ -444,7 +444,7 @@ export const StatisticsCards: React.FC = () => (
 
 export const AnalyticsSection: React.FC = () => {
   const { competitionData } = useLandingPage()
-  
+
   const hasData = competitionData && Array.isArray(competitionData) && competitionData.length > 0
 
   return (

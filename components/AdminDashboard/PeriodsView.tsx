@@ -22,7 +22,7 @@ import SelectionPeriodForm, { SelectionPeriodFormValues } from "@/components/for
 export const PeriodsView: React.FC = () => {
   const { currentPeriod, createPeriod, updatePeriod, assignments } = AD.useDashboard()
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
-  const [editingPeriod, setEditingPeriod] = React.useState<AD.Period | null>(null)
+  const [editingPeriod, setEditingPeriod] = React.useState<AD.SelectionPeriodWithStats | null>(null)
 
   const handleCreatePeriod = async (values: SelectionPeriodFormValues) => {
     await createPeriod({
@@ -37,7 +37,7 @@ export const PeriodsView: React.FC = () => {
   }
 
   const handleUpdatePeriod = async (values: SelectionPeriodFormValues) => {
-    if (!editingPeriod) return
+    if (!editingPeriod?._id) return
     await updatePeriod(editingPeriod._id, {
       title: values.title,
       description: values.title,
@@ -107,7 +107,7 @@ export const PeriodsView: React.FC = () => {
                 selection_period_id: editingPeriod.semesterId,
                 start_deadline: new Date(editingPeriod.openDate),
                 end_deadline: new Date(editingPeriod.closeDate),
-                isActive: editingPeriod.isActive
+                isActive: SelectionPeriod.isOpen(editingPeriod)
               }}
               onSubmit={handleUpdatePeriod}
             />

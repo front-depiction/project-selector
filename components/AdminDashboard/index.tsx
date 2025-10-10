@@ -4,7 +4,8 @@ import * as React from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { toast } from "sonner"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
+import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -50,35 +51,14 @@ import { cn } from "@/lib/utils"
 
 export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "settings"
 
-export interface Period {
-  readonly _id?: Id<"selectionPeriods">
-  readonly _creationTime?: number
-  readonly title: string
-  readonly description: string
-  readonly semesterId: string
-  readonly openDate: number
-  readonly closeDate: number
-  readonly kind: "inactive" | "open" | "closed" | "assigned"
+// Use Convex-generated types instead of redefining them
+export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
   readonly studentCount?: number
   readonly assignmentCount?: number
 }
 
-export interface Topic {
-  readonly _id: Id<"topics">
-  readonly title: string
-  readonly description: string
-  readonly semesterId: string
-  readonly isActive: boolean
-  readonly subtopicIds?: readonly Id<"subtopics">[]
-  readonly selectionCount?: number
-  readonly averageRank?: number
-}
-
-export interface Subtopic {
-  readonly _id: Id<"subtopics">
-  readonly title: string
-  readonly description: string
-}
+export type Topic = Doc<"topics">
+export type Subtopic = Doc<"subtopics">
 
 export interface Assignment {
   readonly studentId: string
@@ -90,10 +70,10 @@ export interface Assignment {
 
 export interface DashboardState {
   readonly activeView: ViewType
-  readonly periods: readonly Period[] | undefined
+  readonly periods: readonly SelectionPeriodWithStats[] | undefined
   readonly topics: readonly Topic[] | undefined
   readonly subtopics: readonly Subtopic[] | undefined
-  readonly currentPeriod: Period | null | undefined
+  readonly currentPeriod: Doc<"selectionPeriods"> | SelectionPeriod | null | undefined
   readonly assignments: readonly Assignment[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
   readonly stats: {
@@ -568,7 +548,7 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
                 </Badge>
               </TableCell>
               <TableCell>{topic.subtopicIds?.length || 0}</TableCell>
-              <TableCell>{topic.selectionCount || 0}</TableCell>
+              <TableCell>0</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -603,7 +583,7 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
 }
 
 export interface PeriodsTableProps {
-  readonly onEdit?: (period: Period) => void
+  readonly onEdit?: (period: SelectionPeriodWithStats) => void
 }
 
 export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
