@@ -33,9 +33,10 @@ export const seedTestData = mutation({
     ])
 
     const students = generateTestStudents(topicIds, 60)
-    const preferenceIds = await insertTestPreferences(ctx, students, semesterId)
-
-    await createTestRankings(ctx, students, semesterId)
+    const [preferenceIds] = await Promise.all([
+      insertTestPreferences(ctx, students, semesterId),
+      createTestRankings(ctx, students, semesterId)
+    ])
     return preferenceIds
   }
 })
