@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -286,6 +286,7 @@ const TopicCard = ({
 
 export default function SelectTopics() {
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
 
   // Get student ID from localStorage immediately
   const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
@@ -297,7 +298,6 @@ export default function SelectTopics() {
     }
   }, [studentId, router])
 
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
@@ -367,25 +367,23 @@ export default function SelectTopics() {
   }
 
   // Save preferences after drag ends
-  const handleDragEnd = useCallback(async () => {
+  const handleDragEnd = () => {
     if (!hasChanges) return
 
-    setSaving(true)
     setError(null)
 
-    try {
-      const topicOrder = displayItems.map((item) => item.id as any as Id<"topics">)
-      await savePreferences({ studentId, topicOrder })
-      setHasChanges(false)
-      setReorderedItems(null) // Clear local state after save
-      toast.success("Preferences saved")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save preferences")
-      toast.error("Failed to save preferences")
-    } finally {
-      setSaving(false)
-    }
-  }, [displayItems, hasChanges, studentId, savePreferences])
+    startTransition(async () => {
+      try {
+        const topicOrder = displayItems.map((item) => item.id as any as Id<"topics">)
+        await savePreferences({ studentId, topicOrder })
+        setHasChanges(false)
+        setReorderedItems(null) // Clear local state after save
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save preferences")
+        toast.error("Failed to save preferences")
+      }
+    })
+  }
 
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
@@ -558,13 +556,13 @@ export default function SelectTopics() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-semibold">Rank Your Preferences</h2>
-                  {saving && (
+                  {isPending && (
                     <Badge variant="secondary" className="animate-pulse">
                       <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                       Saving
                     </Badge>
                   )}
-                  {!saving && !hasChanges && (preferences?.topicOrder?.length || 0) > 0 && (
+                  {!isPending && !hasChanges && (preferences?.topicOrder?.length || 0) > 0 && (
                     <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
                       <CheckCircle className="mr-1 h-3 w-3" />
                       Saved
