@@ -78,3 +78,27 @@ test("integration test", async () => {
   
   vi.useRealTimers()
 })
+
+test("getActiveTopicsWithCongestion", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Seed test data
+  const { semesterId } = await seedTestData(t)
+  
+  // Test getActiveTopicsWithCongestion
+  const topicsWithCongestion = await t.query(api.topics.getActiveTopicsWithCongestion, {})
+  expect(topicsWithCongestion).toBeDefined()
+  expect(topicsWithCongestion.length).toBe(10)
+  
+  // Verify topics have basic structure
+  topicsWithCongestion.forEach(topic => {
+    expect(topic._id).toBeDefined()
+    expect(topic.title).toBeDefined()
+    expect(topic.description).toBeDefined()
+    expect(topic.semesterId).toBe(semesterId)
+    expect(topic.isActive).toBe(true)
+  })
+  
+  vi.useRealTimers()
+})
