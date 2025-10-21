@@ -5,6 +5,7 @@ import * as AD from "./index"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Settings, Database, RefreshCw, Trash2 } from "lucide-react"
+import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export const SettingsView: React.FC = () => {
-  const { seedTestData, clearAllData } = AD.useDashboard()
+  const { seedTestData, clearAllData, currentPeriod } = AD.useDashboard()
   const [isClearDialogOpen, setIsClearDialogOpen] = React.useState(false)
 
   const handleSeedData = async () => {
@@ -56,6 +57,25 @@ export const SettingsView: React.FC = () => {
               <RefreshCw className="mr-2 h-4 w-4" />
               Seed Data
             </Button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <h4 className="font-medium">Assign Now</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manually trigger assignment for the current period
+              </p>
+            </div>
+            {currentPeriod && currentPeriod._id ? (
+              <AssignNowButton
+                periodId={currentPeriod._id}
+                status={currentPeriod.kind === "open" ? "open" : currentPeriod.kind === "assigned" ? "assigned" : undefined}
+              />
+            ) : (
+              <Button disabled variant="outline">
+                No Active Period
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center justify-between p-4 border rounded-lg border-red-200 bg-red-50 dark:bg-red-950/20">

@@ -5,7 +5,7 @@ import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Button } from "@/components/ui/button"
 import { Id } from "@/convex/_generated/dataModel"
-import { Loader2 } from "lucide-react"
+import { Loader2, PlayCircle } from "lucide-react"
 
 interface AssignNowButtonProps {
   periodId: Id<"selectionPeriods">
@@ -36,7 +36,7 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
     <Button
       onClick={handleAssign}
       disabled={isDisabled}
-      variant="destructive"
+      variant="outline"
       className="min-w-[120px]"
     >
       {loading ? (
@@ -47,7 +47,10 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
       ) : status === "assigned" ? (
         "Already Assigned"
       ) : (
-        "Assign Now"
+        <>
+          <PlayCircle className="mr-2 h-4 w-4" />
+          Assign Now
+        </>
       )}
     </Button>
   )
