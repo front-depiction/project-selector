@@ -66,10 +66,10 @@ export const SettingsView: React.FC = () => {
                 Manually trigger assignment for the current period
               </p>
             </div>
-            {currentPeriod && currentPeriod._id ? (
+            {currentPeriod && "_id" in currentPeriod && currentPeriod._id ? (
               <AssignNowButton
                 periodId={currentPeriod._id}
-                status={currentPeriod.kind === "open" ? "open" : currentPeriod.kind === "assigned" ? "assigned" : undefined}
+                status={currentPeriod.kind === "open" || currentPeriod.kind === "assigned" ? currentPeriod.kind : undefined}
               />
             ) : (
               <Button disabled variant="outline">
