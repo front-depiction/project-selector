@@ -6,7 +6,8 @@ import { Id } from "@/convex/_generated/dataModel"
 import { motion, AnimatePresence } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Trophy, Award, User, Hash } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Users, Trophy, Award, User, Hash, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface AssignmentDisplayProps {
@@ -30,7 +31,35 @@ export function AssignmentDisplay({ periodId, studentId }: AssignmentDisplayProp
     periodId ? { periodId } : "skip"
   )
   
+  const exportData = useQuery(
+    api.assignments.getAllAssignmentsForExport,
+    periodId ? { periodId } : "skip"
+  )
+  
   if (!assignments) return null
+
+  // CSV export function for admins
+  const exportToCSV = () => {
+    if (!exportData) return
+    
+    const headers = ['student_id', 'assigned_topic']
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row => 
+        `"${row.student_id}","${row.assigned_topic.replace(/"/g, '""')}"`
+      )
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `assignments_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
   
   const topicEntries = Object.entries(assignments).sort(
     ([, a], [, b]) => (b as any).students.length - (a as any).students.length
@@ -38,6 +67,7 @@ export function AssignmentDisplay({ periodId, studentId }: AssignmentDisplayProp
   
   return (
     <div className="space-y-6">
+
       <AnimatePresence mode="wait">
         {myAssignment && (
           <motion.div
@@ -108,7 +138,16 @@ export function AssignmentDisplay({ periodId, studentId }: AssignmentDisplayProp
         >
           <Card className="bg-gradient-to-r from-background to-muted/20 border-muted/30">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold">Assignment Statistics</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold">Assignment Statistics</CardTitle>
+                {/* Admin CSV Export Button - only show when no studentId (admin view) */}
+                {!studentId && (
+                  <Button onClick={exportToCSV} variant="outline" size="sm" className="flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-6">
