@@ -3,6 +3,7 @@
 import * as React from "react"
 import * as AD from "./index"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
+import type { Doc } from "@/convex/_generated/dataModel"
 import DockLayout from "@/components/layouts/DockLayout"
 import { useRouter } from "next/navigation"
 import {
@@ -32,7 +33,7 @@ import { SettingsView } from "./SettingsView"
 const OverviewView: React.FC = () => {
   const { currentPeriod, assignments, periods, updatePeriod, updateTopic } = AD.useDashboard()
   const [editingPeriod, setEditingPeriod] = React.useState<AD.SelectionPeriodWithStats | null>(null)
-  const [editingTopic, setEditingTopic] = React.useState<AD.Topic | null>(null)
+  const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
 
   // Format periods for the form
   const periodOptions = React.useMemo(() => {

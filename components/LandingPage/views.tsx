@@ -90,14 +90,14 @@ export const LandingPageContent: React.FC = () => {
     closed: () => <InactivePeriodView />,
 
     assigned: (period) => {
-      if (!studentId && '_id' in period)
+      if (!studentId)
         return <AllAssignmentsView periodId={period._id} />
 
       switch (myAssignment) {
         case undefined:
-          return studentId ? <LP.LoadingAssignment studentId={studentId} /> : <InactivePeriodView />
+          return <LP.LoadingAssignment studentId={studentId} />
         case null:
-          return studentId ? <LP.NoAssignmentFound studentId={studentId} /> : <InactivePeriodView />
+          return <LP.NoAssignmentFound studentId={studentId} />
         default:
           return <PersonalAssignmentView />
       }

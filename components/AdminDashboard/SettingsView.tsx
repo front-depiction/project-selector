@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Settings, Database, RefreshCw, Trash2 } from "lucide-react"
@@ -66,12 +67,20 @@ export const SettingsView: React.FC = () => {
                 Manually trigger assignment for the current period
               </p>
             </div>
-            {currentPeriod && "_id" in currentPeriod && currentPeriod._id ? (
-              <AssignNowButton
-                periodId={currentPeriod._id}
-                status={currentPeriod.kind === "open" || currentPeriod.kind === "assigned" ? currentPeriod.kind : undefined}
-              />
-            ) : (
+            {currentPeriod ? SelectionPeriod.match(currentPeriod)({
+              open: (p) => <AssignNowButton periodId={p._id} status="open" />,
+              assigned: (p) => <AssignNowButton periodId={p._id} status="assigned" />,
+              inactive: () => (
+                <Button disabled variant="outline">
+                  No Active Period
+                </Button>
+              ),
+              closed: () => (
+                <Button disabled variant="outline">
+                  No Active Period
+                </Button>
+              )
+            }) : (
               <Button disabled variant="outline">
                 No Active Period
               </Button>

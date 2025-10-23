@@ -53,7 +53,7 @@ export interface LandingStats {
 }
 
 // Use actual SelectionPeriod type from Convex
-export type CurrentPeriod = Doc<"selectionPeriods"> | SelectionPeriod.SelectionPeriod | null
+export type CurrentPeriod = Doc<"selectionPeriods"> | null
 
 export interface CompetitionData {
   readonly topicId?: Id<"topics">
@@ -127,8 +127,8 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   const myAssignment = useQuery(
     api.assignments.getMyAssignment,
-    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId && '_id' in currentPeriod
-      ? { periodId: currentPeriod._id as Id<"selectionPeriods">, studentId }
+    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId
+      ? { periodId: currentPeriod._id, studentId }
       : "skip"
   )
 

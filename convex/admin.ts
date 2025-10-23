@@ -173,7 +173,7 @@ export const getCurrentPeriod = query({
     if (active) return active
 
     const periods = await ctx.db.query("selectionPeriods").collect()
-    return SelectionPeriod.getMostRecentAssigned(periods) || null
+    return SelectionPeriod.getMostRecentAssigned(periods) ?? null
   }
 })
 

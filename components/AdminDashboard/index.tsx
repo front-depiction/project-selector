@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api"
 import { toast } from "sonner"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
+import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -51,14 +52,10 @@ import { cn } from "@/lib/utils"
 
 export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "settings"
 
-// Use Convex-generated types instead of redefining them
-export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
-  readonly studentCount?: number
-  readonly assignmentCount?: number
-}
-
-export type Topic = Doc<"topics">
-export type Subtopic = Doc<"subtopics">
+export type SelectionPeriodWithStats = Readonly<Doc<"selectionPeriods"> & {
+  studentCount?: number
+  assignmentCount?: number
+}>
 
 export interface Assignment {
   readonly studentId: string
@@ -71,9 +68,9 @@ export interface Assignment {
 export interface DashboardState {
   readonly activeView: ViewType
   readonly periods: readonly SelectionPeriodWithStats[] | undefined
-  readonly topics: readonly Topic[] | undefined
-  readonly subtopics: readonly Subtopic[] | undefined
-  readonly currentPeriod: Doc<"selectionPeriods"> | SelectionPeriod | null | undefined
+  readonly topics: readonly Doc<"topics">[] | undefined
+  readonly subtopics: readonly Doc<"subtopics">[] | undefined
+  readonly currentPeriod: Doc<"selectionPeriods"> | null | undefined
   readonly assignments: readonly Assignment[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
   readonly stats: {
@@ -154,15 +151,19 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   // Mock assignments for now - replace with real query
   const assignments: Assignment[] = React.useMemo(() => {
-    if (currentPeriod?.kind === "assigned") {
-      return [
+    if (!currentPeriod) return []
+
+    return SelectionPeriodModule.match(currentPeriod)({
+      assigned: () => [
         { studentId: "#6367261", topicTitle: "ML Recommendation System", preferenceRank: 5, isMatched: true, status: "assigned" },
         { studentId: "#6367262", topicTitle: "Blockchain Smart Contracts", preferenceRank: 1, isMatched: true, status: "assigned" },
         { studentId: "#6367263", topicTitle: "Cloud Migration Strategy", preferenceRank: 2, isMatched: true, status: "assigned" },
-      ]
-    }
-    return []
-  }, [currentPeriod?.kind])
+      ] as Assignment[],
+      open: () => [],
+      inactive: () => [],
+      closed: () => []
+    })
+  }, [currentPeriod])
 
   // Calculate stats
   const stats = React.useMemo(() => {
@@ -193,7 +194,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
 
   // Actions
-  const createPeriod = React.useCallback(async (data: PeriodFormData) => {
+  const createPeriod = async (data: PeriodFormData) => {
     try {
       await createPeriodMutation({
         title: data.title,
@@ -208,9 +209,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to create period")
       throw error
     }
-  }, [createPeriodMutation])
+  }
 
-  const updatePeriod = React.useCallback(async (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => {
+  const updatePeriod = async (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => {
     try {
       await updatePeriodMutation({
         periodId: id,
@@ -224,9 +225,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to update period")
       throw error
     }
-  }, [updatePeriodMutation])
+  }
 
-  const deletePeriod = React.useCallback(async (id: Id<"selectionPeriods">) => {
+  const deletePeriod = async (id: Id<"selectionPeriods">) => {
     try {
       await deletePeriodMutation({ periodId: id })
       toast.success("Period deleted successfully")
@@ -234,9 +235,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to delete period")
       throw error
     }
-  }, [deletePeriodMutation])
+  }
 
-  const setActivePeriod = React.useCallback(async (id: Id<"selectionPeriods">) => {
+  const setActivePeriod = async (id: Id<"selectionPeriods">) => {
     try {
       await setActivePeriodMutation({ periodId: id })
       toast.success("Period activated successfully")
@@ -244,9 +245,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to activate period")
       throw error
     }
-  }, [setActivePeriodMutation])
+  }
 
-  const createTopic = React.useCallback(async (data: TopicFormData) => {
+  const createTopic = async (data: TopicFormData) => {
     try {
       await createTopicMutation({
         title: data.title,
@@ -259,9 +260,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to create topic")
       throw error
     }
-  }, [createTopicMutation])
+  }
 
-  const updateTopic = React.useCallback(async (id: Id<"topics">, updates: Partial<TopicFormData>) => {
+  const updateTopic = async (id: Id<"topics">, updates: Partial<TopicFormData>) => {
     try {
       await updateTopicMutation({
         id,
@@ -274,9 +275,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to update topic")
       throw error
     }
-  }, [updateTopicMutation])
+  }
 
-  const deleteTopic = React.useCallback(async (id: Id<"topics">) => {
+  const deleteTopic = async (id: Id<"topics">) => {
     try {
       await deleteTopicMutation({ id })
       toast.success("Topic deleted successfully")
@@ -284,14 +285,14 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to delete topic")
       throw error
     }
-  }, [deleteTopicMutation])
+  }
 
-  const assignTopics = React.useCallback(async (_periodId: Id<"selectionPeriods">) => {
+  const assignTopics = async (_periodId: Id<"selectionPeriods">) => {
     // TODO: Implement actual assignment logic
     toast.success("Topics assigned successfully")
-  }, [])
+  }
 
-  const seedTestData = React.useCallback(async () => {
+  const seedTestData = async () => {
     try {
       await seedTestDataMutation({})
       toast.success("Test data seeded successfully")
@@ -299,9 +300,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to seed test data")
       throw error
     }
-  }, [seedTestDataMutation])
+  }
 
-  const clearAllData = React.useCallback(async () => {
+  const clearAllData = async () => {
     try {
       await clearAllDataMutation({})
       toast.success("All data cleared successfully")
@@ -309,37 +310,29 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       toast.error(error instanceof Error ? error.message : "Failed to clear data")
       throw error
     }
-  }, [clearAllDataMutation])
+  }
 
-  const value = React.useMemo(
-    () => ({
-      activeView,
-      periods,
-      topics,
-      subtopics,
-      currentPeriod,
-      assignments,
-      topicAnalytics,
-      stats,
-      setActiveView,
-      createPeriod,
-      updatePeriod,
-      deletePeriod,
-      setActivePeriod,
-      createTopic,
-      updateTopic,
-      deleteTopic,
-      assignTopics,
-      seedTestData,
-      clearAllData
-    }),
-    [
-      activeView, periods, topics, subtopics, currentPeriod, assignments, topicAnalytics, stats,
-      createPeriod, updatePeriod, deletePeriod, setActivePeriod,
-      createTopic, updateTopic, deleteTopic, assignTopics,
-      seedTestData, clearAllData
-    ]
-  )
+  const value: DashboardState & DashboardActions = {
+    activeView,
+    periods,
+    topics,
+    subtopics,
+    currentPeriod,
+    assignments,
+    topicAnalytics,
+    stats,
+    setActiveView,
+    createPeriod,
+    updatePeriod,
+    deletePeriod,
+    setActivePeriod,
+    createTopic,
+    updateTopic,
+    deleteTopic,
+    assignTopics,
+    seedTestData,
+    clearAllData
+  }
 
   return (
     <DashboardContext.Provider value={value}>
@@ -426,12 +419,19 @@ export const MetricsGrid: React.FC = () => {
       />
       <MetricCard
         title="Current Period"
-        value={currentPeriod?.kind.toUpperCase() || "NONE"}
+        value={currentPeriod ? SelectionPeriodModule.match(currentPeriod)({
+          open: () => "OPEN",
+          assigned: () => "ASSIGNED",
+          inactive: () => "INACTIVE",
+          closed: () => "CLOSED"
+        }) : "NONE"}
         icon={<Clock className="h-4 w-4" />}
-        className={cn(
-          currentPeriod?.kind === "open" && "border-green-200 bg-green-50/50",
-          currentPeriod?.kind === "assigned" && "border-purple-200 bg-purple-50/50"
-        )}
+        className={currentPeriod ? SelectionPeriodModule.match(currentPeriod)({
+          open: () => "border-green-200 bg-green-50/50",
+          assigned: () => "border-purple-200 bg-purple-50/50",
+          inactive: () => "",
+          closed: () => ""
+        }) : ""}
       />
     </div>
   )
@@ -507,7 +507,7 @@ export const AssignmentTable: React.FC = () => {
 }
 
 export interface TopicsTableProps {
-  readonly onEdit?: (topic: Topic) => void
+  readonly onEdit?: (topic: Doc<"topics">) => void
 }
 
 export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
@@ -621,13 +621,18 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
               <TableRow key={rowKey}>
                 <TableCell className="font-medium">{period.title}</TableCell>
                 <TableCell>
-                  <Badge className={cn(
-                    period.kind === "open" && "bg-green-600 text-white",
-                    period.kind === "inactive" && "bg-blue-600 text-white",
-                    period.kind === "closed" && "bg-red-600 text-white",
-                    period.kind === "assigned" && "bg-purple-600 text-white"
-                  )}>
-                    {period.kind}
+                  <Badge className={SelectionPeriodModule.match(period)({
+                    open: () => "bg-green-600 text-white",
+                    inactive: () => "bg-blue-600 text-white",
+                    closed: () => "bg-red-600 text-white",
+                    assigned: () => "bg-purple-600 text-white"
+                  })}>
+                    {SelectionPeriodModule.match(period)({
+                      open: () => "open",
+                      inactive: () => "inactive",
+                      closed: () => "closed",
+                      assigned: () => "assigned"
+                    })}
                   </Badge>
                 </TableCell>
                 <TableCell>{format(period.openDate, "MMM d, yyyy")}</TableCell>
@@ -647,12 +652,27 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
                           Edit
                         </DropdownMenuItem>
                       )}
-                      {period.kind !== "open" && periodId && (
-                        <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
-                          <Power className="mr-2 h-4 w-4" />
-                          Set Active
-                        </DropdownMenuItem>
-                      )}
+                      {SelectionPeriodModule.match(period)({
+                        open: () => null,
+                        inactive: () => periodId && (
+                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                            <Power className="mr-2 h-4 w-4" />
+                            Set Active
+                          </DropdownMenuItem>
+                        ),
+                        closed: () => periodId && (
+                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                            <Power className="mr-2 h-4 w-4" />
+                            Set Active
+                          </DropdownMenuItem>
+                        ),
+                        assigned: () => periodId && (
+                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                            <Power className="mr-2 h-4 w-4" />
+                            Set Active
+                          </DropdownMenuItem>
+                        )
+                      })}
                       <DropdownMenuSeparator />
                       {periodId && (
                         <DropdownMenuItem

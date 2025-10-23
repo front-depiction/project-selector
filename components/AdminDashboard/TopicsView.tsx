@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Plus, Trash2 } from "lucide-react"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import TopicForm from "@/components/forms/topic-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,7 +27,7 @@ export const TopicsView: React.FC = () => {
   const { topics, subtopics, periods, createTopic, updateTopic, deleteTopic } = AD.useDashboard()
   const [isCreateTopicOpen, setIsCreateTopicOpen] = React.useState(false)
   const [isCreateSubtopicOpen, setIsCreateSubtopicOpen] = React.useState(false)
-  const [editingTopic, setEditingTopic] = React.useState<AD.Topic | null>(null)
+  const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
   const [subtopicForm, setSubtopicForm] = React.useState({ title: "", description: "" })
 
   // Format periods for the form
