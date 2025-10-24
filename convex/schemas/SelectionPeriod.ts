@@ -348,6 +348,31 @@ export const match = <P extends SelectionPeriod>(period: P) =>
   }
 
 /**
+ * Pattern matching for optional SelectionPeriod (handles undefined/null).
+ *
+ * @category Pattern Matching
+ * @since 0.1.0
+ * @example
+ * import * as SelectionPeriod from "./schemas/SelectionPeriod"
+ *
+ * const result = SelectionPeriod.matchOptional(period)({
+ *   inactive: () => "Not yet scheduled",
+ *   open: () => "Accepting selections",
+ *   closed: () => "Selection period ended",
+ *   assigned: (p) => `Assigned in batch ${p.assignmentBatchId}`,
+ *   none: () => "No active period"
+ * })
+ */
+export const matchOptional = <P extends SelectionPeriod>(period: P | undefined | null) =>
+  <R>(patterns: {
+    inactive: (p: Extract<P, InactivePeriod>) => R
+    open: (p: Extract<P, OpenPeriod>) => R
+    closed: (p: Extract<P, ClosedPeriod>) => R
+    assigned: (p: Extract<P, AssignedPeriod>) => R
+    none: () => R
+  }): R => period ? match(period)(patterns) : patterns.none()
+
+/**
  * Partial pattern matching with default.
  *
  * @category Pattern Matching

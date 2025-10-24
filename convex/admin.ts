@@ -96,8 +96,30 @@ export const updateTopic = mutation({
 })
 
 /**
+ * Toggles a topic's active status.
+ *
+ * @category Mutations
+ * @since 0.1.0
+ */
+export const toggleTopicActive = mutation({
+  args: {
+    id: v.id("topics")
+  },
+  handler: async (ctx, args) => {
+    const topic = await ctx.db.get(args.id)
+    if (!topic) {
+      throw new Error("Topic not found")
+    }
+
+    await ctx.db.patch(args.id, {
+      isActive: !topic.isActive
+    })
+  }
+})
+
+/**
  * Deletes a topic.
- * 
+ *
  * @category Mutations
  * @since 0.1.0
  */

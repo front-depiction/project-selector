@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,10 +38,9 @@ interface TopicAnalyticsCardProps {
       totalEvents: number
     }
   }
-  onViewDetails: (id: string) => void
 }
 
-export default function TopicAnalyticsCard({ topic, onViewDetails }: TopicAnalyticsCardProps) {
+export default function TopicAnalyticsCard({ topic }: TopicAnalyticsCardProps) {
   const getMomentumColor = (momentum: string) => {
     switch (momentum) {
       case "rising": return "text-green-500"
@@ -171,14 +171,12 @@ export default function TopicAnalyticsCard({ topic, onViewDetails }: TopicAnalyt
         )}
 
         {/* Action Button */}
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => onViewDetails(topic.id)}
-        >
-          View Detailed Analytics
-          <ChevronRight className="h-4 w-4 ml-1" />
-        </Button>
+        <Link href={`/admin/analytics/${topic.id}`} className="block">
+          <Button variant="outline" className="w-full">
+            View Detailed Analytics
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </Link>
       </CardContent>
     </Card>
   )

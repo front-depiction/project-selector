@@ -41,7 +41,6 @@ export interface PopularTopic {
 export interface LandingStats {
   readonly isActive: boolean
   readonly title?: string
-  readonly periodStatus: string // This comes from SelectionPeriod.getStatus() which returns a string
   readonly closeDate?: number
   readonly openDate?: number
   readonly totalTopics: number
@@ -295,25 +294,28 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 // ============================================================================
 
 export const StatusBanner: React.FC = () => {
-  const { stats } = useLandingPage()
+  const { stats, currentPeriod } = useLandingPage()
 
-  if (!stats || !stats.isActive || stats.periodStatus === "assigned") return null
+  if (!stats || !stats.isActive || !currentPeriod) return null
 
-  const isOpen = stats.periodStatus === "open"
-  const target = isOpen ? stats.closeDate : null
-
-  return (
-    <div className="mb-8">
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-        <div className="flex items-center gap-3">
-          <StatusIcon status={stats.periodStatus} />
-          <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
-          <StatusBadge status={stats.periodStatus} />
+  return SelectionPeriod.matchOptional(currentPeriod)({
+    open: (p) => (
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+          <div className="flex items-center gap-3">
+            <StatusIcon status="open" />
+            <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
+            <StatusBadge status="open" />
+          </div>
+          <Timer targetDate={stats.closeDate ?? null} />
         </div>
-        {isOpen && <Timer targetDate={target ?? null} />}
       </div>
-    </div>
-  )
+    ),
+    inactive: () => null,
+    closed: () => null,
+    assigned: () => null,
+    none: () => null
+  })
 }
 
 // ============================================================================

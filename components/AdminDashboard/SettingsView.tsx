@@ -34,7 +34,7 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Settings</h2>
-      
+
       {/* Development Tools */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
@@ -67,7 +67,7 @@ export const SettingsView: React.FC = () => {
                 Manually trigger assignment for the current period
               </p>
             </div>
-            {currentPeriod ? SelectionPeriod.match(currentPeriod)({
+            {SelectionPeriod.matchOptional(currentPeriod)({
               open: (p) => <AssignNowButton periodId={p._id} status="open" />,
               assigned: (p) => <AssignNowButton periodId={p._id} status="assigned" />,
               inactive: () => (
@@ -77,14 +77,15 @@ export const SettingsView: React.FC = () => {
               ),
               closed: () => (
                 <Button disabled variant="outline">
+                  Period Closed
+                </Button>
+              ),
+              none: () => (
+                <Button disabled variant="outline">
                   No Active Period
                 </Button>
               )
-            }) : (
-              <Button disabled variant="outline">
-                No Active Period
-              </Button>
-            )}
+            })}
           </div>
 
           <div className="flex items-center justify-between p-4 border rounded-lg border-red-200 bg-red-50 dark:bg-red-950/20">
@@ -94,8 +95,8 @@ export const SettingsView: React.FC = () => {
                 Remove all topics, periods, and selections. This cannot be undone.
               </p>
             </div>
-            <Button 
-              onClick={() => setIsClearDialogOpen(true)} 
+            <Button
+              onClick={() => setIsClearDialogOpen(true)}
               variant="destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -129,20 +130,22 @@ export const SettingsView: React.FC = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will permanently delete all data including:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>All topics and subtopics</li>
-                <li>All selection periods</li>
-                <li>All student preferences</li>
-                <li>All assignments</li>
-              </ul>
-              <span className="font-semibold text-red-600">This action cannot be undone.</span>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>This action will permanently delete all data including:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>All topics and subtopics</li>
+                  <li>All selection periods</li>
+                  <li>All student preferences</li>
+                  <li>All assignments</li>
+                </ul>
+                <p className="font-semibold text-red-600 mt-2">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleClearData}
               className="bg-red-600 hover:bg-red-700"
             >

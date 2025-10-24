@@ -63,10 +63,9 @@ export const AnalyticsView: React.FC = () => {
       {topicAnalytics && topicAnalytics.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {topicAnalytics.map((analytics: any) => (
-            <TopicAnalyticsCard 
+            <TopicAnalyticsCard
               key={analytics.topicId || analytics.id}
               topic={analytics}
-              onViewDetails={(id) => console.log('View details for', id)}
             />
           ))}
         </div>

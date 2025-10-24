@@ -92,6 +92,7 @@ export interface DashboardActions {
   readonly setActivePeriod: (id: Id<"selectionPeriods">) => Promise<void>
   readonly createTopic: (topic: TopicFormData) => Promise<void>
   readonly updateTopic: (id: Id<"topics">, updates: Partial<TopicFormData>) => Promise<void>
+  readonly toggleTopicActive: (id: Id<"topics">) => Promise<void>
   readonly deleteTopic: (id: Id<"topics">) => Promise<void>
   readonly assignTopics: (periodId: Id<"selectionPeriods">) => Promise<void>
   readonly seedTestData: () => Promise<void>
@@ -190,6 +191,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const createTopicMutation = useMutation(api.admin.createTopic)
   const updateTopicMutation = useMutation(api.admin.updateTopic)
   const deleteTopicMutation = useMutation(api.admin.deleteTopic)
+  const toggleTopicActiveMutation = useMutation(api.admin.toggleTopicActive)
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
 
@@ -277,6 +279,16 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     }
   }
 
+  const toggleTopicActive = async (id: Id<"topics">) => {
+    try {
+      await toggleTopicActiveMutation({ id })
+      toast.success("Topic status updated successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update topic status")
+      throw error
+    }
+  }
+
   const deleteTopic = async (id: Id<"topics">) => {
     try {
       await deleteTopicMutation({ id })
@@ -328,6 +340,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     setActivePeriod,
     createTopic,
     updateTopic,
+    toggleTopicActive,
     deleteTopic,
     assignTopics,
     seedTestData,
@@ -511,7 +524,7 @@ export interface TopicsTableProps {
 }
 
 export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
-  const { topics, deleteTopic } = useDashboard()
+  const { topics, toggleTopicActive, deleteTopic } = useDashboard()
 
   if (!topics || topics.length === 0) {
     return (
@@ -563,6 +576,10 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
                         Edit
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem onClick={() => toggleTopicActive(topic._id)}>
+                      <Power className="mr-2 h-4 w-4" />
+                      {topic.isActive ? "Deactivate" : "Activate"}
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       className="text-red-600"
