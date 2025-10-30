@@ -119,6 +119,52 @@ test("assignments: cannot assign twice", async () => {
   vi.useRealTimers()
 })
 
+test("assignments: getAllAssignmentsForExport returns flat format", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Seed test data
+  const { periodId, students } = await seedTestData(t)
+  
+  // Assign students
+  await t.mutation(api.assignments.assignNow, { periodId })
+  
+  // Get assignments for export
+  const exportData = await t.query(api.assignments.getAllAssignmentsForExport, { periodId })
+  expect(exportData).toBeDefined()
+  expect(exportData).not.toBeNull()
+  expect(Array.isArray(exportData)).toBe(true)
+  expect(exportData).toHaveLength(students.length)
+  
+  // Verify structure of export data
+  const firstExport = exportData![0]
+  expect(firstExport).toHaveProperty('student_id')
+  expect(firstExport).toHaveProperty('assigned_topic')
+  expect(typeof firstExport.student_id).toBe('string')
+  expect(typeof firstExport.assigned_topic).toBe('string')
+  
+  // Verify all student IDs are present in export
+  const exportedStudentIds = exportData!.map(item => item.student_id)
+  const originalStudentIds = students.map(s => s.id)
+  expect(exportedStudentIds.sort()).toEqual(originalStudentIds.sort())
+  
+  vi.useRealTimers()
+})
+
+test("assignments: getAllAssignmentsForExport returns null for unassigned period", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Seed test data but don't assign
+  const { periodId } = await seedTestData(t)
+  
+  // Get assignments for export without assignment
+  const exportData = await t.query(api.assignments.getAllAssignmentsForExport, { periodId })
+  expect(exportData).toBeNull()
+  
+  vi.useRealTimers()
+})
+
 test("assignments: distribution is balanced", async () => {
   vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))

@@ -289,3 +289,35 @@ export const getAssignmentStats = query({
     return stats
   }
 })
+
+/**
+ * Gets all assignments for CSV export (admin only).
+ * 
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getAllAssignmentsForExport = query({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+
+    if (!period || !SelectionPeriod.isAssigned(period)) {
+      return null
+    }
+
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_period", (q) => q.eq("periodId", args.periodId))
+      .collect()
+
+    // Get topic details
+    const topics = await ctx.db.query("topics").collect()
+    const topicMap = new Map(topics.map(t => [t._id, t]))
+
+    // Return flat format for CSV export
+    return assignments.map(assignment => ({
+      student_id: assignment.studentId,
+      assigned_topic: topicMap.get(assignment.topicId)?.title || "Unknown Topic"
+    }))
+  }
+})
