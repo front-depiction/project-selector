@@ -91,6 +91,44 @@ export const updateStudentId = mutation({
 })
 
 /**
+ * Sync user from Clerk webhook
+ * Called by webhook endpoint when users are created/updated in Clerk
+ */
+export const syncUserFromWebhook = mutation({
+  args: {
+    clerkUserId: v.string(),
+    email: v.string(),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkUserId", args.clerkUserId))
+      .first()
+
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        email: args.email,
+        firstName: args.firstName,
+        lastName: args.lastName,
+        lastSeen: Date.now(),
+      })
+      return existingUser._id
+    }
+
+    return await ctx.db.insert("users", {
+      clerkUserId: args.clerkUserId,
+      email: args.email,
+      firstName: args.firstName,
+      lastName: args.lastName,
+      role: "student",
+      createdAt: Date.now(),
+      lastSeen: Date.now(),
+    })
+  },
+})
+
 /**
  * Get user by Clerk ID (generic, takes clerkUserId as argument)
  */
