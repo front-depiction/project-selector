@@ -423,12 +423,22 @@ export default function SelectTopics() {
   if (topics.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No topics are available for selection at this time.
-          </AlertDescription>
-        </Alert>
+        <div className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              No topics are available for selection at this time.
+            </AlertDescription>
+          </Alert>
+          <div className="flex justify-center">
+            <Link href="/">
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }
