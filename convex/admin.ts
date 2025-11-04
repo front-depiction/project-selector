@@ -27,15 +27,17 @@ export const seedTestData = mutation({
     const now = Date.now()
     const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
-    return await Promise.all([
+    const [, topicIds] = await Promise.all([
       createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
       createTestTopics(ctx, semesterId)
     ])
-      .then(([, topicIds]) => generateTestStudents(topicIds, 60))
-      .then(students => Promise.all([
-        insertTestPreferences(ctx, students, semesterId),
-        createTestRankings(ctx, students, semesterId)]
-      ))
+
+    const students = generateTestStudents(topicIds, 60)
+    const [preferenceIds] = await Promise.all([
+      insertTestPreferences(ctx, students, semesterId),
+      createTestRankings(ctx, students, semesterId)
+    ])
+    return preferenceIds
   }
 })
 
@@ -94,8 +96,30 @@ export const updateTopic = mutation({
 })
 
 /**
+ * Toggles a topic's active status.
+ *
+ * @category Mutations
+ * @since 0.1.0
+ */
+export const toggleTopicActive = mutation({
+  args: {
+    id: v.id("topics")
+  },
+  handler: async (ctx, args) => {
+    const topic = await ctx.db.get(args.id)
+    if (!topic) {
+      throw new Error("Topic not found")
+    }
+
+    await ctx.db.patch(args.id, {
+      isActive: !topic.isActive
+    })
+  }
+})
+
+/**
  * Deletes a topic.
- * 
+ *
  * @category Mutations
  * @since 0.1.0
  */
@@ -171,7 +195,7 @@ export const getCurrentPeriod = query({
     if (active) return active
 
     const periods = await ctx.db.query("selectionPeriods").collect()
-    return SelectionPeriod.getMostRecentAssigned(periods) || null
+    return SelectionPeriod.getMostRecentAssigned(periods) ?? null
   }
 })
 

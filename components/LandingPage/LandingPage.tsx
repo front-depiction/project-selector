@@ -25,7 +25,6 @@ import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { getStudentId } from "@/lib/student"
 import { cn } from "@/lib/utils"
-import { Id } from "@/convex/_generated/dataModel"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
 
@@ -42,7 +41,6 @@ export interface PopularTopic {
 export interface LandingStats {
   readonly isActive: boolean
   readonly title?: string
-  readonly periodStatus: string // This comes from SelectionPeriod.getStatus() which returns a string
   readonly closeDate?: number
   readonly openDate?: number
   readonly totalTopics: number
@@ -58,7 +56,7 @@ export type CurrentPeriod = Doc<"selectionPeriods"> | null
 
 export interface CompetitionData {
   readonly topicId?: Id<"topics">
-  readonly topic?: string  
+  readonly topic?: string
   readonly title?: string
   readonly students?: number
   readonly studentCount?: number
@@ -72,10 +70,11 @@ export interface CompetitionData {
 
 // Use actual types from Convex
 export type Topic = Doc<"topics">
-export type Assignment = Doc<"assignments"> & {
-  readonly topic?: Topic | null
-  readonly wasPreference?: boolean
-  readonly wasTopChoice?: boolean
+export type Assignment = {
+  readonly assignment: Doc<"assignments">
+  readonly topic: Topic | null
+  readonly wasPreference: boolean
+  readonly wasTopChoice: boolean
 }
 
 export interface LandingPageState {
@@ -277,7 +276,7 @@ function useCountdown(targetMs: number | null) {
 
 export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) => {
   const { formatted } = useCountdown(targetDate)
-  
+
   if (!targetDate) return null
 
   return (
@@ -295,25 +294,28 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 // ============================================================================
 
 export const StatusBanner: React.FC = () => {
-  const { stats } = useLandingPage()
-  
-  if (!stats || !stats.isActive || stats.periodStatus === "assigned") return null
+  const { stats, currentPeriod } = useLandingPage()
 
-  const isOpen = stats.periodStatus === "open"
-  const target = isOpen ? stats.closeDate : null
+  if (!stats || !stats.isActive || !currentPeriod) return null
 
-  return (
-    <div className="mb-8">
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-        <div className="flex items-center gap-3">
-          <StatusIcon status={stats.periodStatus} />
-          <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
-          <StatusBadge status={stats.periodStatus} />
+  return SelectionPeriod.matchOptional(currentPeriod)({
+    open: (p) => (
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+          <div className="flex items-center gap-3">
+            <StatusIcon status="open" />
+            <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
+            <StatusBadge status="open" />
+          </div>
+          <Timer targetDate={stats.closeDate ?? null} />
         </div>
-        {isOpen && <Timer targetDate={target ?? null} />}
       </div>
-    </div>
-  )
+    ),
+    inactive: () => null,
+    closed: () => null,
+    assigned: () => null,
+    none: () => null
+  })
 }
 
 // ============================================================================
@@ -444,7 +446,7 @@ export const StatisticsCards: React.FC = () => (
 
 export const AnalyticsSection: React.FC = () => {
   const { competitionData } = useLandingPage()
-  
+
   const hasData = competitionData && Array.isArray(competitionData) && competitionData.length > 0
 
   return (

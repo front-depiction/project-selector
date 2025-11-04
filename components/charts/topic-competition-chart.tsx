@@ -51,7 +51,7 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
       ...acc,
       [`topic-${index}`]: {
         label: item.topic,
-        color: `hsl(var(--chart-${(index % 5) + 1}))`,
+        color: `var(--chart-${(index % 5) + 1})`,
       },
     }), {})
   }

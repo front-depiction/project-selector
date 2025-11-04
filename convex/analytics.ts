@@ -179,6 +179,119 @@ export const getRecentRankingEvents = query({
   },
 })
 
+/**
+ * Get comprehensive analytics for a single topic including student rankings.
+ *
+ * @category Queries
+ * @since 0.2.2
+ */
+export const getTopicAnalytics = query({
+  args: {
+    topicId: v.id("topics"),
+  },
+  handler: async (ctx, args) => {
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000)
+
+    // Fetch all data in parallel
+    const [count, sum, top3Count, firstChoiceCount, recentEvents, allEvents] = await Promise.all([
+      rankingsAggregate.count(ctx, { namespace: args.topicId }),
+      rankingsAggregate.sum(ctx, { namespace: args.topicId }),
+      rankingsAggregate.count(ctx, {
+        namespace: args.topicId,
+        bounds: { upper: { key: 3, inclusive: true } }
+      }),
+      rankingsAggregate.count(ctx, {
+        namespace: args.topicId,
+        bounds: { upper: { key: 1, inclusive: true } }
+      }),
+      ctx.db
+        .query("rankingEvents")
+        .withIndex("by_topic", q =>
+          q.eq("topicId", args.topicId)
+            .gte("_creationTime", sevenDaysAgo)
+        )
+        .collect(),
+      ctx.db
+        .query("rankingEvents")
+        .withIndex("by_topic", q => q.eq("topicId", args.topicId))
+        .collect()
+    ])
+
+    const averagePosition = count > 0 ? sum / count : 0
+    const top3Percentage = count > 0 ? Math.round((top3Count / count) * 100) : 0
+
+    // Calculate engagement score (based on activity and rankings)
+    const engagementScore = Math.min(100, Math.round(
+      (count * 10) + // Base score from number of selections
+      (firstChoiceCount * 5) + // Bonus for first choices
+      (recentEvents.length * 2) // Bonus for recent activity
+    ))
+
+    // Calculate retention rate (students who kept this topic in their list)
+    const movedOrRemovedCount = allEvents.filter(e =>
+      e.action === "removed"
+    ).length
+    const retentionRate = count > 0
+      ? Math.round(((count - movedOrRemovedCount) / count) * 100)
+      : 0
+
+    // Calculate performance score (composite metric)
+    const performanceScore = Math.round(
+      (top3Percentage * 0.4) + // 40% weight on top 3 placement
+      (engagementScore * 0.3) + // 30% weight on engagement
+      (retentionRate * 0.3) // 30% weight on retention
+    )
+
+    // Calculate momentum
+    const recentAdded = recentEvents.filter(e => e.action === "added").length
+    const recentRemoved = recentEvents.filter(e => e.action === "removed").length
+    const momentum: "rising" | "falling" | "stable" =
+      recentAdded > recentRemoved + 2 ? "rising" :
+      recentRemoved > recentAdded + 2 ? "falling" :
+      "stable"
+
+    // Get student rankings
+    const preferences = await ctx.db
+      .query("preferences")
+      .collect()
+
+    // Filter preferences that include this topic
+    const relevantPreferences = preferences.filter(pref =>
+      pref.topicOrder.includes(args.topicId)
+    )
+
+    const studentRankings = relevantPreferences.map((pref) => {
+      const rank = pref.topicOrder.indexOf(args.topicId) + 1
+
+      return {
+        studentId: pref.studentId,
+        studentName: pref.studentId, // Using studentId as name since we don't have a users table
+        rank,
+        timestamp: pref._creationTime
+      }
+    })
+
+    return {
+      metrics: {
+        totalSelections: count,
+        averagePosition: Math.round(averagePosition * 10) / 10,
+        firstChoiceCount,
+        top3Count,
+        top3Percentage,
+        engagementScore,
+        retentionRate,
+        performanceScore,
+      },
+      trends: {
+        momentum,
+        last7Days: recentEvents.length,
+        totalEvents: allEvents.length,
+      },
+      studentRankings: studentRankings.sort((a, b) => a.rank - b.rank)
+    }
+  },
+})
+
 export const getTopicCompetitionLevels = query({
   args: {},
   handler: async (ctx) => {

@@ -348,6 +348,31 @@ export const match = <P extends SelectionPeriod>(period: P) =>
   }
 
 /**
+ * Pattern matching for optional SelectionPeriod (handles undefined/null).
+ *
+ * @category Pattern Matching
+ * @since 0.1.0
+ * @example
+ * import * as SelectionPeriod from "./schemas/SelectionPeriod"
+ *
+ * const result = SelectionPeriod.matchOptional(period)({
+ *   inactive: () => "Not yet scheduled",
+ *   open: () => "Accepting selections",
+ *   closed: () => "Selection period ended",
+ *   assigned: (p) => `Assigned in batch ${p.assignmentBatchId}`,
+ *   none: () => "No active period"
+ * })
+ */
+export const matchOptional = <P extends SelectionPeriod>(period: P | undefined | null) =>
+  <R>(patterns: {
+    inactive: (p: Extract<P, InactivePeriod>) => R
+    open: (p: Extract<P, OpenPeriod>) => R
+    closed: (p: Extract<P, ClosedPeriod>) => R
+    assigned: (p: Extract<P, AssignedPeriod>) => R
+    none: () => R
+  }): R => period ? match(period)(patterns) : patterns.none()
+
+/**
  * Partial pattern matching with default.
  *
  * @category Pattern Matching
@@ -433,7 +458,7 @@ export const advanceToCurrentState = (now: number = Date.now(), scheduledFunctio
  * const inactivePeriods = getInactives(allPeriods)
  */
 export const getInactives = <P extends SelectionPeriod>(periods: readonly P[]): Extract<P, InactivePeriod>[] =>
-  periods.filter(isInactive) as Extract<P, InactivePeriod>[]
+  periods.filter(isInactive)
 
 /**
  * Filters an array to only include open periods.
@@ -444,7 +469,7 @@ export const getInactives = <P extends SelectionPeriod>(periods: readonly P[]): 
  * const openPeriods = getOpens(allPeriods)
  */
 export const getOpens = <P extends SelectionPeriod>(periods: readonly P[]): Extract<P, OpenPeriod>[] =>
-  periods.filter(isOpen) as Extract<P, OpenPeriod>[]
+  periods.filter(isOpen)
 
 /**
  * Filters an array to only include closed periods.
@@ -455,7 +480,7 @@ export const getOpens = <P extends SelectionPeriod>(periods: readonly P[]): Extr
  * const closedPeriods = getCloseds(allPeriods)
  */
 export const getCloseds = <P extends SelectionPeriod>(periods: readonly P[]): Extract<P, ClosedPeriod>[] =>
-  periods.filter(isClosed) as Extract<P, ClosedPeriod>[]
+  periods.filter(isClosed)
 
 /**
  * Filters an array to only include assigned periods.
@@ -466,7 +491,7 @@ export const getCloseds = <P extends SelectionPeriod>(periods: readonly P[]): Ex
  * const assignedPeriods = getAssigneds(allPeriods)
  */
 export const getAssigneds = <P extends SelectionPeriod>(periods: readonly P[]): Extract<P, AssignedPeriod>[] =>
-  periods.filter(isAssigned) as Extract<P, AssignedPeriod>[]
+  periods.filter(isAssigned)
 
 /**
  * Filters an array to only include periods with scheduled functions.
@@ -510,11 +535,13 @@ export const findActive = (now: number = Date.now()) =>
  * @example
  * const recent = getMostRecentAssigned(allPeriods)
  */
-export const getMostRecentAssigned = (periods: readonly SelectionPeriod[]): AssignedPeriod | undefined => {
+export const getMostRecentAssigned = <P extends SelectionPeriod>(
+  periods: readonly P[]
+): Extract<P, AssignedPeriod> | undefined => {
   const assigned = getAssigneds(periods)
-  return assigned.length > 0
-    ? assigned.reduce((a, b) => a.closeDate > b.closeDate ? a : b)
-    : undefined
+  return assigned.length === 0
+    ? undefined
+    : assigned.reduce((a, b) => a.closeDate > b.closeDate ? a : b)
 }
 
 /**
@@ -658,8 +685,8 @@ export const getBase = (period: SelectionPeriod) => ({
 export const fromBase = (
   base: ReturnType<typeof getBase>,
   state?: { kind: "open", scheduledFunctionId: Id<"_scheduled_functions"> } |
-          { kind: "closed" } |
-          { kind: "assigned", assignmentBatchId: string }
+  { kind: "closed" } |
+  { kind: "assigned", assignmentBatchId: string }
 ): SelectionPeriod => {
   if (!state) return makeInactive(base)
   switch (state.kind) {

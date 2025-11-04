@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
+import type { Doc } from "@/convex/_generated/dataModel"
 import DockLayout from "@/components/layouts/DockLayout"
 import { useRouter } from "next/navigation"
 import {
@@ -30,8 +32,8 @@ import { SettingsView } from "./SettingsView"
 
 const OverviewView: React.FC = () => {
   const { currentPeriod, assignments, periods, updatePeriod, updateTopic } = AD.useDashboard()
-  const [editingPeriod, setEditingPeriod] = React.useState<AD.Period | null>(null)
-  const [editingTopic, setEditingTopic] = React.useState<AD.Topic | null>(null)
+  const [editingPeriod, setEditingPeriod] = React.useState<AD.SelectionPeriodWithStats | null>(null)
+  const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
 
   // Format periods for the form
   const periodOptions = React.useMemo(() => {
@@ -42,7 +44,7 @@ const OverviewView: React.FC = () => {
   }, [periods])
 
   const handleUpdatePeriod = async (values: SelectionPeriodFormValues) => {
-    if (!editingPeriod) return
+    if (!editingPeriod?._id) return
     await updatePeriod(editingPeriod._id, {
       title: values.title,
       description: values.title,
@@ -69,7 +71,7 @@ const OverviewView: React.FC = () => {
       <AD.MetricsGrid />
 
       {/* Assignment Results when period is assigned */}
-      {currentPeriod?.status === "assigned" && assignments && assignments.length > 0 && (
+      {currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && assignments && assignments.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Recent Assignments</CardTitle>
@@ -120,7 +122,7 @@ const OverviewView: React.FC = () => {
                 selection_period_id: editingPeriod.semesterId,
                 start_deadline: new Date(editingPeriod.openDate),
                 end_deadline: new Date(editingPeriod.closeDate),
-                isActive: editingPeriod.kind === "open"
+                isActive: SelectionPeriod.isOpen(editingPeriod)
               }}
               onSubmit={handleUpdatePeriod}
             />

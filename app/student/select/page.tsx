@@ -295,11 +295,8 @@ export default function SelectTopics() {
     userId ? { clerkUserId: userId } : "skip"
   )
 
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [hasChanges, setHasChanges] = useState(false)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
-  const [reorderedItems, setReorderedItems] = useState<Item[] | null>(null)
 
   // Use studentId from Convex database
   const studentId = currentUser?.studentId || ""
@@ -311,7 +308,24 @@ export default function SelectTopics() {
     studentId ? { studentId } : "skip"
   )
   const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
-  const savePreferences = useMutation(api.preferences.savePreferences)
+  const savePreferences = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
+    (localStore, args) => {
+      const { studentId, topicOrder } = args
+      // Update the preferences query optimistically
+      localStore.setQuery(
+        api.preferences.getPreferences,
+        { studentId },
+        {
+          studentId,
+          semesterId: currentPeriod?.semesterId || "",
+          topicOrder,
+          lastUpdated: Date.now(),
+          _id: crypto.randomUUID() as Id<"preferences">,
+          _creationTime: Date.now()
+        }
+      )
+    }
+  )
 
   // Build items directly from topics and preferences
   const items = useMemo(() => {
@@ -345,9 +359,6 @@ export default function SelectTopics() {
     }))
   }, [topics, preferences])
 
-  // Use reordered items if available, otherwise use computed items
-  const displayItems = reorderedItems || items
-
   // Toggle expanded state for items
   const toggleExpanded = useCallback((itemId: string | number) => {
     setExpandedItems(prev => {
@@ -361,32 +372,18 @@ export default function SelectTopics() {
     })
   }, [])
 
-  // Update items without saving (called during drag)
-  const handleReorder = (newItems: Item[]) => {
-    setReorderedItems(newItems)
-    setHasChanges(true)
-  }
-
-  // Save preferences after drag ends
-  const handleDragEnd = useCallback(async () => {
-    if (!hasChanges) return
-
-    setSaving(true)
+  // Save preferences when drag ends
+  const handleDragEnd = (newItems: Item[] | ((prevItems: Item[]) => Item[])) => {
     setError(null)
 
-    try {
-      const topicOrder = displayItems.map((item) => item.id as any as Id<"topics">)
-      await savePreferences({ studentId, topicOrder })
-      setHasChanges(false)
-      setReorderedItems(null) // Clear local state after save
-      toast.success("Preferences saved")
-    } catch (err) {
+    const resolvedItems = typeof newItems === 'function' ? newItems(items) : newItems
+    const topicOrder = resolvedItems.map((item) => item.id as any as Id<"topics">)
+
+    savePreferences({ studentId, topicOrder }).catch((err) => {
       setError(err instanceof Error ? err.message : "Failed to save preferences")
       toast.error("Failed to save preferences")
-    } finally {
-      setSaving(false)
-    }
-  }, [displayItems, hasChanges, studentId, savePreferences])
+    })
+  }
 
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
@@ -590,18 +587,6 @@ export default function SelectTopics() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-semibold">Rank Your Preferences</h2>
-                  {saving && (
-                    <Badge variant="secondary" className="animate-pulse">
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                      Saving
-                    </Badge>
-                  )}
-                  {!saving && !hasChanges && (preferences?.topicOrder?.length || 0) > 0 && (
-                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      Saved
-                    </Badge>
-                  )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
                   Drag to reorder • Click arrows to expand details • Your top choice should be #1
@@ -623,31 +608,23 @@ export default function SelectTopics() {
             )}
           </div>
 
-          <div onMouseUp={handleDragEnd} onTouchEnd={handleDragEnd}>
-            <SortableList
-              items={displayItems}
-              setItems={(newItems: Item[] | ((prevItems: Item[]) => Item[])) => {
-                if (typeof newItems === 'function') {
-                  handleReorder(newItems(displayItems))
-                } else {
-                  handleReorder(newItems)
-                }
-              }}
-              onCompleteItem={handleCompleteItem}
-              renderItem={(item: any, order, onCompleteItem, onRemoveItem) => (
-                <TopicCard
-                  key={item.id}
-                  item={item as TopicItem}
-                  order={order}
-                  isExpanded={expandedItems.has(item.id)}
-                  onToggleExpand={() => toggleExpanded(item.id)}
-                  onCompleteItem={onCompleteItem as any}
-                  onRemoveItem={onRemoveItem as any}
-                  handleDrag={() => { }}
-                />
-              )}
-            />
-          </div>
+          <SortableList
+            items={items}
+            setItems={handleDragEnd}
+            onCompleteItem={handleCompleteItem}
+            renderItem={(item: any, order, onCompleteItem, onRemoveItem) => (
+              <TopicCard
+                key={item.id}
+                item={item as TopicItem}
+                order={order}
+                isExpanded={expandedItems.has(item.id)}
+                onToggleExpand={() => toggleExpanded(item.id)}
+                onCompleteItem={onCompleteItem as any}
+                onRemoveItem={onRemoveItem as any}
+                handleDrag={() => { }}
+              />
+            )}
+          />
         </motion.div>
 
         {/* Help Section */}

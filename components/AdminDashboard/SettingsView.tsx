@@ -2,9 +2,11 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Settings, Database, RefreshCw, Trash2 } from "lucide-react"
+import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export const SettingsView: React.FC = () => {
-  const { seedTestData, clearAllData } = AD.useDashboard()
+  const { seedTestData, clearAllData, currentPeriod } = AD.useDashboard()
   const [isClearDialogOpen, setIsClearDialogOpen] = React.useState(false)
 
   const handleSeedData = async () => {
@@ -32,7 +34,7 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Settings</h2>
-      
+
       {/* Development Tools */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
@@ -58,6 +60,34 @@ export const SettingsView: React.FC = () => {
             </Button>
           </div>
 
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div>
+              <h4 className="font-medium">Assign Now</h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manually trigger assignment for the current period
+              </p>
+            </div>
+            {SelectionPeriod.matchOptional(currentPeriod)({
+              open: (p) => <AssignNowButton periodId={p._id} status="open" />,
+              assigned: (p) => <AssignNowButton periodId={p._id} status="assigned" />,
+              inactive: () => (
+                <Button disabled variant="outline">
+                  No Active Period
+                </Button>
+              ),
+              closed: () => (
+                <Button disabled variant="outline">
+                  Period Closed
+                </Button>
+              ),
+              none: () => (
+                <Button disabled variant="outline">
+                  No Active Period
+                </Button>
+              )
+            })}
+          </div>
+
           <div className="flex items-center justify-between p-4 border rounded-lg border-red-200 bg-red-50 dark:bg-red-950/20">
             <div>
               <h4 className="font-medium text-red-900 dark:text-red-400">Clear All Data</h4>
@@ -65,8 +95,8 @@ export const SettingsView: React.FC = () => {
                 Remove all topics, periods, and selections. This cannot be undone.
               </p>
             </div>
-            <Button 
-              onClick={() => setIsClearDialogOpen(true)} 
+            <Button
+              onClick={() => setIsClearDialogOpen(true)}
               variant="destructive"
             >
               <Trash2 className="mr-2 h-4 w-4" />
@@ -100,20 +130,22 @@ export const SettingsView: React.FC = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will permanently delete all data including:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>All topics and subtopics</li>
-                <li>All selection periods</li>
-                <li>All student preferences</li>
-                <li>All assignments</li>
-              </ul>
-              <span className="font-semibold text-red-600">This action cannot be undone.</span>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>This action will permanently delete all data including:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>All topics and subtopics</li>
+                  <li>All selection periods</li>
+                  <li>All student preferences</li>
+                  <li>All assignments</li>
+                </ul>
+                <p className="font-semibold text-red-600 mt-2">This action cannot be undone.</p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleClearData}
               className="bg-red-600 hover:bg-red-700"
             >
