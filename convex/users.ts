@@ -138,7 +138,7 @@ export const getUserByClerkId = query({
     ctx.db
       .query("users")
       .withIndex("by_clerk_id", q => q.eq("clerkUserId", args.clerkUserId))
-      .unique()
+      .first()
 })
 
 /**
@@ -146,15 +146,17 @@ export const getUserByClerkId = query({
  */
 export const getCurrentUser = query({
   args: {},
-  handler: (ctx, args) =>
-    ctx.auth.getUserIdentity()
-      .then(user => user ? user.subject : Promise.reject("Missing auth"))
-      .then(id =>
-        ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", q => q.eq("clerkUserId", id))
-          .unique()
-      )
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      return null
+    }
+    
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", q => q.eq("clerkUserId", identity.subject))
+      .first()
+  }
 })
 
 /**

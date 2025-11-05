@@ -1,4 +1,5 @@
 import { defineConfig } from "vite"
+import path from "path"
 
 export default defineConfig({
   test: {
@@ -7,7 +8,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": "/convex",
+      "@": path.resolve(__dirname, "./"),
     },
   },
 })

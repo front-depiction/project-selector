@@ -8,8 +8,17 @@ vi.mock('@clerk/nextjs/server', () => ({
     return (req: NextRequest) => {
       const pathname = req.nextUrl.pathname
       return routes.some((route: string) => {
-        const pattern = route.replace('(.*)', '')
-        return pathname.startsWith(pattern)
+        // Handle exact root match
+        if (route === '/') {
+          return pathname === '/'
+        }
+        // Handle pattern match with (.*)
+        if (route.includes('(.*)')){
+          const pattern = route.replace('(.*)', '')
+          return pathname.startsWith(pattern)
+        }
+        // Exact match otherwise
+        return pathname === route
       })
     }
   })

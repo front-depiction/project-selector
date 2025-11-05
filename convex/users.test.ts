@@ -9,29 +9,29 @@ describe("User Management", () => {
     vi.useFakeTimers()
     const t = convexTest(schema, import.meta.glob("./**/*.*s"))
     
-    const userId = await t.withIdentity({ subject: "clerk_test_user_123" }, async () => {
-      return await t.mutation(api.users.getOrCreateUser, {
+    await t.withIdentity({ subject: "clerk_test_user_123" }, async () => {
+      const userId = await t.mutation(api.users.getOrCreateUser, {
         clerkUserId: "clerk_test_user_123",
         email: "test@example.com",
         firstName: "Test",
         lastName: "User",
       })
+      
+      expect(userId).toBeDefined()
+      
+      // Verify user was created (query within same transaction context)
+      const user = await t.query(api.users.getUserByClerkId, { 
+        clerkUserId: "clerk_test_user_123" 
+      })
+      
+      expect(user).toBeDefined()
+      expect(user?.email).toBe("test@example.com")
+      expect(user?.firstName).toBe("Test")
+      expect(user?.lastName).toBe("User")
+      expect(user?.role).toBe("student")
+      expect(user?.clerkUserId).toBe("clerk_test_user_123")
+      expect(user?.studentId).toBeUndefined()
     })
-    
-    expect(userId).toBeDefined()
-    
-    // Verify user was created
-    const user = await t.query(api.users.getUserByClerkId, { 
-      clerkUserId: "clerk_test_user_123" 
-    })
-    
-    expect(user).toBeDefined()
-    expect(user?.email).toBe("test@example.com")
-    expect(user?.firstName).toBe("Test")
-    expect(user?.lastName).toBe("User")
-    expect(user?.role).toBe("student")
-    expect(user?.clerkUserId).toBe("clerk_test_user_123")
-    expect(user?.studentId).toBeUndefined()
     
     vi.useRealTimers()
   })
@@ -56,17 +56,17 @@ describe("User Management", () => {
         firstName: "New",
         lastName: "Name",
       })
+      
+      // Verify update (within same transaction context)
+      const user = await t.query(api.users.getUserByClerkId, { 
+        clerkUserId: "clerk_test_user_456" 
+      })
+      
+      expect(user).toBeDefined()
+      expect(user?.email).toBe("new@example.com")
+      expect(user?.firstName).toBe("New")
+      expect(user?.lastName).toBe("Name")
     })
-    
-    // Verify update
-    const user = await t.query(api.users.getUserByClerkId, { 
-      clerkUserId: "clerk_test_user_456" 
-    })
-    
-    expect(user).toBeDefined()
-    expect(user?.email).toBe("new@example.com")
-    expect(user?.firstName).toBe("New")
-    expect(user?.lastName).toBe("Name")
     
     vi.useRealTimers()
   })
@@ -296,20 +296,20 @@ describe("User Management", () => {
     vi.useFakeTimers()
     const t = convexTest(schema, import.meta.glob("./**/*.*s"))
     
-    // Create user
-    await t.mutation(api.users.syncUserFromWebhook, {
-      clerkUserId: "clerk_current_user",
-      email: "current@example.com",
+    await t.withIdentity({ subject: "clerk_current_user" }, async () => {
+      // Create user
+      await t.mutation(api.users.syncUserFromWebhook, {
+        clerkUserId: "clerk_current_user",
+        email: "current@example.com",
+      })
+      
+      // Get current user (within same transaction context)
+      const user = await t.query(api.users.getCurrentUser, {})
+      
+      expect(user).toBeDefined()
+      expect(user?.clerkUserId).toBe("clerk_current_user")
+      expect(user?.email).toBe("current@example.com")
     })
-    
-    // Set identity and get current user
-    const user = await t.withIdentity({ subject: "clerk_current_user" }, async () => {
-      return await t.query(api.users.getCurrentUser, {})
-    })
-    
-    expect(user).toBeDefined()
-    expect(user?.clerkUserId).toBe("clerk_current_user")
-    expect(user?.email).toBe("current@example.com")
     
     vi.useRealTimers()
   })
