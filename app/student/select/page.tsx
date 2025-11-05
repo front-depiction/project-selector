@@ -3,8 +3,8 @@
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
-import { useEffect, useState, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useCallback, useMemo } from "react"
+import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ import { toast } from "sonner"
 import type { Item } from "@/components/ui/sortable-list"
 import type { Id } from "@/convex/_generated/dataModel"
 import { TopicPopularityChart } from "@/components/charts/topic-popularity-chart"
+import { useUser } from "@clerk/nextjs"
 
 // Pure function to get congestion color and styles
 const getCongestionStyles = (category: string) => {
@@ -285,20 +286,20 @@ const TopicCard = ({
 }
 
 export default function SelectTopics() {
-  const router = useRouter()
-
-  // Get student ID from localStorage immediately
-  const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
-
-  // Redirect if no student ID
-  useEffect(() => {
-    if (!studentId) {
-      router.push("/student")
-    }
-  }, [studentId, router])
+  const { user, isLoaded } = useUser()
+  const userId = user?.id
+  
+  // Get current user from Convex to get studentId
+  const currentUser = useQuery(
+    api.users.getUserByClerkId,
+    userId ? { clerkUserId: userId } : "skip"
+  )
 
   const [error, setError] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
+
+  // Use studentId from Convex database
+  const studentId = currentUser?.studentId || ""
 
   // Get data from Convex using the new aggregate query
   const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
@@ -387,6 +388,27 @@ export default function SelectTopics() {
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
 
+  // Show loading while checking authentication
+  if (!isLoaded || currentUser === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  // Not authenticated - redirect to sign in
+  if (!user) {
+    console.log("No user in select page, redirecting to sign-in")
+    redirect("/sign-in")
+  }
+
+  // No student ID - redirect to student entry
+  if (!currentUser?.studentId) {
+    console.log("No studentId in select page, redirecting to student entry")
+    redirect("/student")
+  }
+
   if (!topics) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -398,12 +420,22 @@ export default function SelectTopics() {
   if (topics.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No topics are available for selection at this time.
-          </AlertDescription>
-        </Alert>
+        <div className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              No topics are available for selection at this time.
+            </AlertDescription>
+          </Alert>
+          <div className="flex justify-center">
+            <Link href="/">
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
     )
   }

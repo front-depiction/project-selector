@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { AuthButton } from "@/components/auth/AuthButton"
 
 // ============================================================================
 // TYPES
@@ -768,6 +769,7 @@ export const PageHeader: React.FC = () => (
       <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
       <p className="text-muted-foreground">Manage topics, periods, and student assignments</p>
     </div>
+    <AuthButton />
     <Button variant="ghost" size="lg" asChild>
       <a href="/">
         <ArrowLeft className="mr-2 h-5 w-5" />

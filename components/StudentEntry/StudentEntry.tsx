@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 
 // ============================================================================
@@ -50,25 +49,20 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
-  const router = useRouter()
   const [value, setValue] = React.useState("")
-  const [prevValue, setPrevValue] = React.useState("")
   
   const isComplete = value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
   
-  // Handle completion during render (no useEffect needed)
-  if (isComplete && value !== prevValue) {
-    setPrevValue(value)
-    localStorage.setItem("studentId", value)
-    router.push("/student/select")
-  }
-  
+  // No auto-navigation - let the parent component handle navigation based on isComplete state
   const handleComplete = React.useCallback(() => {
     if (isComplete) {
-      localStorage.setItem("studentId", value)
-      router.push("/student/select")
+      // Only sync with localStorage (external system)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("studentId", value)
+      }
+      // Parent component should handle navigation declaratively
     }
-  }, [isComplete, value, router])
+  }, [isComplete, value])
   
   const setDigitsOnly = React.useCallback((v: string) => {
     const digits = v.replace(/\D/g, "")
