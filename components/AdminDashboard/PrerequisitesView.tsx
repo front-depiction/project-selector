@@ -1,18 +1,25 @@
 "use client"
 
 import * as React from "react"
+import * as AD from "./index"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Edit, Trash2, X, ChevronDown, ChevronUp } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Plus, Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
-import * as AD from "./index"
+import { PrerequisiteForm } from "@/components/forms/prerequisite-form"
+
+// ============================================================================
+// PREREQUISITES VIEW - Clean table-based layout
+// ============================================================================
 
 export const PrerequisitesView: React.FC = () => {
   const { 
@@ -25,17 +32,9 @@ export const PrerequisitesView: React.FC = () => {
     removePrerequisiteFromTopic
   } = AD.useDashboard()
   
-  const [showCreateDialog, setShowCreateDialog] = React.useState(false)
+  const [isCreatePrerequisiteOpen, setIsCreatePrerequisiteOpen] = React.useState(false)
   const [editingPrerequisite, setEditingPrerequisite] = React.useState<Doc<"prerequisites"> | null>(null)
   const [expandedItems, setExpandedItems] = React.useState<Set<string | number>>(new Set())
-  
-  // Form states
-  const [formData, setFormData] = React.useState({
-    title: "",
-    description: "",
-    requiredValue: false
-  })
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   // Initialize expanded items
   React.useEffect(() => {
@@ -44,68 +43,23 @@ export const PrerequisitesView: React.FC = () => {
     }
   }, [prerequisites])
 
-  const resetForm = () => {
-    setFormData({
-      title: "",
-      description: "",
-      requiredValue: false
+  const handleCreatePrerequisite = async (values: { title: string; description?: string; requiredValue: number }) => {
+    await createPrerequisite({
+      title: values.title,
+      description: values.description || "",
+      requiredValue: values.requiredValue
     })
+    setIsCreatePrerequisiteOpen(false)
   }
 
-  const openCreateDialog = () => {
-    resetForm()
-    setShowCreateDialog(true)
-  }
-
-  const openEditDialog = (prerequisite: Doc<"prerequisites">) => {
-    setFormData({
-      title: prerequisite.title,
-      description: prerequisite.description || "",
-      requiredValue: prerequisite.requiredValue === 1
+  const handleUpdatePrerequisite = async (values: { title: string; description?: string; requiredValue: number }) => {
+    if (!editingPrerequisite) return
+    await updatePrerequisite(editingPrerequisite._id, {
+      title: values.title,
+      description: values.description || "",
+      requiredValue: values.requiredValue
     })
-    setEditingPrerequisite(prerequisite)
-  }
-
-  const handleCreatePrerequisite = async () => {
-    if (!formData.title.trim()) {
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      await createPrerequisite({
-        title: formData.title,
-        description: formData.description,
-        requiredValue: formData.requiredValue ? 1 : 0
-      })
-      resetForm()
-      setShowCreateDialog(false)
-    } catch (error) {
-      console.error("Failed to create prerequisite:", error)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleUpdatePrerequisite = async () => {
-    if (!editingPrerequisite || !formData.title.trim()) {
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      await updatePrerequisite(editingPrerequisite._id, {
-        title: formData.title,
-        description: formData.description,
-        requiredValue: formData.requiredValue ? 1 : 0
-      })
-      resetForm()
-      setEditingPrerequisite(null)
-    } catch (error) {
-      console.error("Failed to update prerequisite:", error)
-    } finally {
-      setIsSubmitting(false)
-    }
+    setEditingPrerequisite(null)
   }
 
   const handleDeletePrerequisite = async (id: Id<"prerequisites">) => {
@@ -149,7 +103,7 @@ export const PrerequisitesView: React.FC = () => {
             <h2 className="text-2xl font-bold">Prerequisites Management</h2>
             <p className="text-muted-foreground mt-1">Manage prerequisite requirements for topic selection</p>
           </div>
-          <Button onClick={openCreateDialog} size="lg">
+          <Button onClick={() => setIsCreatePrerequisiteOpen(true)} size="lg">
             <Plus className="mr-2 h-5 w-5" />
             Create Prerequisite
           </Button>
@@ -163,12 +117,13 @@ export const PrerequisitesView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Prerequisites Management</h2>
           <p className="text-muted-foreground mt-1">Manage prerequisite requirements for topic selection</p>
         </div>
-        <Button onClick={openCreateDialog} size="lg">
+        <Button onClick={() => setIsCreatePrerequisiteOpen(true)} size="lg">
           <Plus className="mr-2 h-5 w-5" />
           Create Prerequisite
         </Button>
@@ -178,12 +133,12 @@ export const PrerequisitesView: React.FC = () => {
         <Card className="p-8 text-center">
           <CardHeader>
             <CardTitle className="mb-2">No prerequisites yet</CardTitle>
+            <CardDescription>
+              Get started by creating your first prerequisite to manage topic requirements.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground mb-4">
-              Get started by creating your first prerequisite to manage topic requirements.
-            </p>
-            <Button onClick={openCreateDialog}>
+            <Button onClick={() => setIsCreatePrerequisiteOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Create Prerequisite
             </Button>
@@ -215,7 +170,7 @@ export const PrerequisitesView: React.FC = () => {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation()
-                        openEditDialog(prerequisite)
+                        setEditingPrerequisite(prerequisite)
                       }}
                     >
                       <Edit className="h-4 w-4 mr-1" />
@@ -339,127 +294,38 @@ export const PrerequisitesView: React.FC = () => {
         </div>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+      {/* Create Prerequisite Dialog */}
+      <Dialog open={isCreatePrerequisiteOpen} onOpenChange={setIsCreatePrerequisiteOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Create New Prerequisite</DialogTitle>
+            <DialogTitle>Create Prerequisite</DialogTitle>
+            <DialogDescription>
+              Add a new prerequisite requirement for topic selection.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Enter prerequisite title"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter prerequisite description (optional)"
-                rows={3}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="required"
-                checked={formData.requiredValue}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, requiredValue: checked }))}
-                disabled={isSubmitting}
-              />
-              <Label htmlFor="required">Required</Label>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Current value: {formData.requiredValue ? "1 (True)" : "0 (False)"}
-            </p>
-
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setShowCreateDialog(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreatePrerequisite}
-                disabled={isSubmitting || !formData.title.trim()}
-              >
-                {isSubmitting ? "Creating..." : "Create Prerequisite"}
-              </Button>
-            </div>
-          </div>
+          <PrerequisiteForm onSubmit={handleCreatePrerequisite} />
         </DialogContent>
       </Dialog>
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editingPrerequisite} onOpenChange={() => setEditingPrerequisite(null)}>
-        <DialogContent className="sm:max-w-[425px]">
+      {/* Edit Prerequisite Dialog */}
+      <Dialog open={!!editingPrerequisite} onOpenChange={(open) => !open && setEditingPrerequisite(null)}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Prerequisite</DialogTitle>
+            <DialogDescription>
+              Update the details of this prerequisite.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="edit-title">Title</Label>
-              <Input
-                id="edit-title"
-                value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="Enter prerequisite title"
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Textarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Enter prerequisite description (optional)"
-                rows={3}
-                disabled={isSubmitting}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-required"
-                checked={formData.requiredValue}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, requiredValue: checked }))}
-                disabled={isSubmitting}
-              />
-              <Label htmlFor="edit-required">Required</Label>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Current value: {formData.requiredValue ? "1 (True)" : "0 (False)"}
-            </p>
-
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setEditingPrerequisite(null)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleUpdatePrerequisite}
-                disabled={isSubmitting || !formData.title.trim()}
-              >
-                {isSubmitting ? "Updating..." : "Update Prerequisite"}
-              </Button>
-            </div>
-          </div>
+          {editingPrerequisite && (
+            <PrerequisiteForm
+              initialValues={{
+                title: editingPrerequisite.title,
+                description: editingPrerequisite.description || "",
+                requiredValue: editingPrerequisite.requiredValue
+              }}
+              onSubmit={handleUpdatePrerequisite}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
