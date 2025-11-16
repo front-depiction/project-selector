@@ -52,7 +52,8 @@ export const createTopic = mutation({
     title: v.string(),
     description: v.string(),
     semesterId: v.string(),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    prerequisiteIds: v.optional(v.array(v.id("prerequisites")))
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("topics", Topic.make({
@@ -60,7 +61,8 @@ export const createTopic = mutation({
       description: args.description,
       semesterId: args.semesterId,
       isActive: true,
-      subtopicIds: args.subtopicIds?.map(id => id as string)
+      subtopicIds: args.subtopicIds?.map(id => id as string),
+      prerequisiteIds: args.prerequisiteIds?.map(id => id as string)
     }))
     return id
   }
@@ -78,7 +80,8 @@ export const updateTopic = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    prerequisiteIds: v.optional(v.array(v.id("prerequisites")))
   },
   handler: async (ctx, args) => {
     await ctx.db.get(args.id).then(maybeTopic =>
@@ -90,6 +93,7 @@ export const updateTopic = mutation({
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
     if (args.subtopicIds !== undefined) updates.subtopicIds = args.subtopicIds
+    if (args.prerequisiteIds !== undefined) updates.prerequisiteIds = args.prerequisiteIds
 
     await ctx.db.patch(args.id, updates)
   }
@@ -136,6 +140,21 @@ export const deleteTopic = mutation({
 
     if (hasSelections) {
       throw new Error("Cannot delete topic with existing student selections")
+    }
+
+    // Delete all preference-prerequisite relationships for this topic's prerequisites
+    const topic = await ctx.db.get(args.id)
+    if (topic?.prerequisiteIds) {
+      for (const prereqId of topic.prerequisiteIds) {
+        const relationships = await ctx.db
+          .query("preferencePrerequisites")
+          .withIndex("by_prerequisite", q => q.eq("prerequisiteId", prereqId))
+          .collect()
+
+        for (const relationship of relationships) {
+          await ctx.db.delete(relationship._id)
+        }
+      }
     }
 
     await ctx.db.delete(args.id)
@@ -224,6 +243,8 @@ export const clearAllData = mutation({
     Promise.all([
       deleteAllFromTable(ctx, "topics"),
       deleteAllFromTable(ctx, "subtopics"),
+      deleteAllFromTable(ctx, "prerequisites"),
+      deleteAllFromTable(ctx, "preferencePrerequisites"),
       deleteAllFromTable(ctx, "preferences"),
       deleteAllFromTable(ctx, "rankingEvents"),
       deleteAllFromTable(ctx, "selectionPeriods"),

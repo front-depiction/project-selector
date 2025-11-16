@@ -290,23 +290,32 @@ export default function SelectTopics() {
   // Get student ID from localStorage immediately
   const studentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
 
-  // Redirect if no student ID
-  useEffect(() => {
-    if (!studentId) {
-      router.push("/student")
-    }
-  }, [studentId, router])
-
   const [error, setError] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
 
-  // Get data from Convex using the new aggregate query
-  const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
+  // Get data from Convex using the prerequisite-filtered query
+  const topics = useQuery(
+    api.topics.getActiveTopicsWithMetricsForStudent,
+    studentId ? { studentId } : "skip"
+  )
   const preferences = useQuery(
     api.preferences.getPreferences,
     studentId ? { studentId } : "skip"
   )
   const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
+  const completionStatus = useQuery(
+    api.studentPrerequisites.hasCompletedPrerequisiteEvaluations,
+    studentId ? { studentId } : "skip"
+  )
+
+  // Redirect if no student ID or prerequisites not completed
+  useEffect(() => {
+    if (!studentId) {
+      router.push("/student")
+    } else if (completionStatus && !completionStatus.isComplete && completionStatus.total > 0) {
+      router.push("/student/prerequisites")
+    }
+  }, [studentId, router, completionStatus])
   const savePreferences = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
     (localStore, args) => {
       const { studentId, topicOrder } = args
@@ -408,10 +417,10 @@ export default function SelectTopics() {
     )
   }
 
-  // Calculate selection progress
+  // Calculate selection progress - max selections is now dynamic based on available topics
   const selectedCount = preferences?.topicOrder?.length || 0
-  const maxSelections = 5
-  const progressPercentage = topics ? (selectedCount / Math.min(maxSelections, topics.length)) * 100 : 0
+  const maxSelections = topics?.length || 5
+  const progressPercentage = topics ? (selectedCount / maxSelections) * 100 : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">

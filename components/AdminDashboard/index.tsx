@@ -5,8 +5,8 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { toast } from "sonner"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
-import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils"
 // TYPES
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "settings"
+export type ViewType = "overview" | "periods" | "topics" | "prerequisites" | "students" | "analytics" | "settings"
 
 export type SelectionPeriodWithStats = Readonly<Doc<"selectionPeriods"> & {
   studentCount?: number
@@ -65,11 +65,25 @@ export interface Assignment {
   readonly status: "assigned" | "pending"
 }
 
+export type TopicWithPrerequisites = {
+  readonly _id: Id<"topics">
+  readonly _creationTime: number
+  readonly title: string
+  readonly description: string
+  readonly semesterId: string
+  readonly isActive: boolean
+  readonly subtopicIds?: readonly Id<"subtopics">[]
+  readonly prerequisiteIds?: readonly Id<"prerequisites">[]
+  readonly prerequisites: readonly Doc<"prerequisites">[]
+}
+
 export interface DashboardState {
   readonly activeView: ViewType
   readonly periods: readonly SelectionPeriodWithStats[] | undefined
   readonly topics: readonly Doc<"topics">[] | undefined
+  readonly topicsWithPrerequisites: readonly TopicWithPrerequisites[] | undefined
   readonly subtopics: readonly Doc<"subtopics">[] | undefined
+  readonly prerequisites: readonly Doc<"prerequisites">[] | undefined
   readonly currentPeriod: Doc<"selectionPeriods"> | null | undefined
   readonly assignments: readonly Assignment[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
@@ -94,6 +108,11 @@ export interface DashboardActions {
   readonly updateTopic: (id: Id<"topics">, updates: Partial<TopicFormData>) => Promise<void>
   readonly toggleTopicActive: (id: Id<"topics">) => Promise<void>
   readonly deleteTopic: (id: Id<"topics">) => Promise<void>
+  readonly createPrerequisite: (prerequisite: PrerequisiteFormData) => Promise<void>
+  readonly updatePrerequisite: (id: Id<"prerequisites">, updates: Partial<PrerequisiteFormData>) => Promise<void>
+  readonly deletePrerequisite: (id: Id<"prerequisites">) => Promise<void>
+  readonly assignPrerequisiteToTopic: (topicId: Id<"topics">, prerequisiteId: Id<"prerequisites">) => Promise<void>
+  readonly removePrerequisiteFromTopic: (topicId: Id<"topics">, prerequisiteId: Id<"prerequisites">) => Promise<void>
   readonly assignTopics: (periodId: Id<"selectionPeriods">) => Promise<void>
   readonly seedTestData: () => Promise<void>
   readonly clearAllData: () => Promise<void>
@@ -113,6 +132,12 @@ export interface TopicFormData {
   readonly description: string
   readonly semesterId: string
   readonly subtopicIds?: readonly Id<"subtopics">[]
+}
+
+export interface PrerequisiteFormData {
+  readonly title: string
+  readonly description?: string
+  readonly requiredValue: number
 }
 
 // ============================================================================
@@ -145,7 +170,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   // Queries
   const periods = useQuery(api.selectionPeriods.getAllPeriodsWithStats)
   const topics = useQuery(api.topics.getAllTopics, {})
+  const topicsWithPrerequisites = useQuery(api.prerequisites.getTopicsWithPrerequisites, {})
   const subtopics = useQuery(api.subtopics.getAllSubtopics, {})
+  const prerequisites = useQuery(api.prerequisites.getAllPrerequisites, {})
   const currentPeriod = useQuery(api.admin.getCurrentPeriod)
   const statsData = useQuery(api.stats.getLandingStats)
   const topicAnalytics = useQuery(api.topicAnalytics.getTopicPerformanceAnalytics, {})
@@ -192,6 +219,11 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const updateTopicMutation = useMutation(api.admin.updateTopic)
   const deleteTopicMutation = useMutation(api.admin.deleteTopic)
   const toggleTopicActiveMutation = useMutation(api.admin.toggleTopicActive)
+  const createPrerequisiteMutation = useMutation(api.prerequisites.createPrerequisite)
+  const updatePrerequisiteMutation = useMutation(api.prerequisites.updatePrerequisite)
+  const deletePrerequisiteMutation = useMutation(api.prerequisites.deletePrerequisite)
+  const assignPrerequisiteToTopicMutation = useMutation(api.prerequisites.assignPrerequisiteToTopic)
+  const removePrerequisiteFromTopicMutation = useMutation(api.prerequisites.removePrerequisiteFromTopic)
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
 
@@ -299,6 +331,65 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     }
   }
 
+  const createPrerequisite = async (data: PrerequisiteFormData) => {
+    try {
+      await createPrerequisiteMutation({
+        title: data.title,
+        description: data.description,
+        requiredValue: data.requiredValue
+      })
+      toast.success("Prerequisite created successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create prerequisite")
+      throw error
+    }
+  }
+
+  const updatePrerequisite = async (id: Id<"prerequisites">, updates: Partial<PrerequisiteFormData>) => {
+    try {
+      await updatePrerequisiteMutation({
+        id,
+        title: updates.title,
+        description: updates.description,
+        requiredValue: updates.requiredValue
+      })
+      toast.success("Prerequisite updated successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update prerequisite")
+      throw error
+    }
+  }
+
+  const deletePrerequisite = async (id: Id<"prerequisites">) => {
+    try {
+      await deletePrerequisiteMutation({ id })
+      toast.success("Prerequisite deleted successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete prerequisite")
+      throw error
+    }
+  }
+
+  const assignPrerequisiteToTopic = async (topicId: Id<"topics">, prerequisiteId: Id<"prerequisites">) => {
+    try {
+      await assignPrerequisiteToTopicMutation({ topicId, prerequisiteId })
+      toast.success("Prerequisite assigned to topic successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to assign prerequisite to topic")
+      throw error
+    }
+  }
+
+  const removePrerequisiteFromTopic = async (topicId: Id<"topics">, prerequisiteId: Id<"prerequisites">) => {
+    try {
+      await removePrerequisiteFromTopicMutation({ topicId, prerequisiteId })
+      toast.success("Prerequisite removed from topic successfully")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove prerequisite from topic")
+      throw error
+    }
+  }
+
   const assignTopics = async (_periodId: Id<"selectionPeriods">) => {
     // TODO: Implement actual assignment logic
     toast.success("Topics assigned successfully")
@@ -328,7 +419,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     activeView,
     periods,
     topics,
+    topicsWithPrerequisites,
     subtopics,
+    prerequisites,
     currentPeriod,
     assignments,
     topicAnalytics,
@@ -342,6 +435,11 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     updateTopic,
     toggleTopicActive,
     deleteTopic,
+    createPrerequisite,
+    updatePrerequisite,
+    deletePrerequisite,
+    assignPrerequisiteToTopic,
+    removePrerequisiteFromTopic,
     assignTopics,
     seedTestData,
     clearAllData
@@ -599,8 +697,80 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
   )
 }
 
+export interface PrerequisitesTableProps {
+  readonly onEdit?: (prerequisite: Doc<"prerequisites">) => void
+}
+
 export interface PeriodsTableProps {
   readonly onEdit?: (period: SelectionPeriodWithStats) => void
+}
+
+export const PrerequisitesTable: React.FC<PrerequisitesTableProps> = ({ onEdit }) => {
+  const { prerequisites, deletePrerequisite } = useDashboard()
+
+  if (!prerequisites || prerequisites.length === 0) {
+    return (
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle>No Prerequisites</CardTitle>
+          <CardDescription>Create your first prerequisite to get started.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Title</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead>Required Value</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {prerequisites.map((prerequisite) => (
+            <TableRow key={prerequisite._id}>
+              <TableCell className="font-medium">{prerequisite.title}</TableCell>
+              <TableCell className="max-w-xs truncate">{prerequisite.description || "No description"}</TableCell>
+              <TableCell>
+                <Badge variant={prerequisite.requiredValue === 1 ? "default" : "secondary"}>
+                  {prerequisite.requiredValue === 1 ? "True" : "False"}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onEdit && (
+                      <DropdownMenuItem onClick={() => onEdit(prerequisite)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-red-600"
+                      onClick={() => deletePrerequisite(prerequisite._id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
 }
 
 export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
@@ -729,6 +899,7 @@ export const TabNavigation: React.FC = () => {
     { id: "overview", label: "Overview", icon: <Home className="h-4 w-4" /> },
     { id: "periods", label: "Periods", icon: <Calendar className="h-4 w-4" /> },
     { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
+    { id: "prerequisites", label: "Prerequisites", icon: <Target className="h-4 w-4" /> },
     { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
     { id: "analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }

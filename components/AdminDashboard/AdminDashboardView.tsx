@@ -13,7 +13,8 @@ import {
   BarChart3,
   Settings,
   Home,
-  Plus
+  Plus,
+  Target
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +23,7 @@ import SelectionPeriodForm, { SelectionPeriodFormValues } from "@/components/for
 import TopicForm from "@/components/forms/topic-form"
 import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
+import { PrerequisitesView } from "./PrerequisitesView"
 import { StudentsView } from "./StudentsView"
 import { AnalyticsView } from "./AnalyticsView"
 import { SettingsView } from "./SettingsView"
@@ -170,6 +172,8 @@ const MainContent: React.FC = () => {
       return <PeriodsView />
     case "topics":
       return <TopicsView />
+    case "prerequisites":
+      return <PrerequisitesView />
     case "students":
       return <StudentsView />
     case "analytics":
@@ -216,6 +220,13 @@ export const AdminDashboardView: React.FC = () => {
       label: "Topics",
       isActive: activeView === "topics",
       onClick: () => setActiveView("topics")
+    },
+    {
+      id: "prerequisites",
+      icon: <Target className="h-6 w-6" />,
+      label: "Prerequisites",
+      isActive: activeView === "prerequisites",
+      onClick: () => setActiveView("prerequisites")
     },
     {
       id: "students",

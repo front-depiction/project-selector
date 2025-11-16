@@ -176,3 +176,106 @@ export const getTopic = query({
     return await ctx.db.get(args.id)
   }
 })
+
+/**
+ * Gets active topics filtered by student prerequisites with metrics.
+ * Only returns topics for which the student meets all prerequisites.
+ * 
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getActiveTopicsWithMetricsForStudent = query({
+  args: {
+    studentId: v.string()
+  },
+  handler: async (ctx, args) => {
+    // Get active selection period
+    const activePeriod = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_kind", q => q.eq("kind", "open"))
+      .first()
+
+    if (!activePeriod) return []
+
+    // Check if period is open
+    if (!SelectionPeriod.isOpen(activePeriod)) return []
+
+    // Get all active topics for this semester
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+
+    // Get student's prerequisite evaluations
+    const studentEvaluations = await ctx.db
+      .query("studentPrerequisites")
+      .withIndex("by_student", q => q.eq("studentId", args.studentId))
+      .collect()
+
+    // Create a map of prerequisiteId -> isMet for quick lookup
+    const evaluationMap = new Map(
+      studentEvaluations.map(evaluation => [evaluation.prerequisiteId, evaluation.isMet])
+    )
+
+    // Filter topics based on prerequisites
+    const eligibleTopics = topics.filter(topic => {
+      // If topic has no prerequisites, it's eligible
+      if (!topic.prerequisiteIds || topic.prerequisiteIds.length === 0) {
+        return true
+      }
+
+      // Check if student meets ALL prerequisites for this topic
+      return topic.prerequisiteIds.every(prereqId => {
+        const isMet = evaluationMap.get(prereqId)
+        // Student must have evaluated the prerequisite AND marked it as met
+        return isMet === true
+      })
+    })
+
+    // Get metrics for each eligible topic from the aggregate
+    const topicsWithMetrics = await Promise.all(
+      eligibleTopics.map(async (topic) => {
+        // Fetch count and sum in parallel for each topic
+        const [count, sum] = await Promise.all([
+          rankingsAggregate.count(ctx, { namespace: topic._id }),
+          rankingsAggregate.sum(ctx, { namespace: topic._id })
+        ])
+
+        const averagePosition = count > 0 ? sum / count : null
+
+        // Calculate competition level based on average position
+        const likelihoodCategory = count === 0
+          ? "low"
+          : averagePosition === null
+            ? "unknown"
+            : averagePosition <= 2
+              ? "very-high"
+              : averagePosition <= 3.5
+                ? "high"
+                : averagePosition <= 5
+                  ? "moderate"
+                  : "low"
+
+        return {
+          _id: topic._id,
+          title: topic.title,
+          description: topic.description,
+          isActive: topic.isActive,
+          semesterId: topic.semesterId,
+          prerequisiteIds: topic.prerequisiteIds,
+          studentCount: count,
+          averagePosition,
+          likelihoodCategory
+        }
+      })
+    )
+
+    // Sort by average position (most competitive first)
+    return topicsWithMetrics.sort((a, b) => {
+      if (a.averagePosition === null) return 1
+      if (b.averagePosition === null) return -1
+      return a.averagePosition - b.averagePosition
+    })
+  }
+})
