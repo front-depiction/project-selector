@@ -149,6 +149,13 @@ function distributeStudents(
   topics: Array<{ _id: Id<"topics"> }>,
   preferences: Array<{ studentId: string; topicId: Id<"topics">; rank: number }>
 ): Array<{ studentId: string; topicId: Id<"topics">; rank?: number }> {
+  const N = studentIds.length
+  const M = topics.length
+  
+  if (M === 0) {
+    return []
+  }
+
   // Create preference lookup map - only contains topics student is eligible for
   const preferenceMap = new Map<string, Map<Id<"topics">, number>>()
   for (const pref of preferences) {
@@ -159,94 +166,76 @@ function distributeStudents(
   }
 
   // Create topic eligibility map for each student
-  const studentEligibleTopics = new Map<string, Id<"topics">[]>()
+  const eligible = new Map<string, Id<"topics">[]>()
   for (const studentId of studentIds) {
     const studentPrefs = preferenceMap.get(studentId)
     if (studentPrefs && studentPrefs.size > 0) {
-      studentEligibleTopics.set(studentId, Array.from(studentPrefs.keys()))
+      eligible.set(studentId, Array.from(studentPrefs.keys()))
     } else {
       // If student has no preferences, they're eligible for all topics
-      studentEligibleTopics.set(studentId, topics.map(t => t._id))
+      eligible.set(studentId, topics.map(t => t._id))
     }
   }
 
+  // Compute target sizes: q = N // M, r = N % M
+  const q = Math.floor(N / M)
+  const r = N % M
+  
+  const target = new Map<Id<"topics">, number>()
+  topics.forEach((topic, index) => {
+    // First r topics get one extra student
+    target.set(topic._id, q + (index < r ? 1 : 0))
+  })
+
   // Sort students by flexibility (fewer eligible topics first)
-  const sortedStudents = [...studentIds].sort((a, b) => {
-    const aEligible = studentEligibleTopics.get(a)?.length ?? 0
-    const bEligible = studentEligibleTopics.get(b)?.length ?? 0
+  const ordered = [...studentIds].sort((a, b) => {
+    const aEligible = eligible.get(a)?.length ?? 0
+    const bEligible = eligible.get(b)?.length ?? 0
     return aEligible - bEligible
   })
 
-  // Compute target sizes for each topic so final loads differ by at most 1
-  const totalStudents = studentIds.length
-  const baseTargetSize = Math.floor(totalStudents / topics.length)
-  const remainder = totalStudents % topics.length
-  
-  const targetSizes = new Map<Id<"topics">, number>()
-  topics.forEach((topic, index) => {
-    // First 'remainder' topics get one extra student
-    targetSizes.set(topic._id, baseTargetSize + (index < remainder ? 1 : 0))
-  })
-
-  // Track current assignments per topic
-  const topicAssignments = new Map<Id<"topics">, number>()
-  topics.forEach(topic => topicAssignments.set(topic._id, 0))
+  // Track current load per topic
+  const load = new Map<Id<"topics">, number>()
+  topics.forEach(topic => load.set(topic._id, 0))
 
   // Distribute students
   const assignments: Array<{ studentId: string; topicId: Id<"topics">; rank?: number }> = []
 
-  for (const studentId of sortedStudents) {
-    const eligibleTopics = studentEligibleTopics.get(studentId)!
+  for (const studentId of ordered) {
+    const E = eligible.get(studentId)!
     
-    if (eligibleTopics.length === 0) {
-      // Student has no eligible topics (shouldn't happen in normal flow)
+    if (E.length === 0) {
+      // Student has no eligible topics - skip assignment
       continue
     }
 
-    // Sort eligible topics by:
-    // 1. Whether topic is below target size (prefer below target)
-    // 2. Current assignment count (fewest first)
-    // 3. Preference rank (lower rank = higher preference)
-    const sortedTopics = eligibleTopics.sort((a, b) => {
-      const aTarget = targetSizes.get(a) ?? 0
-      const bTarget = targetSizes.get(b) ?? 0
-      const aCurrent = topicAssignments.get(a) ?? 0
-      const bCurrent = topicAssignments.get(b) ?? 0
-      
-      // Prefer topics below target size
-      const aBelowTarget = aCurrent < aTarget ? 0 : 1
-      const bBelowTarget = bCurrent < bTarget ? 0 : 1
-      
-      if (aBelowTarget !== bBelowTarget) {
-        return aBelowTarget - bBelowTarget
-      }
-      
-      // If both below or both above target, prefer fewer assignments
-      if (aCurrent !== bCurrent) {
-        return aCurrent - bCurrent
-      }
-      
-      // If same assignment count, prefer higher preference (lower rank)
-      const studentPrefs = preferenceMap.get(studentId)
-      const aRank = studentPrefs?.get(a) ?? Infinity
-      const bRank = studentPrefs?.get(b) ?? Infinity
-      
-      return aRank - bRank
-    })
+    // Find eligible topics below target
+    const E_below = E.filter(t => (load.get(t) ?? 0) < (target.get(t) ?? 0))
+    
+    let selectedTopic: Id<"topics">
+    if (E_below.length > 0) {
+      // Choose topic below target with minimal load
+      selectedTopic = E_below.reduce((min, current) => 
+        (load.get(current) ?? 0) < (load.get(min) ?? 0) ? current : min
+      )
+    } else {
+      // Choose eligible topic with minimal load
+      selectedTopic = E.reduce((min, current) => 
+        (load.get(current) ?? 0) < (load.get(min) ?? 0) ? current : min
+      )
+    }
 
-    // Assign to the best available topic
-    const selectedTopicId = sortedTopics[0]
     const studentPrefs = preferenceMap.get(studentId)
-    const rank = studentPrefs?.get(selectedTopicId)
+    const rank = studentPrefs?.get(selectedTopic)
 
     assignments.push({
       studentId,
-      topicId: selectedTopicId,
+      topicId: selectedTopic,
       rank
     })
 
-    // Update assignment count
-    topicAssignments.set(selectedTopicId, (topicAssignments.get(selectedTopicId) ?? 0) + 1)
+    // Update load
+    load.set(selectedTopic, (load.get(selectedTopic) ?? 0) + 1)
   }
 
   return assignments
