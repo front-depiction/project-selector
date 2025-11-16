@@ -244,6 +244,7 @@ export const clearAllData = mutation({
       deleteAllFromTable(ctx, "topics"),
       deleteAllFromTable(ctx, "subtopics"),
       deleteAllFromTable(ctx, "prerequisites"),
+      deleteAllFromTable(ctx, "studentPrerequisites"),
       deleteAllFromTable(ctx, "preferencePrerequisites"),
       deleteAllFromTable(ctx, "preferences"),
       deleteAllFromTable(ctx, "rankingEvents"),

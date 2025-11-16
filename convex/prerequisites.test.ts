@@ -794,3 +794,214 @@ test("prerequisites: getPrerequisitePreferencesWithDetails", async () => {
   vi.useRealTimers()
 })
 
+test("deletePrerequisite should cascade delete studentPrerequisites", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Create a prerequisite
+  const prereqId = await t.mutation(api.prerequisites.createPrerequisite, {
+    title: "Test Prereq",
+    requiredValue: 1
+  })
+  
+  const studentId = "test-student-123"
+  
+  // Create a student prerequisite evaluation
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereqId,
+    isMet: true
+  })
+  
+  // Verify the student prerequisite exists
+  const evaluation = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereqId
+  })
+  expect(evaluation).toBeDefined()
+  expect(evaluation?.isMet).toBe(true)
+  
+  // Delete the prerequisite
+  await t.mutation(api.prerequisites.deletePrerequisite, { id: prereqId })
+  
+  // Student prerequisite should be deleted
+  const deletedEvaluation = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereqId
+  })
+  expect(deletedEvaluation).toBeNull()
+  
+  // Also verify the prerequisite itself is deleted
+  const deletedPrereq = await t.query(api.prerequisites.getPrerequisite, { id: prereqId })
+  expect(deletedPrereq).toBeNull()
+  
+  vi.useRealTimers()
+})
+
+test("deletePrerequisite should cascade delete all related studentPrerequisites", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Create a prerequisite
+  const prereqId = await t.mutation(api.prerequisites.createPrerequisite, {
+    title: "Test Prereq",
+    requiredValue: 1
+  })
+  
+  const student1Id = "student-1"
+  const student2Id = "student-2"
+  const student3Id = "student-3"
+  
+  // Create multiple student prerequisite evaluations
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId: student1Id,
+    prerequisiteId: prereqId,
+    isMet: true
+  })
+  
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId: student2Id,
+    prerequisiteId: prereqId,
+    isMet: false
+  })
+  
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId: student3Id,
+    prerequisiteId: prereqId,
+    isMet: true
+  })
+  
+  // Verify all student prerequisites exist
+  const eval1 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student1Id,
+    prerequisiteId: prereqId
+  })
+  const eval2 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student2Id,
+    prerequisiteId: prereqId
+  })
+  const eval3 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student3Id,
+    prerequisiteId: prereqId
+  })
+  
+  expect(eval1).toBeDefined()
+  expect(eval2).toBeDefined()
+  expect(eval3).toBeDefined()
+  
+  // Delete the prerequisite
+  await t.mutation(api.prerequisites.deletePrerequisite, { id: prereqId })
+  
+  // All student prerequisites should be deleted
+  const deletedEval1 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student1Id,
+    prerequisiteId: prereqId
+  })
+  const deletedEval2 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student2Id,
+    prerequisiteId: prereqId
+  })
+  const deletedEval3 = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId: student3Id,
+    prerequisiteId: prereqId
+  })
+  
+  expect(deletedEval1).toBeNull()
+  expect(deletedEval2).toBeNull()
+  expect(deletedEval3).toBeNull()
+  
+  vi.useRealTimers()
+})
+
+test("deletePrerequisite should handle mixed relationships correctly", async () => {
+  vi.useFakeTimers()
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+  
+  // Seed test data for preferences
+  const { preferenceIds } = await seedTestData(t)
+  
+  // Create prerequisites
+  const prereq1Id = await t.mutation(api.prerequisites.createPrerequisite, {
+    title: "Prereq 1",
+    requiredValue: 1
+  })
+  
+  const prereq2Id = await t.mutation(api.prerequisites.createPrerequisite, {
+    title: "Prereq 2", 
+    requiredValue: 0
+  })
+  
+  // Create a topic with both prerequisites
+  const topicId = await t.mutation(api.admin.createTopic, {
+    title: "Advanced Topic",
+    description: "Requires prerequisites",
+    semesterId: "2024-test",
+    prerequisiteIds: [prereq1Id, prereq2Id]
+  })
+  
+  // Create student prerequisite evaluations for prereq1
+  const studentId = "test-student"
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereq1Id,
+    isMet: true
+  })
+  
+  // Create preference-prerequisite relationships for prereq1
+  await t.mutation(api.prerequisites.setPreferencePrerequisite, {
+    preferenceId: preferenceIds[0],
+    prerequisiteId: prereq1Id,
+    isMet: true
+  })
+  
+  // Create student prerequisite evaluations for prereq2 (should remain)
+  await t.mutation(api.studentPrerequisites.saveStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereq2Id,
+    isMet: false
+  })
+  
+  // Create preference-prerequisite relationships for prereq2 (should remain)
+  await t.mutation(api.prerequisites.setPreferencePrerequisite, {
+    preferenceId: preferenceIds[0],
+    prerequisiteId: prereq2Id,
+    isMet: false
+  })
+  
+  // Delete prereq1
+  await t.mutation(api.prerequisites.deletePrerequisite, { id: prereq1Id })
+  
+  // prereq1 relationships should be deleted
+  const deletedStudentEval = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereq1Id
+  })
+  expect(deletedStudentEval).toBeNull()
+  
+  const deletedPrefPrereqs = await t.query(api.prerequisites.getPreferencePrerequisites, {
+    preferenceId: preferenceIds[0]
+  })
+  expect(deletedPrefPrereqs.filter(p => p.prerequisiteId === prereq1Id)).toHaveLength(0)
+  
+  // prereq2 relationships should remain intact
+  const remainingStudentEval = await t.query(api.studentPrerequisites.getStudentPrerequisiteEvaluation, {
+    studentId,
+    prerequisiteId: prereq2Id
+  })
+  expect(remainingStudentEval).toBeDefined()
+  expect(remainingStudentEval?.isMet).toBe(false)
+  
+  const remainingPrefPrereqs = await t.query(api.prerequisites.getPreferencePrerequisites, {
+    preferenceId: preferenceIds[0]
+  })
+  expect(remainingPrefPrereqs.filter(p => p.prerequisiteId === prereq2Id)).toHaveLength(1)
+  
+  // Topic should have prereq1 removed but prereq2 remaining
+  const topic = await t.query(api.topics.getTopic, { id: topicId })
+  expect(topic?.prerequisiteIds).toBeDefined()
+  expect(topic?.prerequisiteIds?.length).toBe(1)
+  expect(topic?.prerequisiteIds?.[0]).toBe(prereq2Id)
+  
+  vi.useRealTimers()
+})
+

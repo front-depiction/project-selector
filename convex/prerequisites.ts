@@ -296,6 +296,16 @@ export const deletePrerequisite = mutation({
       await ctx.db.delete(relationship._id)
     }
 
+    // Delete all student prerequisite evaluations for this prerequisite
+    const studentEvaluations = await ctx.db
+      .query("studentPrerequisites")
+      .withIndex("by_prerequisite", q => q.eq("prerequisiteId", args.id))
+      .collect()
+
+    for (const evaluation of studentEvaluations) {
+      await ctx.db.delete(evaluation._id)
+    }
+
     // Delete prerequisite itself
     await ctx.db.delete(args.id)
     return args.id
