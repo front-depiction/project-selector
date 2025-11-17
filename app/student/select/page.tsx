@@ -315,7 +315,7 @@ export default function SelectTopics() {
     } else if (completionStatus && !completionStatus.isComplete && completionStatus.total > 0) {
       router.push("/student/prerequisites")
     }
-  }, [studentId, router, completionStatus])
+  }, [studentId, router, completionStatus?.isComplete, completionStatus?.total])
   const savePreferences = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
     (localStore, args) => {
       const { studentId, topicOrder } = args

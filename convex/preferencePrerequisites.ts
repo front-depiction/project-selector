@@ -116,25 +116,24 @@ export const getPreferencePrerequisitesWithDetails = query({
     preferenceId: v.id("preferences")
   },
   handler: async (ctx, args) => {
-    const relationships = await ctx.db
+    const results = []
+    const query = ctx.db
       .query("preferencePrerequisites")
       .withIndex("by_preference", q => q.eq("preferenceId", args.preferenceId))
-      .collect()
-
-    const relationshipsWithDetails = await Promise.all(
-      relationships.map(async (relationship) => {
-        const prerequisite = await ctx.db.get(relationship.prerequisiteId)
-        const preference = await ctx.db.get(relationship.preferenceId)
-        
-        return {
-          relationship,
-          prerequisite,
-          preference
-        }
-      })
-    )
     
-    return relationshipsWithDetails.filter(r => r.prerequisite && r.preference)
+    // Stream with concurrent fetches
+    for await (const relationship of query) {
+      const [prerequisite, preference] = await Promise.all([
+        ctx.db.get(relationship.prerequisiteId),
+        ctx.db.get(relationship.preferenceId),
+      ])
+      
+      if (prerequisite && preference) {
+        results.push({ relationship, prerequisite, preference })
+      }
+    }
+    
+    return results
   }
 })
 
@@ -150,24 +149,23 @@ export const getPrerequisitePreferencesWithDetails = query({
     prerequisiteId: v.id("prerequisites")
   },
   handler: async (ctx, args) => {
-    const relationships = await ctx.db
+    const results = []
+    const query = ctx.db
       .query("preferencePrerequisites")
       .withIndex("by_prerequisite", q => q.eq("prerequisiteId", args.prerequisiteId))
-      .collect()
-
-    const relationshipsWithDetails = await Promise.all(
-      relationships.map(async (relationship) => {
-        const prerequisite = await ctx.db.get(relationship.prerequisiteId)
-        const preference = await ctx.db.get(relationship.preferenceId)
-        
-        return {
-          relationship,
-          prerequisite,
-          preference
-        }
-      })
-    )
     
-    return relationshipsWithDetails.filter(r => r.prerequisite && r.preference)
+    // Stream with concurrent fetches
+    for await (const relationship of query) {
+      const [prerequisite, preference] = await Promise.all([
+        ctx.db.get(relationship.prerequisiteId),
+        ctx.db.get(relationship.preferenceId),
+      ])
+      
+      if (prerequisite && preference) {
+        results.push({ relationship, prerequisite, preference })
+      }
+    }
+    
+    return results
   }
 })

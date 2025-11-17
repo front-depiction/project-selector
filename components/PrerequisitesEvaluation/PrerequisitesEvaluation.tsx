@@ -138,31 +138,28 @@ export const PrerequisitesEvaluationProvider: React.FC<PrerequisitesEvaluationPr
   const { prerequisitesWithEvaluations, completionStatus, isLoading } = usePrerequisitesEvaluationData(studentId)
   const { saveEvaluationsAction } = usePrerequisitesEvaluationActions(studentId)
   
-  // Initialize evaluations from existing data - calculated during render, not in useEffect
-  const initialEvaluations = React.useMemo(() => {
-    if (!prerequisitesWithEvaluations) return {}
-    
-    const evaluations: Record<string, boolean> = {}
+  // Initialize evaluations from existing data
+  const initialEvaluations: Record<string, boolean> = {}
+  if (prerequisitesWithEvaluations) {
     prerequisitesWithEvaluations.forEach(prereq => {
-      if (prereq.studentEvaluation) {
-        evaluations[prereq._id] = prereq.studentEvaluation.isMet
-      } else {
-        evaluations[prereq._id] = false
-      }
+      initialEvaluations[prereq._id] = prereq.studentEvaluation?.isMet ?? false
     })
-    return evaluations
-  }, [prerequisitesWithEvaluations])
+  }
   
   const [evaluations, setEvaluations] = React.useState<Record<string, boolean>>(initialEvaluations)
   const [isSaving, setIsSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   
-  // Update evaluations when initial data changes - calculated during render
-  React.useMemo(() => {
+  // Update evaluations when data changes
+  React.useEffect(() => {
     if (prerequisitesWithEvaluations) {
-      setEvaluations(initialEvaluations)
+      const newEvaluations: Record<string, boolean> = {}
+      prerequisitesWithEvaluations.forEach(prereq => {
+        newEvaluations[prereq._id] = prereq.studentEvaluation?.isMet ?? false
+      })
+      setEvaluations(newEvaluations)
     }
-  }, [initialEvaluations, prerequisitesWithEvaluations])
+  }, [prerequisitesWithEvaluations])
   
   const updateEvaluation = React.useCallback((prerequisiteId: string, isMet: boolean) => {
     setEvaluations(prev => ({
@@ -192,14 +189,14 @@ export const PrerequisitesEvaluationProvider: React.FC<PrerequisitesEvaluationPr
     setError(null)
   }, [])
   
-  // Redirect logic - calculated during render
-  React.useMemo(() => {
+  // Redirect logic
+  React.useEffect(() => {
     if (!studentId) {
       router.push("/student")
     }
   }, [studentId, router])
   
-  React.useMemo(() => {
+  React.useEffect(() => {
     if (completionStatus?.isComplete || (prerequisitesWithEvaluations && prerequisitesWithEvaluations.length === 0)) {
       router.push("/student/select")
     }
