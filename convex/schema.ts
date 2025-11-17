@@ -5,6 +5,9 @@ import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as RankingEvent from "./schemas/RankingEvent"
 import * as Assignment from "./schemas/Assignment"
+import * as Prerequisite from "./schemas/Prerequisite"
+import * as PreferencePrerequisite from "./schemas/PreferencePrerequisite"
+import * as StudentPrerequisite from "./schemas/StudentPrerequisite"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -12,6 +15,18 @@ export default defineSchema({
     .index("by_active", ["isActive"]),
 
   subtopics: defineTable(Subtopic.Subtopic),
+
+  prerequisites: defineTable(Prerequisite.Prerequisite),
+
+  studentPrerequisites: defineTable(StudentPrerequisite.StudentPrerequisite)
+    .index("by_student", ["studentId"])
+    .index("by_prerequisite", ["prerequisiteId"])
+    .index("by_student_prerequisite", ["studentId", "prerequisiteId"]),
+
+  preferencePrerequisites: defineTable(PreferencePrerequisite.PreferencePrerequisite)
+    .index("by_preference", ["preferenceId"])
+    .index("by_prerequisite", ["prerequisiteId"])
+    .index("by_met", ["isMet"]),
 
   preferences: defineTable(Preference.Preference)
     .index("by_student", ["studentId", "semesterId"])

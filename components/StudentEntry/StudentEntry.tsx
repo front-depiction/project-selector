@@ -60,13 +60,13 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   if (isComplete && value !== prevValue) {
     setPrevValue(value)
     localStorage.setItem("studentId", value)
-    router.push("/student/select")
+    router.push("/student/prerequisites")
   }
   
   const handleComplete = React.useCallback(() => {
     if (isComplete) {
       localStorage.setItem("studentId", value)
-      router.push("/student/select")
+      router.push("/student/prerequisites")
     }
   }, [isComplete, value, router])
   

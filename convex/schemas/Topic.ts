@@ -12,7 +12,8 @@ export const Topic = v.object({
   description: v.string(),
   semesterId: v.string(),
   isActive: v.boolean(),
-  subtopicIds: v.optional(v.array(v.id("subtopics")))
+  subtopicIds: v.optional(v.array(v.id("subtopics"))),
+  prerequisiteIds: v.optional(v.array(v.id("prerequisites")))
 })
 
 /**
@@ -44,12 +45,14 @@ export const make = (params: {
   readonly semesterId: string
   readonly isActive?: boolean
   readonly subtopicIds?: ReadonlyArray<string>
+  readonly prerequisiteIds?: ReadonlyArray<string>
 }): Topic => ({
   title: params.title,
   description: params.description,
   semesterId: params.semesterId,
   isActive: params.isActive ?? true,
-  subtopicIds: params.subtopicIds?.map(id => id as any)
+  subtopicIds: params.subtopicIds?.map(id => id as any),
+  prerequisiteIds: params.prerequisiteIds?.map(id => id as any)
 } as const)
 
 /**
