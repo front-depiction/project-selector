@@ -5,6 +5,11 @@ import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as RankingEvent from "./schemas/RankingEvent"
 import * as Assignment from "./schemas/Assignment"
+import * as Question from "./schemas/Question"
+import * as QuestionTemplate from "./schemas/QuestionTemplate"
+import * as TemplateQuestion from "./schemas/TemplateQuestion"
+import * as SelectionQuestion from "./schemas/SelectionQuestion"
+import * as StudentAnswer from "./schemas/StudentAnswer"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -30,5 +35,23 @@ export default defineSchema({
     .index("by_period", ["periodId"])
     .index("by_student", ["studentId", "periodId"])
     .index("by_batch", ["batchId"])
-    .index("by_topic", ["topicId", "periodId"])
+    .index("by_topic", ["topicId", "periodId"]),
+
+  questions: defineTable(Question.Question)
+    .index("by_semester", ["semesterId"]),
+
+  questionTemplates: defineTable(QuestionTemplate.QuestionTemplate)
+    .index("by_semester", ["semesterId"]),
+
+  templateQuestions: defineTable(TemplateQuestion.TemplateQuestion)
+    .index("by_template", ["templateId", "order"])
+    .index("by_question", ["questionId"]),
+
+  selectionQuestions: defineTable(SelectionQuestion.SelectionQuestion)
+    .index("by_selection_period", ["selectionPeriodId", "order"])
+    .index("by_question", ["questionId"]),
+
+  studentAnswers: defineTable(StudentAnswer.StudentAnswer)
+    .index("by_student_period", ["studentId", "selectionPeriodId"])
+    .index("by_question_period", ["questionId", "selectionPeriodId"])
 })
