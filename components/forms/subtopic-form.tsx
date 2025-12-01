@@ -72,7 +72,7 @@ export default function MyForm() {
                             <FormLabel>Enter a project subtopic</FormLabel>
                             <FormControl>
                                 <TagsInput
-                                    value={field.value}
+                                    value={field.value ?? []}
                                     onValueChange={field.onChange}
                                     placeholder="Enter your tags"
                                 />

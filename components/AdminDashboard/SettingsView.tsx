@@ -17,19 +17,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useSettingsViewVM } from "./SettingsViewVM"
+import { useSignals } from "@preact/signals-react/runtime"
 
 export const SettingsView: React.FC = () => {
-  const { seedTestData, clearAllData, currentPeriod } = AD.useDashboard()
-  const [isClearDialogOpen, setIsClearDialogOpen] = React.useState(false)
-
-  const handleSeedData = async () => {
-    await seedTestData()
-  }
-
-  const handleClearData = async () => {
-    await clearAllData()
-    setIsClearDialogOpen(false)
-  }
+  useSignals()
+  const { currentPeriod } = AD.useDashboard()
+  const vm = useSettingsViewVM()
 
   return (
     <div className="space-y-6">
@@ -54,9 +48,9 @@ export const SettingsView: React.FC = () => {
                 Generate sample topics and periods for testing
               </p>
             </div>
-            <Button onClick={handleSeedData} variant="outline">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Seed Data
+            <Button onClick={vm.seedTestData} variant="outline" disabled={vm.isSeedingData$.value}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${vm.isSeedingData$.value ? "animate-spin" : ""}`} />
+              {vm.isSeedingData$.value ? "Seeding..." : "Seed Data"}
             </Button>
           </div>
 
@@ -96,11 +90,12 @@ export const SettingsView: React.FC = () => {
               </p>
             </div>
             <Button
-              onClick={() => setIsClearDialogOpen(true)}
+              onClick={vm.clearAllData}
               variant="destructive"
+              disabled={vm.isClearingData$.value}
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              Clear Data
+              {vm.isClearingData$.value ? "Clearing..." : "Clear Data"}
             </Button>
           </div>
         </CardContent>
@@ -126,7 +121,7 @@ export const SettingsView: React.FC = () => {
       </Card>
 
       {/* Clear Data Confirmation Dialog */}
-      <AlertDialog open={isClearDialogOpen} onOpenChange={setIsClearDialogOpen}>
+      <AlertDialog open={vm.clearDialog.isOpen$.value} onOpenChange={(open) => open ? vm.clearDialog.open() : vm.clearDialog.close()}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
@@ -144,12 +139,13 @@ export const SettingsView: React.FC = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={vm.clearDialog.close}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleClearData}
+              onClick={vm.confirmClear}
               className="bg-red-600 hover:bg-red-700"
+              disabled={vm.isClearingData$.value}
             >
-              Yes, clear all data
+              {vm.isClearingData$.value ? "Clearing..." : "Yes, clear all data"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

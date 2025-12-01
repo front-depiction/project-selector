@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import * as AD from "./index"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -13,69 +11,48 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Plus, Trash2 } from "lucide-react"
-import type { Doc, Id } from "@/convex/_generated/dataModel"
 import TopicForm from "@/components/forms/topic-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { useTopicsViewVM } from "./TopicsViewVM"
+import { useSignals } from "@preact/signals-react/runtime"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Edit, Trash2 as Trash, Power, MoreVertical } from "lucide-react"
 
 // ============================================================================
-// TOPICS VIEW - Clean table-based layout
+// TOPICS VIEW - Clean table-based layout with View Model pattern
 // ============================================================================
 
 export const TopicsView: React.FC = () => {
-  const { topics, subtopics, periods, createTopic, updateTopic, deleteTopic } = AD.useDashboard()
-  const [isCreateTopicOpen, setIsCreateTopicOpen] = React.useState(false)
-  const [isCreateSubtopicOpen, setIsCreateSubtopicOpen] = React.useState(false)
-  const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
+  useSignals()
+  const vm = useTopicsViewVM()
+
+  // Local state for subtopic form
   const [subtopicForm, setSubtopicForm] = React.useState({ title: "", description: "" })
 
-  // Format periods for the form
-  const periodOptions = React.useMemo(() => {
-    return periods?.map(p => ({
-      value: p.semesterId,
-      label: p.title
-    })) || []
-  }, [periods])
-
-  // For subtopics, we'll need to add these to the dashboard context later
-  const createSubtopic = React.useCallback(async (data: { title: string; description: string }) => {
-    // TODO: Implement createSubtopic mutation
-    console.log("Creating subtopic:", data)
-  }, [])
-
-  const deleteSubtopic = React.useCallback(async (id: Id<"subtopics">) => {
-    // TODO: Implement deleteSubtopic mutation
-    console.log("Deleting subtopic:", id)
-  }, [])
-
-  const handleCreateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
-    await createTopic({
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id || "2024-spring"
-    })
-    setIsCreateTopicOpen(false)
-  }
-
-  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
-    if (!editingTopic) return
-    await updateTopic(editingTopic._id, {
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id
-    })
-    setEditingTopic(null)
-  }
-
-  const handleCreateSubtopic = async () => {
+  const handleCreateSubtopic = () => {
     if (!subtopicForm.title || !subtopicForm.description) return
-    await createSubtopic({
+    vm.onSubtopicSubmit({
       title: subtopicForm.title,
-      description: subtopicForm.description
+      description: subtopicForm.description,
     })
     setSubtopicForm({ title: "", description: "" })
-    setIsCreateSubtopicOpen(false)
   }
 
   return (
@@ -87,11 +64,11 @@ export const TopicsView: React.FC = () => {
           <p className="text-muted-foreground mt-1">Manage available topics for student selection</p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={() => setIsCreateSubtopicOpen(true)} variant="outline" size="lg">
+          <Button onClick={vm.createSubtopicDialog.open} variant="outline" size="lg">
             <Plus className="mr-2 h-5 w-5" />
             Create Subtopic
           </Button>
-          <Button onClick={() => setIsCreateTopicOpen(true)} size="lg">
+          <Button onClick={vm.createTopicDialog.open} size="lg">
             <Plus className="mr-2 h-5 w-5" />
             Create Topic
           </Button>
@@ -99,7 +76,7 @@ export const TopicsView: React.FC = () => {
       </div>
 
       {/* Subtopics Section - Grid Layout */}
-      {subtopics && subtopics.length > 0 && (
+      {vm.subtopics$.value.length > 0 && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Subtopics</CardTitle>
@@ -107,8 +84,8 @@ export const TopicsView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {subtopics.map((subtopic) => (
-                <div key={subtopic._id} className="p-4 border rounded-lg bg-muted/50">
+              {vm.subtopics$.value.map((subtopic) => (
+                <div key={subtopic.key} className="p-4 border rounded-lg bg-muted/50">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h4 className="font-medium">{subtopic.title}</h4>
@@ -117,7 +94,7 @@ export const TopicsView: React.FC = () => {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => deleteSubtopic(subtopic._id)}
+                      onClick={subtopic.remove}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -130,10 +107,77 @@ export const TopicsView: React.FC = () => {
       )}
 
       {/* Topics Table - Clean data table format */}
-      <AD.TopicsTable onEdit={setEditingTopic} />
+      {vm.topics$.value.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>No Topics</CardTitle>
+            <CardDescription>Create your first topic to get started.</CardDescription>
+          </CardHeader>
+        </Card>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Subtopics</TableHead>
+                <TableHead>Selections</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vm.topics$.value.map((topic) => (
+                <TableRow key={topic.key}>
+                  <TableCell className="font-medium">{topic.title}</TableCell>
+                  <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
+                  <TableCell>
+                    <Badge variant={topic.statusVariant}>
+                      {topic.statusDisplay}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{topic.subtopicsCount}</TableCell>
+                  <TableCell>{topic.selectionsCount}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={topic.edit}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={topic.toggleActive}>
+                          <Power className="mr-2 h-4 w-4" />
+                          {topic.statusDisplay === "Active" ? "Deactivate" : "Activate"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={topic.remove}
+                        >
+                          <Trash className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Create Topic Dialog */}
-      <Dialog open={isCreateTopicOpen} onOpenChange={setIsCreateTopicOpen}>
+      <Dialog open={vm.createTopicDialog.isOpen$.value} onOpenChange={(open) => {
+        if (open) vm.createTopicDialog.open()
+        else vm.createTopicDialog.close()
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create Topic</DialogTitle>
@@ -141,12 +185,14 @@ export const TopicsView: React.FC = () => {
               Add a new topic that students can select.
             </DialogDescription>
           </DialogHeader>
-          <TopicForm periods={periodOptions} onSubmit={handleCreateTopic} />
+          <TopicForm periods={[...vm.periodOptions$.value]} onSubmit={vm.onTopicSubmit} />
         </DialogContent>
       </Dialog>
 
       {/* Edit Topic Dialog */}
-      <Dialog open={!!editingTopic} onOpenChange={(open) => !open && setEditingTopic(null)}>
+      <Dialog open={vm.editTopicDialog.isOpen$.value} onOpenChange={(open) => {
+        if (!open) vm.editTopicDialog.close()
+      }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
@@ -154,22 +200,25 @@ export const TopicsView: React.FC = () => {
               Update the details of this topic.
             </DialogDescription>
           </DialogHeader>
-          {editingTopic && (
+          {vm.editTopicDialog.editingTopic$.value && (
             <TopicForm
-              periods={periodOptions}
+              periods={[...vm.periodOptions$.value]}
               initialValues={{
-                title: editingTopic.title,
-                description: editingTopic.description,
-                selection_period_id: editingTopic.semesterId
+                title: vm.editTopicDialog.editingTopic$.value.title,
+                description: vm.editTopicDialog.editingTopic$.value.description,
+                selection_period_id: vm.editTopicDialog.editingTopic$.value.semesterId
               }}
-              onSubmit={handleUpdateTopic}
+              onSubmit={vm.onEditTopicSubmit}
             />
           )}
         </DialogContent>
       </Dialog>
 
       {/* Create Subtopic Dialog */}
-      <Dialog open={isCreateSubtopicOpen} onOpenChange={setIsCreateSubtopicOpen}>
+      <Dialog open={vm.createSubtopicDialog.isOpen$.value} onOpenChange={(open) => {
+        if (open) vm.createSubtopicDialog.open()
+        else vm.createSubtopicDialog.close()
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Subtopic</DialogTitle>
@@ -198,7 +247,7 @@ export const TopicsView: React.FC = () => {
               />
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsCreateSubtopicOpen(false)}>
+              <Button variant="outline" onClick={vm.createSubtopicDialog.close}>
                 Cancel
               </Button>
               <Button onClick={handleCreateSubtopic}>
