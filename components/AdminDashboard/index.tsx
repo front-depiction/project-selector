@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils"
 // TYPES
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "settings"
+export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "questionnaires" | "settings"
 
 export type SelectionPeriodWithStats = Readonly<Doc<"selectionPeriods"> & {
   studentCount?: number
@@ -730,6 +730,7 @@ export const TabNavigation: React.FC = () => {
     { id: "periods", label: "Periods", icon: <Calendar className="h-4 w-4" /> },
     { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
     { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
+    { id: "questionnaires", label: "Questionnaires", icon: <FileText className="h-4 w-4" /> },
     { id: "analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }
   ]

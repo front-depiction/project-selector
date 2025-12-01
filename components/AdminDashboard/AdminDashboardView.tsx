@@ -13,7 +13,8 @@ import {
   BarChart3,
   Settings,
   Home,
-  Plus
+  Plus,
+  ClipboardList
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,6 +26,7 @@ import { TopicsView } from "./TopicsView"
 import { StudentsView } from "./StudentsView"
 import { AnalyticsView } from "./AnalyticsView"
 import { SettingsView } from "./SettingsView"
+import { QuestionnairesView } from "./QuestionnairesView"
 
 // ============================================================================
 // OVERVIEW VIEW - Composed from atomic components
@@ -172,6 +174,8 @@ const MainContent: React.FC = () => {
       return <TopicsView />
     case "students":
       return <StudentsView />
+    case "questionnaires":
+      return <QuestionnairesView />
     case "analytics":
       return <AnalyticsView />
     case "settings":
@@ -223,6 +227,13 @@ export const AdminDashboardView: React.FC = () => {
       label: "Students",
       isActive: activeView === "students",
       onClick: () => setActiveView("students")
+    },
+    {
+      id: "questionnaires",
+      icon: <ClipboardList className="h-6 w-6" />,
+      label: "Questionnaires",
+      isActive: activeView === "questionnaires",
+      onClick: () => setActiveView("questionnaires")
     },
     {
       id: "analytics",
