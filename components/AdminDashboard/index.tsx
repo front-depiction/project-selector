@@ -86,7 +86,7 @@ export interface DashboardState {
 
 export interface DashboardActions {
   readonly setActiveView: (view: ViewType) => void
-  readonly createPeriod: (period: PeriodFormData) => Promise<void>
+  readonly createPeriod: (period: PeriodFormData) => Promise<Id<"selectionPeriods">>
   readonly updatePeriod: (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => Promise<void>
   readonly deletePeriod: (id: Id<"selectionPeriods">) => Promise<void>
   readonly setActivePeriod: (id: Id<"selectionPeriods">) => Promise<void>
@@ -196,9 +196,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
 
   // Actions
-  const createPeriod = async (data: PeriodFormData) => {
+  const createPeriod = async (data: PeriodFormData): Promise<Id<"selectionPeriods">> => {
     try {
-      await createPeriodMutation({
+      const result = await createPeriodMutation({
         title: data.title,
         description: data.description,
         semesterId: data.semesterId,
@@ -207,6 +207,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
         setAsActive: data.setAsActive
       })
       toast.success("Selection period created successfully")
+      return result.periodId
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create period")
       throw error

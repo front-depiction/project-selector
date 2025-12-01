@@ -136,3 +136,33 @@ export const getTemplateWithQuestions = query({
     return { ...template, questions: questions.filter(Boolean) }
   }
 })
+
+/**
+ * Gets all templates with their question IDs for form selection.
+ *
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getAllTemplatesWithQuestionIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const templates = await ctx.db.query("questionTemplates").collect()
+
+    const templatesWithQuestionIds = await Promise.all(
+      templates.map(async (template) => {
+        const tqs = await ctx.db
+          .query("templateQuestions")
+          .withIndex("by_template", q => q.eq("templateId", template._id))
+          .collect()
+
+        return {
+          _id: template._id,
+          title: template.title,
+          questionIds: tqs.map(tq => tq.questionId)
+        }
+      })
+    )
+
+    return templatesWithQuestionIds
+  }
+})
