@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import * as Option from "effect/Option"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,7 +16,7 @@ import TopicForm from "@/components/forms/topic-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { useTopicsViewVM } from "./TopicsViewVM"
+import type { TopicsViewVM } from "./TopicsViewVM"
 import { useSignals } from "@preact/signals-react/runtime"
 import {
   Table,
@@ -39,21 +40,12 @@ import { Edit, Trash2 as Trash, Power, MoreVertical } from "lucide-react"
 // TOPICS VIEW - Clean table-based layout with View Model pattern
 // ============================================================================
 
-export const TopicsView: React.FC = () => {
+interface TopicsViewProps {
+  vm: TopicsViewVM
+}
+
+export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   useSignals()
-  const vm = useTopicsViewVM()
-
-  // Local state for subtopic form
-  const [subtopicForm, setSubtopicForm] = React.useState({ title: "", description: "" })
-
-  const handleCreateSubtopic = () => {
-    if (!subtopicForm.title || !subtopicForm.description) return
-    vm.onSubtopicSubmit({
-      title: subtopicForm.title,
-      description: subtopicForm.description,
-    })
-    setSubtopicForm({ title: "", description: "" })
-  }
 
   return (
     <div className="space-y-6">
@@ -200,13 +192,13 @@ export const TopicsView: React.FC = () => {
               Update the details of this topic.
             </DialogDescription>
           </DialogHeader>
-          {vm.editTopicDialog.editingTopic$.value && (
+          {Option.isSome(vm.editTopicDialog.editingTopic$.value) && (
             <TopicForm
               periods={[...vm.periodOptions$.value]}
               initialValues={{
-                title: vm.editTopicDialog.editingTopic$.value.title,
-                description: vm.editTopicDialog.editingTopic$.value.description,
-                selection_period_id: vm.editTopicDialog.editingTopic$.value.semesterId
+                title: vm.editTopicDialog.editingTopic$.value.value.title,
+                description: vm.editTopicDialog.editingTopic$.value.value.description,
+                selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
               }}
               onSubmit={vm.onEditTopicSubmit}
             />
@@ -231,8 +223,8 @@ export const TopicsView: React.FC = () => {
               <Label htmlFor="title">Title</Label>
               <Input
                 id="title"
-                value={subtopicForm.title}
-                onChange={(e) => setSubtopicForm(prev => ({ ...prev, title: e.target.value }))}
+                value={vm.subtopicForm$.value.title}
+                onChange={(e) => vm.setSubtopicTitle(e.target.value)}
                 placeholder="Enter subtopic title"
               />
             </div>
@@ -240,17 +232,20 @@ export const TopicsView: React.FC = () => {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
-                value={subtopicForm.description}
-                onChange={(e) => setSubtopicForm(prev => ({ ...prev, description: e.target.value }))}
+                value={vm.subtopicForm$.value.description}
+                onChange={(e) => vm.setSubtopicDescription(e.target.value)}
                 placeholder="Enter subtopic description"
                 rows={3}
               />
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={vm.createSubtopicDialog.close}>
+              <Button variant="outline" onClick={() => {
+                vm.createSubtopicDialog.close()
+                vm.resetSubtopicForm()
+              }}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateSubtopic}>
+              <Button onClick={vm.createSubtopic}>
                 Create Subtopic
               </Button>
             </div>

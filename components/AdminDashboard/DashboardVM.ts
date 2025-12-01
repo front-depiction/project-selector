@@ -1,4 +1,5 @@
 "use client"
+import * as React from "react"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
@@ -6,12 +7,24 @@ import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
 import { format } from "date-fns"
+import * as Option from "effect/Option"
 
+import * as Loadable from "@/lib/Loadable"
+import { createPeriodsViewVM } from "./PeriodsViewVM"
+import { createTopicsViewVM } from "./TopicsViewVM"
+import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
+import { createSettingsViewVM } from "./SettingsViewVM"
+import { createAnalyticsViewVM } from "./AnalyticsViewVM"
 // ============================================================================
 // View Model Types
 // ============================================================================
 
 export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "questionnaires" | "settings"
+
+export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
+  studentCount?: number
+  assignmentCount?: number
+}
 
 export interface PeriodItemVM {
   readonly key: string
@@ -68,19 +81,54 @@ export interface StatsVM {
   readonly currentPeriodVariant: string
 }
 
+export interface EditPeriodDialogVM {
+  readonly isOpen$: ReadonlySignal<boolean>
+  readonly editingPeriod$: ReadonlySignal<Option.Option<SelectionPeriodWithStats>>
+  readonly open: (period: SelectionPeriodWithStats) => void
+  readonly close: () => void
+}
+
+export interface EditTopicDialogVM {
+  readonly isOpen$: ReadonlySignal<boolean>
+  readonly editingTopic$: ReadonlySignal<Option.Option<Doc<"topics">>>
+  readonly open: (topic: Doc<"topics">) => void
+  readonly close: () => void
+}
+
+export interface PeriodOption {
+  readonly value: string
+  readonly label: string
+}
+
 export interface DashboardVM {
   readonly activeView$: ReadonlySignal<ViewType>
-  readonly periods$: ReadonlySignal<readonly PeriodItemVM[]>
-  readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
-  readonly assignments$: ReadonlySignal<readonly AssignmentItemVM[]>
-  readonly currentPeriod$: ReadonlySignal<Doc<"selectionPeriods"> | null | undefined>
+  readonly currentPeriod$: ReadonlySignal<Option.Option<Doc<"selectionPeriods">>>
   readonly stats$: ReadonlySignal<StatsVM>
   readonly hasAssignments$: ReadonlySignal<boolean>
   readonly hasPeriods$: ReadonlySignal<boolean>
   readonly hasTopics$: ReadonlySignal<boolean>
+  readonly periodOptions$: ReadonlySignal<readonly PeriodOption[]>
+
+  // Child View Models
+  readonly periodsView: import("./PeriodsViewVM").PeriodsViewVM
+  readonly topicsView: import("./TopicsViewVM").TopicsViewVM
+  readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
+  readonly settingsView: import("./SettingsViewVM").SettingsViewVM
+  readonly analyticsView: import("./AnalyticsViewVM").AnalyticsViewVM
+
+  // Legacy support - for backward compatibility with existing overview components
+  readonly periods$: ReadonlySignal<Loadable.Loadable<readonly PeriodItemVM[]>>
+  readonly topics$: ReadonlySignal<Loadable.Loadable<readonly TopicItemVM[]>>
+  readonly assignments$: ReadonlySignal<readonly AssignmentItemVM[]>
+  readonly editPeriodDialog: EditPeriodDialogVM
+  readonly editTopicDialog: EditTopicDialogVM
+  readonly updatePeriodFromForm: (values: SelectionPeriodFormValues) => void
+  readonly updateTopicFromForm: (values: TopicFormValues) => void
 
   // Actions
   readonly setActiveView: (view: ViewType) => void
+
+  // Legacy actions for backward compatibility (used by context/overview)
   readonly createPeriod: (data: PeriodFormData) => void
   readonly updatePeriod: (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => void
   readonly deletePeriod: (id: Id<"selectionPeriods">) => void
@@ -93,13 +141,23 @@ export interface DashboardVM {
   readonly seedTestData: () => void
   readonly clearAllData: () => void
 
-  // For dialog management (child components need these)
-  readonly onEditPeriod: (period: PeriodItemVM) => void
-  readonly onEditTopic: (topic: TopicItemVM) => void
-
   // Raw data for child components that need full objects
   readonly subtopics: readonly Doc<"subtopics">[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
+}
+
+export interface SelectionPeriodFormValues {
+  readonly title: string
+  readonly selection_period_id: string
+  readonly start_deadline: Date
+  readonly end_deadline: Date
+  readonly isActive: boolean
+}
+
+export interface TopicFormValues {
+  readonly title: string
+  readonly description: string
+  readonly selection_period_id: string
 }
 
 export interface PeriodFormData {
@@ -119,17 +177,23 @@ export interface TopicFormData {
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Hook - ROOT VM that composes all child VMs
 // ============================================================================
 
-export function useDashboardVM(options?: {
-  onEditPeriod?: (period: Doc<"selectionPeriods"> & { studentCount?: number; assignmentCount?: number }) => void
-  onEditTopic?: (topic: Doc<"topics">) => void
-}): DashboardVM {
-  // Reactive state
-  const activeView$ = signal<ViewType>("overview")
+export function useDashboardVM(): DashboardVM {
+  // Reactive state - stable signal created once per component lifecycle
+  const activeView$ = React.useMemo(() => signal<ViewType>("overview"), [])
 
-  // Convex queries - already reactive!
+  // Legacy dialog state for overview components
+  const editPeriodDialogOpen$ = React.useMemo(() => signal(false), [])
+  const editingPeriod$ = React.useMemo(() => signal<Option.Option<SelectionPeriodWithStats>>(Option.none()), [])
+  const editTopicDialogOpen$ = React.useMemo(() => signal(false), [])
+  const editingTopic$ = React.useMemo(() => signal<Option.Option<Doc<"topics">>>(Option.none()), [])
+
+  // ============================================================================
+  // CONVEX QUERIES - Root VM fetches all data
+  // ============================================================================
+
   const periodsData = useQuery(api.selectionPeriods.getAllPeriodsWithStats)
   const topicsData = useQuery(api.topics.getAllTopics, {})
   const subtopicsData = useQuery(api.subtopics.getAllSubtopics, {})
@@ -137,25 +201,85 @@ export function useDashboardVM(options?: {
   const statsData = useQuery(api.stats.getLandingStats)
   const topicAnalyticsData = useQuery(api.topicAnalytics.getTopicPerformanceAnalytics, {})
 
-  // Convex mutations
+  // Additional queries for child VMs
+  const assignmentsData = useQuery(
+    api.assignments.getAllAssignmentsForExport,
+    currentPeriodData?._id ? { periodId: currentPeriodData._id } : "skip"
+  )
+  const questionsData = useQuery(api.questions.getAllQuestions, {})
+  const templatesData = useQuery(api.questionTemplates.getAllTemplatesWithQuestionIds, {})
+  const existingQuestionsData = useQuery(
+    api.selectionQuestions.getQuestionsForPeriod,
+    editingPeriod$.value && Option.isSome(editingPeriod$.value)
+      ? { selectionPeriodId: editingPeriod$.value.value._id }
+      : "skip"
+  )
+
+  // ============================================================================
+  // CONVEX MUTATIONS - Root VM owns all mutations
+  // ============================================================================
+
   const createPeriodMutation = useMutation(api.selectionPeriods.createPeriod)
   const updatePeriodMutation = useMutation(api.selectionPeriods.updatePeriod)
   const deletePeriodMutation = useMutation(api.selectionPeriods.deletePeriod)
   const setActivePeriodMutation = useMutation(api.selectionPeriods.setActivePeriod)
+  const addQuestionMutation = useMutation(api.selectionQuestions.addQuestion)
+  const removeQuestionMutation = useMutation(api.selectionQuestions.removeQuestion)
+
   const createTopicMutation = useMutation(api.admin.createTopic)
   const updateTopicMutation = useMutation(api.admin.updateTopic)
   const deleteTopicMutation = useMutation(api.admin.deleteTopic)
   const toggleTopicActiveMutation = useMutation(api.admin.toggleTopicActive)
+  const createSubtopicMutation = useMutation(api.subtopics.createSubtopic)
+  const deleteSubtopicMutation = useMutation(api.subtopics.deleteSubtopic)
+
+  const createQuestionMutation = useMutation(api.questions.createQuestion)
+  const deleteQuestionMutation = useMutation(api.questions.deleteQuestion)
+  const createTemplateMutation = useMutation(api.questionTemplates.createTemplate)
+  const deleteTemplateMutation = useMutation(api.questionTemplates.deleteTemplate)
+  const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
+
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
+
+  // ============================================================================
+  // DATA SIGNALS - Updated when query data changes
+  // ============================================================================
+
+  const dataSignals = React.useRef({
+    periodsData$: signal<typeof periodsData>(undefined),
+    currentPeriodData$: signal<typeof currentPeriodData>(undefined),
+    assignmentsData$: signal<typeof assignmentsData>(undefined),
+    topicsData$: signal<typeof topicsData>(undefined),
+    subtopicsData$: signal<typeof subtopicsData>(undefined),
+    periodsForTopics$: signal<typeof periodsData>(undefined),
+    questionsData$: signal<typeof questionsData>(undefined),
+    templatesData$: signal<typeof templatesData>(undefined),
+    existingQuestionsData$: signal<typeof existingQuestionsData>(undefined),
+    statsData$: signal<typeof statsData>(undefined),
+    topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
+  }).current
+
+  // Update signals when query data changes
+  dataSignals.periodsData$.value = periodsData
+  dataSignals.currentPeriodData$.value = currentPeriodData
+  dataSignals.assignmentsData$.value = assignmentsData
+  dataSignals.topicsData$.value = topicsData
+  dataSignals.subtopicsData$.value = subtopicsData
+  dataSignals.periodsForTopics$.value = periodsData
+  dataSignals.questionsData$.value = questionsData
+  dataSignals.templatesData$.value = templatesData
+  dataSignals.existingQuestionsData$.value = existingQuestionsData
+  dataSignals.statsData$.value = statsData
+  dataSignals.topicAnalyticsData$.value = topicAnalyticsData
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
   const assignments$ = computed((): readonly AssignmentItemVM[] => {
-    const period = currentPeriodData
-    if (!period) return []
-
-    return SelectionPeriodModule.match(period)({
+    const periodOption = Option.fromNullable(currentPeriodData)
+    return Option.match(periodOption, {
+      onNone: () => [],
+      onSome: (period) => SelectionPeriodModule.match(period)({
       assigned: () => [
         {
           key: "a1",
@@ -204,11 +328,16 @@ export function useDashboardVM(options?: {
       inactive: () => [],
       closed: () => []
     })
+    })
   })
 
   // Computed: periods list for table
-  const periods$ = computed((): readonly PeriodItemVM[] =>
-    (periodsData ?? []).map((p): PeriodItemVM => {
+  const periods$ = computed((): Loadable.Loadable<readonly PeriodItemVM[]> => {
+    if (periodsData === undefined) {
+      return Loadable.pending()
+    }
+
+    const items = periodsData.map((p): PeriodItemVM => {
       const status: { display: string; variant: "default" | "secondary" | "outline"; color: string } = SelectionPeriodModule.match(p)({
         open: () => ({ display: "OPEN", variant: "default" as "default" | "secondary" | "outline", color: "bg-green-600 text-white" }),
         inactive: () => ({ display: "INACTIVE", variant: "secondary" as "default" | "secondary" | "outline", color: "bg-blue-600 text-white" }),
@@ -237,7 +366,8 @@ export function useDashboardVM(options?: {
           setActivePeriodMutation({ periodId: p._id }).catch(console.error)
         },
         edit: () => {
-          options?.onEditPeriod?.(p)
+          editingPeriod$.value = Option.some(p)
+          editPeriodDialogOpen$.value = true
         },
         remove: () => {
           deletePeriodMutation({ periodId: p._id }).catch(console.error)
@@ -245,11 +375,17 @@ export function useDashboardVM(options?: {
         canSetActive
       }
     })
-  )
+
+    return Loadable.ready(items)
+  })
 
   // Computed: topics list for table
-  const topics$ = computed((): readonly TopicItemVM[] =>
-    (topicsData ?? []).map((t): TopicItemVM => ({
+  const topics$ = computed((): Loadable.Loadable<readonly TopicItemVM[]> => {
+    if (topicsData === undefined) {
+      return Loadable.pending()
+    }
+
+    const items = topicsData.map((t): TopicItemVM => ({
       key: t._id,
       title: t.title,
       description: t.description,
@@ -261,16 +397,19 @@ export function useDashboardVM(options?: {
         toggleTopicActiveMutation({ id: t._id }).catch(console.error)
       },
       edit: () => {
-        options?.onEditTopic?.(t)
+        editingTopic$.value = Option.some(t)
+        editTopicDialogOpen$.value = true
       },
       remove: () => {
         deleteTopicMutation({ id: t._id }).catch(console.error)
       }
     }))
-  )
+
+    return Loadable.ready(items)
+  })
 
   // Computed: current period signal (readonly wrapper)
-  const currentPeriod$ = computed(() => currentPeriodData)
+  const currentPeriod$ = computed(() => Option.fromNullable(currentPeriodData))
 
   // Computed: stats with pre-formatted displays
   const stats$ = computed((): StatsVM => {
@@ -286,23 +425,26 @@ export function useDashboardVM(options?: {
     const matchRate = assignmentsArray.length > 0 ? (matchedAssignments / assignmentsArray.length) * 100 : 0
     const topChoiceRate = assignmentsArray.length > 0 ? (topChoiceAssignments / assignmentsArray.length) * 100 : 0
 
-    const currentPeriodDisplay = currentPeriodData
-      ? SelectionPeriodModule.match(currentPeriodData)({
-          open: () => "OPEN",
-          assigned: () => "ASSIGNED",
-          inactive: () => "INACTIVE",
-          closed: () => "CLOSED"
-        })
-      : "NONE"
+    const periodOption = Option.fromNullable(currentPeriodData)
+    const currentPeriodDisplay = Option.match(periodOption, {
+      onNone: () => "NONE",
+      onSome: (period) => SelectionPeriodModule.match(period)({
+        open: () => "OPEN",
+        assigned: () => "ASSIGNED",
+        inactive: () => "INACTIVE",
+        closed: () => "CLOSED"
+      })
+    })
 
-    const currentPeriodVariant = currentPeriodData
-      ? SelectionPeriodModule.match(currentPeriodData)({
-          open: () => "border-green-200 bg-green-50/50",
-          assigned: () => "border-purple-200 bg-purple-50/50",
-          inactive: () => "",
-          closed: () => ""
-        })
-      : ""
+    const currentPeriodVariant = Option.match(periodOption, {
+      onNone: () => "",
+      onSome: (period) => SelectionPeriodModule.match(period)({
+        open: () => "border-green-200 bg-green-50/50",
+        assigned: () => "border-purple-200 bg-purple-50/50",
+        inactive: () => "",
+        closed: () => ""
+      })
+    })
 
     return {
       totalTopicsDisplay: String(totalTopicsCount),
@@ -318,8 +460,20 @@ export function useDashboardVM(options?: {
 
   // Computed: helper booleans
   const hasAssignments$ = computed(() => assignments$.value.length > 0)
-  const hasPeriods$ = computed(() => (periodsData ?? []).length > 0)
-  const hasTopics$ = computed(() => (topicsData ?? []).length > 0)
+  const hasPeriods$ = computed(() =>
+    Loadable.isReady(periods$.value) && periods$.value.value.length > 0
+  )
+  const hasTopics$ = computed(() =>
+    Loadable.isReady(topics$.value) && topics$.value.value.length > 0
+  )
+
+  // Computed: period options for forms
+  const periodOptions$ = computed((): readonly PeriodOption[] =>
+    (periodsData ?? []).map(p => ({
+      value: p.semesterId,
+      label: p.title
+    }))
+  )
 
   // Actions
   const setActiveView = (view: ViewType): void => {
@@ -394,47 +548,290 @@ export function useDashboardVM(options?: {
     clearAllDataMutation({}).catch(console.error)
   }
 
-  const onEditPeriod = (period: PeriodItemVM): void => {
-    // Find the original period data and pass it to the callback
-    const originalPeriod = periodsData?.find(p => p._id === period.key)
-    if (originalPeriod && options?.onEditPeriod) {
-      options.onEditPeriod(originalPeriod)
+  const updatePeriodFromForm = (values: SelectionPeriodFormValues): void => {
+    Option.match(editingPeriod$.value, {
+      onNone: () => {},
+      onSome: (editingPeriod) => {
+        if (!editingPeriod._id) return
+        updatePeriodMutation({
+          periodId: editingPeriod._id,
+          title: values.title,
+          description: values.title,
+          openDate: values.start_deadline.getTime(),
+          closeDate: values.end_deadline.getTime()
+        }).then(() => {
+          editPeriodDialogOpen$.value = false
+          editingPeriod$.value = Option.none()
+        }).catch(console.error)
+      }
+    })
+  }
+
+  const updateTopicFromForm = (values: TopicFormValues): void => {
+    Option.match(editingTopic$.value, {
+      onNone: () => {},
+      onSome: (editingTopic) => {
+        if (!editingTopic._id) return
+        updateTopicMutation({
+          id: editingTopic._id,
+          title: values.title,
+          description: values.description
+        }).then(() => {
+          editTopicDialogOpen$.value = false
+          editingTopic$.value = Option.none()
+        }).catch(console.error)
+      }
+    })
+  }
+
+  // ============================================================================
+  // COMPOSE CHILD VMs ONCE using useRef
+  // ============================================================================
+
+  const vm = React.useRef<DashboardVM | null>(null)
+
+  if (vm.current === null) {
+    // Create child VMs by calling their factory functions
+    const periodsView = createPeriodsViewVM({
+      periodsData$: dataSignals.periodsData$,
+      currentPeriodData$: dataSignals.currentPeriodData$,
+      assignmentsData$: computed(() => {
+        const data = dataSignals.assignmentsData$.value
+        if (!data) return undefined
+        return data.map((a): any => ({
+          studentId: a.student_id,
+          topicTitle: a.assigned_topic,
+          preferenceRank: 0,
+          isMatched: false,
+          status: "assigned"
+        }))
+      }),
+      questionsData$: dataSignals.questionsData$,
+      templatesData$: dataSignals.templatesData$,
+      existingQuestionsData$: dataSignals.existingQuestionsData$,
+      createPeriod: createPeriodMutation,
+      updatePeriod: updatePeriodMutation,
+      deletePeriod: deletePeriodMutation,
+      setActivePeriod: setActivePeriodMutation,
+      addQuestion: addQuestionMutation,
+      removeQuestion: removeQuestionMutation,
+    })
+
+    const topicsView = createTopicsViewVM({
+      topics: topicsData,
+      subtopics: subtopicsData,
+      periods: periodsData,
+      createTopic: createTopicMutation,
+      updateTopic: updateTopicMutation,
+      toggleTopicActive: toggleTopicActiveMutation,
+      deleteTopic: deleteTopicMutation,
+      createSubtopic: createSubtopicMutation,
+      deleteSubtopic: deleteSubtopicMutation,
+    })
+
+    const questionnairesView = createQuestionnairesViewVM({
+      questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to10" vs "numeric" mismatch
+      templates$: dataSignals.templatesData$,
+      createQuestion: createQuestionMutation,
+      deleteQuestion: deleteQuestionMutation,
+      createTemplate: createTemplateMutation,
+      deleteTemplate: deleteTemplateMutation,
+      addQuestionToTemplate: addQuestionToTemplateMutation,
+    })
+
+    const settingsView = createSettingsViewVM({
+      seedTestDataMutation,
+      clearAllDataMutation,
+    })
+
+    const analyticsView = createAnalyticsViewVM({
+      topicsData$: dataSignals.topicsData$,
+      statsData$: dataSignals.statsData$,
+      topicAnalyticsData$: dataSignals.topicAnalyticsData$,
+    })
+
+    // Legacy dialog VMs for overview compatibility
+    const editPeriodDialog: EditPeriodDialogVM = {
+      isOpen$: editPeriodDialogOpen$,
+      editingPeriod$,
+      open: (period: SelectionPeriodWithStats) => {
+        editingPeriod$.value = Option.some(period)
+        editPeriodDialogOpen$.value = true
+      },
+      close: () => {
+        editPeriodDialogOpen$.value = false
+        editingPeriod$.value = Option.none()
+      }
+    }
+
+    const editTopicDialog: EditTopicDialogVM = {
+      isOpen$: editTopicDialogOpen$,
+      editingTopic$,
+      open: (topic: Doc<"topics">) => {
+        editingTopic$.value = Option.some(topic)
+        editTopicDialogOpen$.value = true
+      },
+      close: () => {
+        editTopicDialogOpen$.value = false
+        editingTopic$.value = Option.none()
+      }
+    }
+
+    // Actions
+    const setActiveView = (view: ViewType): void => {
+      activeView$.value = view
+    }
+
+    // Legacy actions for backward compatibility
+    const createPeriod = (data: PeriodFormData): void => {
+      createPeriodMutation({
+        title: data.title,
+        description: data.description,
+        semesterId: data.semesterId,
+        openDate: data.openDate.getTime(),
+        closeDate: data.closeDate.getTime(),
+        setAsActive: data.setAsActive
+      }).catch(console.error)
+    }
+
+    const updatePeriod = (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>): void => {
+      updatePeriodMutation({
+        periodId: id,
+        title: updates.title,
+        description: updates.description,
+        openDate: updates.openDate?.getTime(),
+        closeDate: updates.closeDate?.getTime()
+      }).catch(console.error)
+    }
+
+    const deletePeriod = (id: Id<"selectionPeriods">): void => {
+      deletePeriodMutation({ periodId: id }).catch(console.error)
+    }
+
+    const setActivePeriod = (id: Id<"selectionPeriods">): void => {
+      setActivePeriodMutation({ periodId: id }).catch(console.error)
+    }
+
+    const createTopic = (data: TopicFormData): void => {
+      createTopicMutation({
+        title: data.title,
+        description: data.description,
+        semesterId: data.semesterId,
+        subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined
+      }).catch(console.error)
+    }
+
+    const updateTopic = (id: Id<"topics">, updates: Partial<TopicFormData>): void => {
+      updateTopicMutation({
+        id,
+        title: updates.title,
+        description: updates.description,
+        subtopicIds: updates.subtopicIds ? [...updates.subtopicIds] : undefined
+      }).catch(console.error)
+    }
+
+    const toggleTopicActive = (id: Id<"topics">): void => {
+      toggleTopicActiveMutation({ id }).catch(console.error)
+    }
+
+    const deleteTopic = (id: Id<"topics">): void => {
+      deleteTopicMutation({ id }).catch(console.error)
+    }
+
+    const assignTopics = (_periodId: Id<"selectionPeriods">): void => {
+      // TODO: Implement actual assignment logic
+      console.log("Assign topics not yet implemented")
+    }
+
+    const seedTestData = (): void => {
+      seedTestDataMutation({}).catch(console.error)
+    }
+
+    const clearAllData = (): void => {
+      clearAllDataMutation({}).catch(console.error)
+    }
+
+    const updatePeriodFromForm = (values: SelectionPeriodFormValues): void => {
+      Option.match(editingPeriod$.value, {
+        onNone: () => {},
+        onSome: (editingPeriod) => {
+          if (!editingPeriod._id) return
+          updatePeriodMutation({
+            periodId: editingPeriod._id,
+            title: values.title,
+            description: values.title,
+            openDate: values.start_deadline.getTime(),
+            closeDate: values.end_deadline.getTime()
+          }).then(() => {
+            editPeriodDialogOpen$.value = false
+            editingPeriod$.value = Option.none()
+          }).catch(console.error)
+        }
+      })
+    }
+
+    const updateTopicFromForm = (values: TopicFormValues): void => {
+      Option.match(editingTopic$.value, {
+        onNone: () => {},
+        onSome: (editingTopic) => {
+          if (!editingTopic._id) return
+          updateTopicMutation({
+            id: editingTopic._id,
+            title: values.title,
+            description: values.description
+          }).then(() => {
+            editTopicDialogOpen$.value = false
+            editingTopic$.value = Option.none()
+          }).catch(console.error)
+        }
+      })
+    }
+
+    // Create the complete VM
+    vm.current = {
+      activeView$,
+      currentPeriod$,
+      stats$,
+      hasAssignments$,
+      hasPeriods$,
+      hasTopics$,
+      periodOptions$,
+
+      // Child VMs
+      periodsView,
+      topicsView,
+      questionnairesView,
+      settingsView,
+      analyticsView,
+
+      // Legacy support for overview
+      periods$,
+      topics$,
+      assignments$,
+      editPeriodDialog,
+      editTopicDialog,
+      updatePeriodFromForm,
+      updateTopicFromForm,
+
+      // Actions
+      setActiveView,
+      createPeriod,
+      updatePeriod,
+      deletePeriod,
+      setActivePeriod,
+      createTopic,
+      updateTopic,
+      toggleTopicActive,
+      deleteTopic,
+      assignTopics,
+      seedTestData,
+      clearAllData,
+
+      // Raw data
+      subtopics: subtopicsData,
+      topicAnalytics: topicAnalyticsData,
     }
   }
 
-  const onEditTopic = (topic: TopicItemVM): void => {
-    // Find the original topic data and pass it to the callback
-    const originalTopic = topicsData?.find(t => t._id === topic.key)
-    if (originalTopic && options?.onEditTopic) {
-      options.onEditTopic(originalTopic)
-    }
-  }
-
-  return {
-    activeView$,
-    periods$,
-    topics$,
-    assignments$,
-    currentPeriod$,
-    stats$,
-    hasAssignments$,
-    hasPeriods$,
-    hasTopics$,
-    setActiveView,
-    createPeriod,
-    updatePeriod,
-    deletePeriod,
-    setActivePeriod,
-    createTopic,
-    updateTopic,
-    toggleTopicActive,
-    deleteTopic,
-    assignTopics,
-    seedTestData,
-    clearAllData,
-    onEditPeriod,
-    onEditTopic,
-    subtopics: subtopicsData,
-    topicAnalytics: topicAnalyticsData
-  }
+  return vm.current
 }

@@ -1,11 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { useSignals } from "@preact/signals-react/runtime"
 import { Button } from "@/components/ui/button"
 import { Id } from "@/convex/_generated/dataModel"
 import { Loader2, PlayCircle } from "lucide-react"
+import { useAssignNowButtonVM } from "./AssignNowButtonVM"
 
 interface AssignNowButtonProps {
   periodId: Id<"selectionPeriods">
@@ -14,32 +13,19 @@ interface AssignNowButtonProps {
 }
 
 export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonProps) {
-  const assignNow = useMutation(api.assignments.assignNow)
-  const [loading, setLoading] = useState(false)
+  useSignals()
+  const vm = useAssignNowButtonVM(periodId)
 
-  const handleAssign = async () => {
-    if (loading) return
-
-    setLoading(true)
-    try {
-      await assignNow({ periodId })
-    } catch (error) {
-      console.error("Failed to assign:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const isDisabled = disabled || status !== "open" || loading
+  const isDisabled = disabled || status !== "open" || vm.isLoading$.value
 
   return (
     <Button
-      onClick={handleAssign}
+      onClick={vm.assignTopics}
       disabled={isDisabled}
       variant="outline"
       className="min-w-[120px]"
     >
-      {loading ? (
+      {vm.isLoading$.value ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Assigning...

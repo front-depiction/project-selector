@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useComputed } from "@preact/signals-react/runtime"
+import * as Option from "effect/Option"
 import { Doc, Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,8 +25,7 @@ import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { cn } from "@/lib/utils"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
-import { useLandingPageVM } from "./LandingPageVM"
-import type { StatCardVM } from "./LandingPageVM"
+import type { LandingPageVM, StatCardVM } from "./LandingPageVM"
 
 // ============================================================================
 // TYPES (kept for backward compatibility with Context consumers)
@@ -103,32 +103,27 @@ export const useLandingPage = () => {
 }
 
 // ============================================================================
-// PROVIDER (now uses VM internally)
+// PROVIDER (receives VM via props)
 // ============================================================================
 
 export interface ProviderProps {
+  readonly vm: LandingPageVM
   readonly children: React.ReactNode
 }
 
-export const Provider: React.FC<ProviderProps> = ({ children }) => {
-  const vm = useLandingPageVM()
-
+export const Provider: React.FC<ProviderProps> = ({ vm, children }) => {
   // Bridge VM to Context for backward compatibility
   // This allows child components to continue using useLandingPage()
-  const value = React.useMemo(
-    () => ({
+  // React compiler handles memoization - no useMemo needed
+  return (
+    <LandingPageContext.Provider value={{
       stats: null, // Not exposed by VM anymore
       competitionData: vm.competitionData$.value,
       currentPeriod: null, // Not directly exposed
-      studentId: vm.studentId$.value,
+      studentId: Option.getOrNull(vm.studentId$.value),
       myAssignment: null, // Not in old format
       setStudentId: vm.setStudentId,
-    }),
-    [vm.competitionData$.value, vm.studentId$.value, vm.setStudentId]
-  )
-
-  return (
-    <LandingPageContext.Provider value={value}>
+    }}>
       {children}
     </LandingPageContext.Provider>
   )
@@ -202,44 +197,48 @@ export const StatusBadge: React.FC<{ statusText: string; statusColor: string }> 
 }
 
 // ============================================================================
-// COMPONENTS - Timer Component (now simplified, VM provides display string)
+// COMPONENTS - Timer Component (now uses VM-driven countdown with requestAnimationFrame)
 // ============================================================================
 
-function useCountdown(targetMs: number | null) {
-  const [now, setNow] = React.useState<number>(() => Date.now())
+export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) => {
+  const [formatted, setFormatted] = React.useState<string>("--:--:--:--")
 
   React.useEffect(() => {
-    if (!targetMs) return
-    let raf: number
-    let timer: number
-    const tick = () => {
-      setNow(Date.now())
-      raf = requestAnimationFrame(() => { })
+    if (!targetDate) {
+      setFormatted("--:--:--:--")
+      return
     }
-    timer = window.setInterval(tick, 250)
+
+    let rafId: number
+    let timerId: number
+
+    const updateCountdown = () => {
+      const now = Date.now()
+      const remaining = Math.max(0, targetDate - now)
+      const totalSeconds = Math.floor(remaining / 1000)
+      const days = Math.floor(totalSeconds / 86400)
+      const hours = Math.floor((totalSeconds % 86400) / 3600)
+      const minutes = Math.floor((totalSeconds % 3600) / 60)
+      const seconds = totalSeconds % 60
+
+      const newFormatted = `${days.toString().padStart(2, "0")}:${hours
+        .toString()
+        .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
+          .toString()
+          .padStart(2, "0")}`
+
+      setFormatted(newFormatted)
+      rafId = requestAnimationFrame(() => {})
+    }
+
+    updateCountdown()
+    timerId = window.setInterval(updateCountdown, 250)
+
     return () => {
-      clearInterval(timer)
-      if (raf) cancelAnimationFrame(raf)
+      clearInterval(timerId)
+      if (rafId) cancelAnimationFrame(rafId)
     }
-  }, [targetMs])
-
-  if (!targetMs) return { remainingMs: 0, formatted: "--:--:--:--" }
-  const remaining = Math.max(0, targetMs - now)
-  const totalSeconds = Math.floor(remaining / 1000)
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor((totalSeconds % 86400) / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const formatted = `${days.toString().padStart(2, "0")}:${hours
-    .toString()
-    .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds
-      .toString()
-      .padStart(2, "0")}`
-  return { remainingMs: remaining, formatted }
-}
-
-export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) => {
-  const { formatted } = useCountdown(targetDate)
+  }, [targetDate])
 
   if (!targetDate) return null
 
@@ -257,27 +256,27 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 // COMPONENTS - Banner Component (now VM-driven)
 // ============================================================================
 
-export const StatusBanner: React.FC = () => {
-  const vm = useLandingPageVM()
+export const StatusBanner: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
   const banner = useComputed(() => vm.banner$.value)
 
-  if (!banner.value) return null
-
-  return (
-    <div className="mb-8">
-      <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-        <div className="flex items-center gap-3">
-          <StatusIcon iconName={banner.value.status.iconName} />
-          <span className="text-2xl font-bold">{banner.value.title}</span>
-          <StatusBadge
-            statusText={banner.value.status.statusText}
-            statusColor={banner.value.status.statusColor}
-          />
+  return Option.match(banner.value, {
+    onNone: () => null,
+    onSome: (bannerData) => (
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+          <div className="flex items-center gap-3">
+            <StatusIcon iconName={bannerData.status.iconName} />
+            <span className="text-2xl font-bold">{bannerData.title}</span>
+            <StatusBadge
+              statusText={bannerData.status.statusText}
+              statusColor={bannerData.status.statusColor}
+            />
+          </div>
+          <Timer targetDate={bannerData.timer.targetDate} />
         </div>
-        <Timer targetDate={banner.value.timer.targetDate} />
       </div>
-    </div>
-  )
+    )
+  })
 }
 
 // ============================================================================
@@ -362,8 +361,7 @@ export const StatCard: React.FC<{ card: StatCardVM }> = ({ card }) => {
   )
 }
 
-export const StatisticsCards: React.FC = () => {
-  const vm = useLandingPageVM()
+export const StatisticsCards: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
   const stats = useComputed(() => vm.stats$.value)
 
   if (stats.value.length === 0) return null
@@ -381,8 +379,7 @@ export const StatisticsCards: React.FC = () => {
 // COMPONENTS - Analytics Section (now VM-driven)
 // ============================================================================
 
-export const AnalyticsSection: React.FC = () => {
-  const vm = useLandingPageVM()
+export const AnalyticsSection: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
   const showAnalytics = useComputed(() => vm.showAnalytics$.value)
 
   return (
@@ -441,32 +438,32 @@ export const InactivePeriodCard: React.FC = () => (
 // COMPONENTS - Assignment Display (now VM-driven)
 // ============================================================================
 
-export const PersonalAssignmentDisplay: React.FC = () => {
-  const vm = useLandingPageVM()
+export const PersonalAssignmentDisplay: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
   const myAssignment = useComputed(() => vm.myAssignment$.value)
 
-  if (!myAssignment.value) return null
-
-  return (
-    <Card className="max-w-2xl border-0 shadow-lg bg-primary text-primary-foreground">
-      <CardContent className="text-center p-12">
-        <h1 className="text-3xl font-bold tracking-tight mb-4">
-          Your Assignment
-        </h1>
-        <p className="text-lg opacity-90 mb-6">
-          You have been assigned to:
-        </p>
-        <h2 className="text-4xl font-bold">
-          {myAssignment.value.topicTitle}
-        </h2>
-        {myAssignment.value.topicDescription && (
-          <p className="mt-4 text-base opacity-80">
-            {myAssignment.value.topicDescription}
+  return Option.match(myAssignment.value, {
+    onNone: () => null,
+    onSome: (assignment) => (
+      <Card className="max-w-2xl border-0 shadow-lg bg-primary text-primary-foreground">
+        <CardContent className="text-center p-12">
+          <h1 className="text-3xl font-bold tracking-tight mb-4">
+            Your Assignment
+          </h1>
+          <p className="text-lg opacity-90 mb-6">
+            You have been assigned to:
           </p>
-        )}
-      </CardContent>
-    </Card>
-  )
+          <h2 className="text-4xl font-bold">
+            {assignment.topicTitle}
+          </h2>
+          {assignment.topicDescription && (
+            <p className="mt-4 text-base opacity-80">
+              {assignment.topicDescription}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    )
+  })
 }
 
 // Assignment Statistics Component
@@ -502,8 +499,7 @@ export const AssignmentStats: React.FC = () => {
   )
 }
 
-export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> }> = ({ periodId }) => {
-  const vm = useLandingPageVM()
+export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"selectionPeriods"> }> = ({ vm, periodId }) => {
   const studentId = useComputed(() => vm.studentId$.value)
 
   return (
@@ -511,7 +507,10 @@ export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> 
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Assignment Results</h2>
         <p className="text-muted-foreground">
-          {studentId.value ? `Student ID: ${studentId.value}` : "Enter your student ID to view your assignment"}
+          {Option.match(studentId.value, {
+            onNone: () => "Enter your student ID to view your assignment",
+            onSome: (id) => `Student ID: ${id}`
+          })}
         </p>
       </div>
 
@@ -524,7 +523,7 @@ export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> 
           <CardTitle>Topic Assignments</CardTitle>
         </CardHeader>
         <CardContent>
-          <AssignmentDisplay periodId={periodId} studentId={studentId.value || undefined} />
+          <AssignmentDisplay periodId={periodId} studentId={Option.getOrUndefined(studentId.value)} />
         </CardContent>
       </Card>
     </div>
@@ -535,8 +534,7 @@ export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> 
 // LOADING STATES (VM-aware)
 // ============================================================================
 
-export const LoadingState: React.FC = () => {
-  const vm = useLandingPageVM()
+export const LoadingState: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
   const isLoading = useComputed(() => vm.isLoading$.value)
 
   if (!isLoading.value) return null

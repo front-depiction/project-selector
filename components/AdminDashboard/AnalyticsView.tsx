@@ -4,10 +4,11 @@ import * as React from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart3 } from "lucide-react"
 import TopicAnalyticsCard from "@/components/analytics/TopicAnalyticsCard"
-import { useAnalyticsViewVM } from "./AnalyticsViewVM"
+import type { AnalyticsViewVM } from "./AnalyticsViewVM"
+import { useSignals } from "@preact/signals-react/runtime"
 
-export const AnalyticsView: React.FC = () => {
-  const vm = useAnalyticsViewVM()
+export const AnalyticsView: React.FC<{ vm: AnalyticsViewVM }> = ({ vm }) => {
+  useSignals()
 
   return (
     <div className="space-y-6">

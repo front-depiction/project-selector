@@ -1,9 +1,9 @@
-"use client"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { Item } from "@/components/ui/sortable-list"
+import * as Option from "effect/Option"
+import type { FunctionReturnType } from "convex/server"
+import type { api } from "@/convex/_generated/api"
 
 // ============================================================================
 // View Model Types
@@ -60,7 +60,7 @@ export interface SelectionProgressVM {
 export interface ValidationStateVM {
   readonly hasExistingRanking: boolean
   readonly canSubmit: boolean
-  readonly error$: ReadonlySignal<string | null>
+  readonly error$: ReadonlySignal<Option.Option<string>>
 }
 
 /**
@@ -70,7 +70,7 @@ export interface StudentSelectionPageVM {
   // Reactive state
   readonly currentStep$: ReadonlySignal<SelectionStep>
   readonly studentId$: ReadonlySignal<string>
-  readonly currentPeriod$: ReadonlySignal<PeriodDisplayVM | null>
+  readonly currentPeriod$: ReadonlySignal<Option.Option<PeriodDisplayVM>>
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
   readonly selectedTopicIds$: ReadonlySignal<readonly Id<"topics">[]>
   readonly questionnaireState$: ReadonlySignal<QuestionnaireStateVM>
@@ -88,60 +88,49 @@ export interface StudentSelectionPageVM {
 }
 
 // ============================================================================
-// Hook - Creates and manages the ViewModel
+// Dependency Types
 // ============================================================================
 
-export function useStudentSelectionPageVM(): StudentSelectionPageVM {
-  // Local signals for UI state
-  const studentId$ = signal<string>(
-    typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
-  )
+export interface StudentSelectionPageVMDeps {
+  readonly topics$: ReadonlySignal<FunctionReturnType<typeof api.topics.getActiveTopicsWithMetrics> | undefined>
+  readonly preferences$: ReadonlySignal<FunctionReturnType<typeof api.preferences.getPreferences> | undefined>
+  readonly currentPeriod$: ReadonlySignal<FunctionReturnType<typeof api.admin.getCurrentPeriod> | undefined>
+  readonly periodQuestions$: ReadonlySignal<FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod> | undefined>
+  readonly hasCompletedQuestionnaire$: ReadonlySignal<boolean | undefined>
+  readonly savePreferences: (args: { studentId: string; topicOrder: Id<"topics">[] }) => Promise<any>
+  readonly initialStudentId?: string
+}
+
+// ============================================================================
+// Factory Function - Creates the ViewModel
+// ============================================================================
+
+export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): StudentSelectionPageVM {
+  const {
+    topics$: topicsData$,
+    preferences$: preferencesData$,
+    currentPeriod$: currentPeriodData$,
+    periodQuestions$: periodQuestionsData$,
+    hasCompletedQuestionnaire$: hasCompletedQuestionnaireData$,
+    savePreferences,
+    initialStudentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
+  } = deps
+
+  // Local signals for UI state - created once in factory
+  const studentId$ = signal<string>(initialStudentId)
   const expandedTopicIds$ = signal<Set<string | number>>(new Set())
   const questionnaireCompleted$ = signal(false)
-  const error$ = signal<string | null>(null)
-
-  // Convex queries - reactive data layer
-  const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
-  const preferences = useQuery(
-    api.preferences.getPreferences,
-    studentId$.value ? { studentId: studentId$.value } : "skip"
-  )
-  const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
-  const periodQuestions = useQuery(
-    api.selectionQuestions.getQuestionsForPeriod,
-    currentPeriod?._id ? { selectionPeriodId: currentPeriod._id } : "skip"
-  )
-  const hasCompletedQuestionnaire = useQuery(
-    api.studentAnswers.hasCompletedQuestionnaire,
-    currentPeriod?._id && studentId$.value
-      ? { studentId: studentId$.value, selectionPeriodId: currentPeriod._id }
-      : "skip"
-  )
-
-  // Convex mutations
-  const savePreferences = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
-    (localStore, args) => {
-      const { studentId, topicOrder } = args
-      localStore.setQuery(
-        api.preferences.getPreferences,
-        { studentId },
-        {
-          studentId,
-          semesterId: currentPeriod?.semesterId || "",
-          topicOrder,
-          lastUpdated: Date.now(),
-          _id: crypto.randomUUID() as Id<"preferences">,
-          _creationTime: Date.now()
-        }
-      )
-    }
-  )
+  const error$ = signal<Option.Option<string>>(Option.none())
 
   // ============================================================================
   // Computed: Loading state
   // ============================================================================
 
   const isLoading$ = computed((): boolean => {
+    const topics = topicsData$.value
+    const periodQuestions = periodQuestionsData$.value
+    const hasCompletedQuestionnaire = hasCompletedQuestionnaireData$.value
+
     if (!topics) return true
     const hasQuestions = periodQuestions && periodQuestions.length > 0
     if (hasQuestions && hasCompletedQuestionnaire === undefined) return true
@@ -153,6 +142,9 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   // ============================================================================
 
   const questionnaireState$ = computed((): QuestionnaireStateVM => {
+    const periodQuestions = periodQuestionsData$.value
+    const hasCompletedQuestionnaire = hasCompletedQuestionnaireData$.value
+
     const hasQuestions = periodQuestions ? periodQuestions.length > 0 : false
     const isCompleted = hasCompletedQuestionnaire === true || questionnaireCompleted$.value
     const needsCompletion = hasQuestions && !isCompleted
@@ -169,6 +161,8 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   // ============================================================================
 
   const currentStep$ = computed((): SelectionStep => {
+    const preferences = preferencesData$.value
+
     if (!studentId$.value) return "entry"
 
     const qState = questionnaireState$.value
@@ -185,20 +179,22 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   // Computed: Current period display data
   // ============================================================================
 
-  const currentPeriod$ = computed((): PeriodDisplayVM | null => {
-    if (!currentPeriod) return null
+  const currentPeriod$ = computed((): Option.Option<PeriodDisplayVM> => {
+    const currentPeriod = currentPeriodData$.value
+
+    if (!currentPeriod) return Option.none()
 
     const closeDate = new Date(currentPeriod.closeDate)
     const now = new Date()
     const daysRemaining = Math.ceil((closeDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
-    return {
+    return Option.some({
       title: currentPeriod.title,
       description: currentPeriod.description,
       closeDateDisplay: closeDate.toLocaleDateString(),
       daysRemaining: daysRemaining > 0 ? `${daysRemaining} days` : "Closed",
       isOpen: currentPeriod.kind === "open"
-    }
+    })
   })
 
   // ============================================================================
@@ -206,6 +202,9 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   // ============================================================================
 
   const topics$ = computed((): readonly TopicItemVM[] => {
+    const topics = topicsData$.value
+    const preferences = preferencesData$.value
+
     if (!topics) return []
 
     let sortedTopics = [...topics]
@@ -241,6 +240,7 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   // ============================================================================
 
   const selectedTopicIds$ = computed((): readonly Id<"topics">[] => {
+    const preferences = preferencesData$.value
     return preferences?.topicOrder || []
   })
 
@@ -271,7 +271,7 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
 
   const validationState$ = computed((): ValidationStateVM => {
     const hasExistingRanking = selectedTopicIds$.value.length > 0
-    const canSubmit = selectedTopicIds$.value.length > 0 && !error$.value
+    const canSubmit = selectedTopicIds$.value.length > 0 && Option.isNone(error$.value)
 
     return {
       hasExistingRanking,
@@ -292,19 +292,19 @@ export function useStudentSelectionPageVM(): StudentSelectionPageVM {
   }
 
   const updateSelection = (newItems: Item[] | ((prev: Item[]) => Item[])): void => {
-    error$.value = null
+    error$.value = Option.none()
 
     const currentItems = topics$.value as unknown as Item[]
     const resolvedItems = typeof newItems === 'function' ? newItems(currentItems) : newItems
     const topicOrder = resolvedItems.map((item) => item.id as unknown as Id<"topics">)
 
     if (!studentId$.value) {
-      error$.value = "Student ID is required"
+      error$.value = Option.some("Student ID is required")
       return
     }
 
     savePreferences({ studentId: studentId$.value, topicOrder }).catch((err) => {
-      error$.value = err instanceof Error ? err.message : "Failed to save preferences"
+      error$.value = Option.some(err instanceof Error ? err.message : "Failed to save preferences")
     })
   }
 

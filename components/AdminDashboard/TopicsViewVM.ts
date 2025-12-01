@@ -1,9 +1,7 @@
-"use client"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { TopicFormValues } from "@/components/forms/topic-form"
+import * as Option from "effect/Option"
 
 // ============================================================================
 // View Model Types
@@ -41,54 +39,91 @@ export interface DialogVM {
 }
 
 export interface EditTopicDialogVM extends DialogVM {
-  readonly editingTopic$: ReadonlySignal<{
+  readonly editingTopic$: ReadonlySignal<Option.Option<{
     readonly id: Id<"topics">
     readonly title: string
     readonly description: string
     readonly semesterId: string
-  } | null>
+  }>>
+}
+
+export interface SubtopicFormVM {
+  readonly title: string
+  readonly description: string
 }
 
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
   readonly subtopics$: ReadonlySignal<readonly SubtopicItemVM[]>
   readonly periodOptions$: ReadonlySignal<readonly PeriodOptionVM[]>
+  readonly subtopicForm$: ReadonlySignal<SubtopicFormVM>
   readonly createTopicDialog: DialogVM
   readonly createSubtopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
   readonly onTopicSubmit: (values: TopicFormValues) => void
   readonly onSubtopicSubmit: (values: { title: string; description: string }) => void
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
+  readonly setSubtopicTitle: (title: string) => void
+  readonly setSubtopicDescription: (description: string) => void
+  readonly resetSubtopicForm: () => void
+  readonly createSubtopic: () => void
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Dependencies - data passed in from outside
 // ============================================================================
 
-export function useTopicsViewVM(): TopicsViewVM {
-  // Convex queries - already reactive!
-  const topics = useQuery(api.topics.getAllTopics, {})
-  const subtopics = useQuery(api.subtopics.getAllSubtopics, {})
-  const periods = useQuery(api.admin.getAllPeriods, {})
+export interface TopicsViewVMDeps {
+  readonly topics: readonly any[] | undefined
+  readonly subtopics: readonly any[] | undefined
+  readonly periods: readonly any[] | undefined
+  readonly createTopic: (args: {
+    title: string
+    description: string
+    semesterId: string
+  }) => Promise<any>
+  readonly updateTopic: (args: {
+    id: Id<"topics">
+    title: string
+    description: string
+  }) => Promise<any>
+  readonly toggleTopicActive: (args: { id: Id<"topics"> }) => Promise<any>
+  readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
+  readonly createSubtopic: (args: {
+    title: string
+    description: string
+  }) => Promise<any>
+  readonly deleteSubtopic: (args: { id: Id<"subtopics"> }) => Promise<any>
+}
 
-  // Convex mutations
-  const createTopic = useMutation(api.admin.createTopic)
-  const updateTopic = useMutation(api.admin.updateTopic)
-  const toggleTopicActive = useMutation(api.admin.toggleTopicActive)
-  const deleteTopic = useMutation(api.admin.deleteTopic)
-  const createSubtopic = useMutation(api.subtopics.createSubtopic)
-  const deleteSubtopic = useMutation(api.subtopics.deleteSubtopic)
+// ============================================================================
+// Factory - creates VM from dependencies
+// ============================================================================
 
-  // Dialog state
+export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
+  const {
+    topics,
+    subtopics,
+    periods,
+    createTopic,
+    updateTopic,
+    toggleTopicActive,
+    deleteTopic,
+    createSubtopic,
+    deleteSubtopic,
+  } = deps
+
+  // Signals created once
   const createTopicDialogOpen$ = signal(false)
   const createSubtopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
-  const editingTopic$ = signal<{
+  const editingTopic$ = signal<Option.Option<{
     id: Id<"topics">
     title: string
     description: string
     semesterId: string
-  } | null>(null)
+  }>>(Option.none())
+  const subtopicForm$ = signal<SubtopicFormVM>({ title: "", description: "" })
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
@@ -96,12 +131,12 @@ export function useTopicsViewVM(): TopicsViewVM {
     const fullTopic = topics?.find(t => t._id === topicId)
     if (!fullTopic) return
 
-    editingTopic$.value = {
+    editingTopic$.value = Option.some({
       id: fullTopic._id,
       title: fullTopic.title,
       description: fullTopic.description,
       semesterId: fullTopic.semesterId,
-    }
+    })
     editTopicDialogOpen$.value = true
   }
 
@@ -178,7 +213,7 @@ export function useTopicsViewVM(): TopicsViewVM {
     },
     close: () => {
       editTopicDialogOpen$.value = false
-      editingTopic$.value = null
+      editingTopic$.value = Option.none()
     },
   }
 
@@ -202,34 +237,63 @@ export function useTopicsViewVM(): TopicsViewVM {
     })
       .then(() => {
         createSubtopicDialog.close()
+        resetSubtopicForm()
       })
       .catch(console.error)
   }
 
-  const onEditTopicSubmit = (values: TopicFormValues): void => {
-    const editing = editingTopic$.value
-    if (!editing) return
+  const setSubtopicTitle = (title: string): void => {
+    subtopicForm$.value = { ...subtopicForm$.value, title }
+  }
 
-    updateTopic({
-      id: editing.id,
-      title: values.title,
-      description: values.description,
+  const setSubtopicDescription = (description: string): void => {
+    subtopicForm$.value = { ...subtopicForm$.value, description }
+  }
+
+  const resetSubtopicForm = (): void => {
+    subtopicForm$.value = { title: "", description: "" }
+  }
+
+  const onEditTopicSubmit = (values: TopicFormValues): void => {
+    Option.match(editingTopic$.value, {
+      onNone: () => {},
+      onSome: (editing) => {
+        updateTopic({
+          id: editing.id,
+          title: values.title,
+          description: values.description,
+        })
+          .then(() => {
+            editTopicDialog.close()
+          })
+          .catch(console.error)
+      }
     })
-      .then(() => {
-        editTopicDialog.close()
-      })
-      .catch(console.error)
+  }
+
+  const createSubtopicAction = (): void => {
+    const form = subtopicForm$.value
+    if (!form.title || !form.description) return
+    onSubtopicSubmit({
+      title: form.title,
+      description: form.description,
+    })
   }
 
   return {
     topics$,
     subtopics$,
     periodOptions$,
+    subtopicForm$,
     createTopicDialog,
     createSubtopicDialog,
     editTopicDialog,
     onTopicSubmit,
     onSubtopicSubmit,
     onEditTopicSubmit,
+    setSubtopicTitle,
+    setSubtopicDescription,
+    resetSubtopicForm,
+    createSubtopic: createSubtopicAction,
   }
 }

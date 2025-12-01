@@ -1,7 +1,4 @@
-"use client"
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { TemplateFormValues, QuestionOption } from "@/components/forms/template-form"
@@ -31,64 +28,79 @@ export interface DialogVM {
   readonly close: () => void
 }
 
-export interface QuestionnairesVM {
+export interface QuestionnairesViewVM {
   readonly questions$: ReadonlySignal<readonly QuestionItemVM[]>
   readonly templates$: ReadonlySignal<readonly TemplateItemVM[]>
   readonly questionDialog: DialogVM
   readonly templateDialog: DialogVM
   readonly availableQuestions$: ReadonlySignal<readonly QuestionOption[]>
-  readonly onQuestionSubmit: (values: QuestionFormValues) => Promise<void>
-  readonly onTemplateSubmit: (values: TemplateFormValues) => Promise<void>
+  readonly onQuestionSubmit: (values: QuestionFormValues) => void
+  readonly onTemplateSubmit: (values: TemplateFormValues) => void
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Types for Dependencies
 // ============================================================================
 
-export function useQuestionnairesVM(): QuestionnairesVM {
-  // Convex queries - already reactive!
-  const questions = useQuery(api.questions.getAllQuestions, {})
-  const templates = useQuery(api.questionTemplates.getAllTemplates, {})
+export interface Question {
+  readonly _id: string
+  readonly question: string
+  readonly kind: "boolean" | "0to10"
+}
 
-  // Convex mutations
-  const createQuestion = useMutation(api.questions.createQuestion)
-  const deleteQuestion = useMutation(api.questions.deleteQuestion)
-  const createTemplate = useMutation(api.questionTemplates.createTemplate)
-  const deleteTemplate = useMutation(api.questionTemplates.deleteTemplate)
-  const addQuestionToTemplate = useMutation(api.templateQuestions.addQuestion)
+export interface Template {
+  readonly _id: string
+  readonly title: string
+  readonly description?: string
+}
 
-  // Dialog state
+export interface QuestionnairesViewDeps {
+  readonly questions$: Signal<Question[] | undefined>
+  readonly templates$: Signal<Template[] | undefined>
+  readonly createQuestion: (args: { question: string; kind: "boolean" | "0to10"; semesterId: string }) => Promise<any>
+  readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
+  readonly createTemplate: (args: { title: string; description?: string; semesterId: string }) => Promise<any>
+  readonly deleteTemplate: (args: { id: Id<"questionTemplates"> }) => Promise<any>
+  readonly addQuestionToTemplate: (args: { templateId: Id<"questionTemplates">; questionId: Id<"questions"> }) => Promise<any>
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): QuestionnairesViewVM {
+  // Create dialog state signals once
   const questionDialogOpen$ = signal(false)
   const templateDialogOpen$ = signal(false)
 
   // Computed: questions list for table
   const questions$ = computed((): readonly QuestionItemVM[] =>
-    (questions ?? []).map((q): QuestionItemVM => ({
+    (deps.questions$.value ?? []).map((q): QuestionItemVM => ({
       key: q._id,
       questionText: q.question,
       kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
       remove: () => {
-        deleteQuestion({ id: q._id }).catch(console.error)
+        deps.deleteQuestion({ id: q._id as Id<"questions"> }).catch(console.error)
       },
     }))
   )
 
   // Computed: templates list for table
   const templates$ = computed((): readonly TemplateItemVM[] =>
-    (templates ?? []).map((t): TemplateItemVM => ({
+    (deps.templates$.value ?? []).map((t): TemplateItemVM => ({
       key: t._id,
       title: t.title,
       description: t.description ?? "—",
       remove: () => {
-        deleteTemplate({ id: t._id }).catch(console.error)
+        deps.deleteTemplate({ id: t._id as Id<"questionTemplates"> }).catch(console.error)
       },
     }))
   )
 
   // Computed: questions available for template form
   const availableQuestions$ = computed((): readonly QuestionOption[] =>
-    (questions ?? []).map((q): QuestionOption => ({
+    (deps.questions$.value ?? []).map((q): QuestionOption => ({
       id: q._id,
       questionText: q.question,
       kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
@@ -111,28 +123,37 @@ export function useQuestionnairesVM(): QuestionnairesVM {
   }
 
   // Form submission handlers
-  const onQuestionSubmit = async (values: QuestionFormValues): Promise<void> => {
-    await createQuestion({
+  const onQuestionSubmit = (values: QuestionFormValues): void => {
+    deps.createQuestion({
       question: values.question,
       kind: values.kind,
       semesterId: "default",
     })
-    questionDialog.close()
+      .then(() => {
+        questionDialog.close()
+      })
+      .catch(console.error)
   }
 
-  const onTemplateSubmit = async (values: TemplateFormValues): Promise<void> => {
-    const templateId = await createTemplate({
+  const onTemplateSubmit = (values: TemplateFormValues): void => {
+    deps.createTemplate({
       title: values.title,
       description: values.description || undefined,
       semesterId: "default",
     })
-    for (const qId of values.questionIds) {
-      await addQuestionToTemplate({
-        templateId,
-        questionId: qId as Id<"questions">,
+      .then((templateId) => {
+        const promises = values.questionIds.map(qId =>
+          deps.addQuestionToTemplate({
+            templateId,
+            questionId: qId as Id<"questions">,
+          })
+        )
+        return Promise.all(promises)
       })
-    }
-    templateDialog.close()
+      .then(() => {
+        templateDialog.close()
+      })
+      .catch(console.error)
   }
 
   return {

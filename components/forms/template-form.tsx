@@ -1,5 +1,4 @@
 "use client"
-import { useState } from "react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -23,11 +22,10 @@ import { Label } from "@/components/ui/label"
 const formSchema = z.object({
     title: z.string().min(3, "Title must be at least 3 characters"),
     description: z.string().optional(),
+    questionIds: z.array(z.string()),
 })
 
-export type TemplateFormValues = z.infer<typeof formSchema> & {
-    questionIds: string[]
-}
+export type TemplateFormValues = z.infer<typeof formSchema>
 
 export interface QuestionOption {
     id: string
@@ -45,33 +43,28 @@ export default function TemplateForm({
     initialValues?: Partial<TemplateFormValues>
     onSubmit: (values: TemplateFormValues) => void | Promise<void>
 }) {
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(
-        new Set(initialValues?.questionIds ?? [])
-    )
-
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             title: initialValues?.title ?? "",
             description: initialValues?.description ?? "",
+            questionIds: initialValues?.questionIds ?? [],
         },
     })
 
+    const questionIds = form.watch("questionIds")
+
     const toggleQuestion = (id: string) => {
-        setSelectedIds(prev => {
-            const newSet = new Set(prev)
-            if (newSet.has(id)) newSet.delete(id)
-            else newSet.add(id)
-            return newSet
-        })
+        const currentIds = form.getValues("questionIds")
+        const newIds = currentIds.includes(id)
+            ? currentIds.filter(qid => qid !== id)
+            : [...currentIds, id]
+        form.setValue("questionIds", newIds)
     }
 
     async function handleSubmit(values: z.infer<typeof formSchema>) {
         try {
-            await onSubmit({
-                ...values,
-                questionIds: Array.from(selectedIds),
-            })
+            await onSubmit(values)
         } catch (error) {
             console.error("Form submission error", error)
             toast.error("Failed to submit the form. Please try again.")
@@ -118,8 +111,8 @@ export default function TemplateForm({
                     <Label>Questions</Label>
                     <p className="text-sm text-muted-foreground">
                         Select questions to include in this template.
-                        {selectedIds.size > 0 && (
-                            <Badge variant="secondary" className="ml-2">{selectedIds.size} selected</Badge>
+                        {questionIds.length > 0 && (
+                            <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
                         )}
                     </p>
                     <div className="h-[300px] overflow-y-auto scrollbar-hide">
@@ -130,7 +123,7 @@ export default function TemplateForm({
                         ) : (
                             <div className="grid grid-cols-2 gap-3">
                                 {questions.map((q) => {
-                                    const isChecked = selectedIds.has(q.id)
+                                    const isChecked = questionIds.includes(q.id)
                                     return (
                                         <label
                                             key={q.id}

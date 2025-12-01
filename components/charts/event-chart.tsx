@@ -15,19 +15,14 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { useMemo } from "react"
+import { useComputed } from "@preact/signals-react/runtime"
+import { createEventChartVM } from "./EventChartVM"
 
 export type ChartType = "line" | "bar" | "area"
 export type TimeGranularity = "hour" | "day" | "week" | "month"
 
 interface EventDataPoint {
   _creationTime: number
-  [key: string]: any
-}
-
-interface ProcessedDataPoint {
-  timestamp: string
-  count: number
   [key: string]: any
 }
 
@@ -61,100 +56,6 @@ const getTimeFormat = (granularity: TimeGranularity, hoursDiff: number) => {
   return { month: "short" as const, year: "numeric" as const }
 }
 
-const getBucketKey = (timestamp: number, granularity: TimeGranularity): string => {
-  const date = new Date(timestamp)
-  switch (granularity) {
-    case "hour":
-      return new Date(Math.floor(timestamp / 3600000) * 3600000).toISOString()
-    case "day":
-      date.setHours(0, 0, 0, 0)
-      return date.toISOString()
-    case "week":
-      const dayOfWeek = date.getDay()
-      const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
-      date.setDate(diff)
-      date.setHours(0, 0, 0, 0)
-      return date.toISOString()
-    case "month":
-      date.setDate(1)
-      date.setHours(0, 0, 0, 0)
-      return date.toISOString()
-    default:
-      return new Date(Math.floor(timestamp / 60000) * 60000).toISOString()
-  }
-}
-
-const aggregateData = (
-  events: EventDataPoint[],
-  valueKey: string,
-  aggregateFunction: string,
-  granularity: TimeGranularity
-): ProcessedDataPoint[] => {
-  const buckets = new Map<string, number[]>()
-
-  events.forEach(event => {
-    const bucketKey = getBucketKey(event._creationTime, granularity)
-    const values = buckets.get(bucketKey) || []
-    
-    if (aggregateFunction === "count") {
-      values.push(1)
-    } else if (valueKey && event[valueKey] !== undefined) {
-      values.push(Number(event[valueKey]))
-    }
-    
-    buckets.set(bucketKey, values)
-  })
-
-  return Array.from(buckets.entries()).map(([timestamp, values]) => {
-    let value = 0
-    
-    switch (aggregateFunction) {
-      case "count":
-        value = values.length
-        break
-      case "sum":
-        value = values.reduce((a, b) => a + b, 0)
-        break
-      case "average":
-        value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0
-        break
-      case "min":
-        value = values.length > 0 ? Math.min(...values) : 0
-        break
-      case "max":
-        value = values.length > 0 ? Math.max(...values) : 0
-        break
-      default:
-        value = values.length
-    }
-
-    return {
-      timestamp,
-      count: values.length,
-      value,
-      [valueKey || "value"]: value
-    }
-  }).sort((a, b) => a.timestamp.localeCompare(b.timestamp))
-}
-
-const calculateTrend = (data: ProcessedDataPoint[]): "up" | "down" | "stable" => {
-  if (data.length < 2) return "stable"
-  
-  const recentCount = Math.min(7, Math.floor(data.length / 3))
-  const recentData = data.slice(-recentCount)
-  const olderData = data.slice(-recentCount * 2, -recentCount)
-  
-  if (olderData.length === 0) return "stable"
-  
-  const recentAvg = recentData.reduce((sum, d) => sum + (d.value || 0), 0) / recentData.length
-  const olderAvg = olderData.reduce((sum, d) => sum + (d.value || 0), 0) / olderData.length
-  
-  const percentChange = ((recentAvg - olderAvg) / (olderAvg || 1)) * 100
-  
-  if (Math.abs(percentChange) < 5) return "stable"
-  return percentChange > 0 ? "up" : "down"
-}
-
 export function EventChart({
   data,
   title,
@@ -171,15 +72,9 @@ export function EventChart({
   formatValue,
   additionalMetrics
 }: EventChartProps) {
-  const processedData = useMemo(() => {
-    if (!data || data.length === 0) return []
-    return aggregateData(data, valueKey, aggregateFunction, groupBy)
-  }, [data, valueKey, aggregateFunction, groupBy])
-
-  const trend = useMemo(() => {
-    if (!showTrend || processedData.length === 0) return null
-    return calculateTrend(processedData)
-  }, [processedData, showTrend])
+  const vm = createEventChartVM(data, valueKey, aggregateFunction, groupBy, showTrend)
+  const processedData = useComputed(() => vm.processedData$.value)
+  const trend = useComputed(() => vm.trend$.value)
 
   const chartConfig = {
     [valueKey]: {
@@ -204,7 +99,7 @@ export function EventChart({
     )
   }
 
-  if (processedData.length === 0) {
+  if (processedData.value.length === 0) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -220,9 +115,9 @@ export function EventChart({
     )
   }
 
-  const hoursDiff = processedData.length > 0 
-    ? (new Date(processedData[processedData.length - 1].timestamp).getTime() - 
-       new Date(processedData[0].timestamp).getTime()) / (1000 * 60 * 60)
+  const hoursDiff = processedData.value.length > 0
+    ? (new Date(processedData.value[processedData.value.length - 1].timestamp).getTime() -
+       new Date(processedData.value[0].timestamp).getTime()) / (1000 * 60 * 60)
     : 0
 
   return (
@@ -233,21 +128,21 @@ export function EventChart({
             <CardTitle className="text-base">{title}</CardTitle>
             {description && <CardDescription>{description}</CardDescription>}
           </div>
-          {showTrend && trend && (
+          {showTrend && trend.value && (
             <div className="flex items-center gap-1 text-sm">
-              {trend === "up" && (
+              {trend.value === "up" && (
                 <>
                   <TrendingUp className="h-4 w-4 text-green-500" />
                   <span className="text-green-600">Trending up</span>
                 </>
               )}
-              {trend === "down" && (
+              {trend.value === "down" && (
                 <>
                   <TrendingDown className="h-4 w-4 text-red-500" />
                   <span className="text-red-600">Trending down</span>
                 </>
               )}
-              {trend === "stable" && (
+              {trend.value === "stable" && (
                 <>
                   <Minus className="h-4 w-4 text-gray-500" />
                   <span className="text-gray-600">Stable</span>
@@ -270,7 +165,7 @@ export function EventChart({
         <ChartContainer config={chartConfig} className={`h-[${height}px] w-full`}>
           {chartType === "bar" ? (
             <BarChart
-              data={processedData}
+              data={[...processedData.value]}
               margin={{
                 left: 0,
                 right: 0,
@@ -319,7 +214,7 @@ export function EventChart({
             </BarChart>
           ) : chartType === "area" ? (
             <AreaChart
-              data={processedData}
+              data={[...processedData.value]}
               margin={{
                 left: 0,
                 right: 0,
@@ -369,7 +264,7 @@ export function EventChart({
             </AreaChart>
           ) : (
             <LineChart
-              data={processedData}
+              data={[...processedData.value]}
               margin={{
                 left: 0,
                 right: 0,

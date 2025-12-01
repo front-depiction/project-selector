@@ -4,22 +4,23 @@ import * as React from "react"
 import * as AD from "./index"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { Doc } from "@/convex/_generated/dataModel"
-import DockLayout from "@/components/layouts/DockLayout"
 import { useRouter } from "next/navigation"
+import { useSignals } from "@preact/signals-react/runtime"
+import * as Option from "effect/Option"
 import {
-  Calendar,
-  FileText,
-  Users,
-  BarChart3,
-  Settings,
-  Home,
-  Plus,
-  ClipboardList
+  ArrowLeft,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import SelectionPeriodForm, { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
+import {
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { AdminSidebar } from "./AdminSidebar"
+import { Separator } from "@/components/ui/separator"
+import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import TopicForm from "@/components/forms/topic-form"
 import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
@@ -33,39 +34,9 @@ import { QuestionnairesView } from "./QuestionnairesView"
 // ============================================================================
 
 const OverviewView: React.FC = () => {
-  const { currentPeriod, assignments, periods, updatePeriod, updateTopic } = AD.useDashboard()
-  const [editingPeriod, setEditingPeriod] = React.useState<AD.SelectionPeriodWithStats | null>(null)
-  const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
-
-  // Format periods for the form
-  const periodOptions = React.useMemo(() => {
-    return periods?.map(p => ({
-      value: p.semesterId,
-      label: p.title
-    })) || []
-  }, [periods])
-
-  const handleUpdatePeriod = async (values: SelectionPeriodFormValues) => {
-    if (!editingPeriod?._id) return
-    await updatePeriod(editingPeriod._id, {
-      title: values.title,
-      description: values.title,
-      semesterId: values.selection_period_id,
-      openDate: values.start_deadline,
-      closeDate: values.end_deadline
-    })
-    setEditingPeriod(null)
-  }
-
-  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
-    if (!editingTopic) return
-    await updateTopic(editingTopic._id, {
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id
-    })
-    setEditingTopic(null)
-  }
+  useSignals()
+  const { currentPeriod, assignments } = AD.useDashboard()
+  const vm = AD.useDashboardVM()
 
   return (
     <div className="space-y-6">
@@ -93,7 +64,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Manage when students can select topics</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.PeriodsTable onEdit={setEditingPeriod} />
+            <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} />
           </CardContent>
         </Card>
 
@@ -103,13 +74,13 @@ const OverviewView: React.FC = () => {
             <CardDescription>Available topics for selection</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.TopicsTable onEdit={setEditingTopic} />
+            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} />
           </CardContent>
         </Card>
       </div>
 
       {/* Edit Period Dialog */}
-      <Dialog open={!!editingPeriod} onOpenChange={(open) => !open && setEditingPeriod(null)}>
+      <Dialog open={vm.editPeriodDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editPeriodDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Selection Period</DialogTitle>
@@ -117,23 +88,23 @@ const OverviewView: React.FC = () => {
               Update the details of this selection period.
             </DialogDescription>
           </DialogHeader>
-          {editingPeriod && (
+          {Option.isSome(vm.editPeriodDialog.editingPeriod$.value) && (
             <SelectionPeriodForm
               initialValues={{
-                title: editingPeriod.title,
-                selection_period_id: editingPeriod.semesterId,
-                start_deadline: new Date(editingPeriod.openDate),
-                end_deadline: new Date(editingPeriod.closeDate),
-                isActive: SelectionPeriod.isOpen(editingPeriod)
+                title: vm.editPeriodDialog.editingPeriod$.value.value.title,
+                selection_period_id: vm.editPeriodDialog.editingPeriod$.value.value.semesterId,
+                start_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.openDate),
+                end_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.closeDate),
+                isActive: SelectionPeriod.isOpen(vm.editPeriodDialog.editingPeriod$.value.value)
               }}
-              onSubmit={handleUpdatePeriod}
+              onSubmit={vm.updatePeriodFromForm}
             />
           )}
         </DialogContent>
       </Dialog>
 
       {/* Edit Topic Dialog */}
-      <Dialog open={!!editingTopic} onOpenChange={(open) => !open && setEditingTopic(null)}>
+      <Dialog open={vm.editTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editTopicDialog.close()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
@@ -141,15 +112,15 @@ const OverviewView: React.FC = () => {
               Update the details of this topic.
             </DialogDescription>
           </DialogHeader>
-          {editingTopic && (
+          {Option.isSome(vm.editTopicDialog.editingTopic$.value) && (
             <TopicForm
-              periods={periodOptions}
+              periods={[...vm.periodOptions$.value]}
               initialValues={{
-                title: editingTopic.title,
-                description: editingTopic.description,
-                selection_period_id: editingTopic.semesterId
+                title: vm.editTopicDialog.editingTopic$.value.value.title,
+                description: vm.editTopicDialog.editingTopic$.value.value.description,
+                selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
               }}
-              onSubmit={handleUpdateTopic}
+              onSubmit={vm.updateTopicFromForm}
             />
           )}
         </DialogContent>
@@ -163,105 +134,65 @@ const OverviewView: React.FC = () => {
 // ============================================================================
 
 const MainContent: React.FC = () => {
+  // Enable signals reactivity
+  useSignals()
+
   const { activeView } = AD.useDashboard()
+  const vm = AD.useDashboardVM()
 
   switch (activeView) {
     case "overview":
       return <OverviewView />
     case "periods":
-      return <PeriodsView />
+      return <PeriodsView vm={vm.periodsView} />
     case "topics":
-      return <TopicsView />
+      return <TopicsView vm={vm.topicsView} />
     case "students":
       return <StudentsView />
     case "questionnaires":
-      return <QuestionnairesView />
+      return <QuestionnairesView vm={vm.questionnairesView} />
     case "analytics":
-      return <AnalyticsView />
+      return <AnalyticsView vm={vm.analyticsView} />
     case "settings":
-      return <SettingsView />
+      return <SettingsView vm={vm.settingsView} />
     default:
       return <OverviewView />
   }
 }
 
 // ============================================================================
-// ADMIN DASHBOARD VIEW WITH DOCK
+// ADMIN DASHBOARD VIEW WITH SIDEBAR
 // ============================================================================
 
 export const AdminDashboardView: React.FC = () => {
-  const router = useRouter()
-  const { activeView, setActiveView } = AD.useDashboard()
+  // Enable signals reactivity
+  useSignals()
 
-  const dockItems = [
-    {
-      id: "home",
-      icon: <Home className="h-6 w-6" />,
-      label: "Home",
-      onClick: () => router.push("/")
-    },
-    {
-      id: "overview",
-      icon: <BarChart3 className="h-6 w-6" />,
-      label: "Overview",
-      isActive: activeView === "overview",
-      onClick: () => setActiveView("overview")
-    },
-    {
-      id: "periods",
-      icon: <Calendar className="h-6 w-6" />,
-      label: "Periods",
-      isActive: activeView === "periods",
-      onClick: () => setActiveView("periods")
-    },
-    {
-      id: "topics",
-      icon: <FileText className="h-6 w-6" />,
-      label: "Topics",
-      isActive: activeView === "topics",
-      onClick: () => setActiveView("topics")
-    },
-    {
-      id: "students",
-      icon: <Users className="h-6 w-6" />,
-      label: "Students",
-      isActive: activeView === "students",
-      onClick: () => setActiveView("students")
-    },
-    {
-      id: "questionnaires",
-      icon: <ClipboardList className="h-6 w-6" />,
-      label: "Questionnaires",
-      isActive: activeView === "questionnaires",
-      onClick: () => setActiveView("questionnaires")
-    },
-    {
-      id: "analytics",
-      icon: <BarChart3 className="h-6 w-6" />,
-      label: "Analytics",
-      isActive: activeView === "analytics",
-      onClick: () => setActiveView("analytics")
-    },
-    {
-      id: "settings",
-      icon: <Settings className="h-6 w-6" />,
-      label: "Settings",
-      isActive: activeView === "settings",
-      onClick: () => setActiveView("settings")
-    }
-  ]
+  const router = useRouter()
 
   return (
-    <DockLayout dockItems={dockItems}>
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto py-8 px-4 max-w-7xl">
-          <AD.PageHeader />
-
-          {/* Main Content Area */}
+    <SidebarProvider>
+      <AdminSidebar />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <div className="flex items-center justify-between flex-1">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight">Admin Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Manage topics, periods, and student assignments</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => router.push("/")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+          </div>
+        </header>
+        <div className="flex flex-1 flex-col gap-4 p-4">
           <MainContent />
         </div>
-      </div>
-    </DockLayout>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
 

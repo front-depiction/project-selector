@@ -1,11 +1,7 @@
-"use client"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery } from "convex-helpers/react/cache/hooks"
-import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
-import { getStudentId } from "@/lib/student"
+import type { Id, Doc } from "@/convex/_generated/dataModel"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
-import { useEffect } from "react"
+import * as Option from "effect/Option"
 
 // ============================================================================
 // View Model Types
@@ -69,51 +65,66 @@ export interface LandingPageVM {
   readonly isActive$: ReadonlySignal<boolean>
   readonly isLoading$: ReadonlySignal<boolean>
   readonly status$: ReadonlySignal<StatusVM>
-  readonly banner$: ReadonlySignal<BannerVM | null>
+  readonly banner$: ReadonlySignal<Option.Option<BannerVM>>
   readonly stats$: ReadonlySignal<readonly StatCardVM[]>
   readonly competitionData$: ReadonlySignal<readonly CompetitionDataVM[]>
-  readonly studentId$: ReadonlySignal<string | null>
-  readonly myAssignment$: ReadonlySignal<AssignmentVM | null>
+  readonly studentId$: ReadonlySignal<Option.Option<string>>
+  readonly myAssignment$: ReadonlySignal<Option.Option<AssignmentVM>>
   readonly showAnalytics$: ReadonlySignal<boolean>
-  readonly currentPeriodId$: ReadonlySignal<Id<"selectionPeriods"> | null>
+  readonly currentPeriodId$: ReadonlySignal<Option.Option<Id<"selectionPeriods">>>
 
   // Actions
   readonly setStudentId: (id: string | null) => void
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Dependency Types
 // ============================================================================
 
-export function useLandingPageVM(): LandingPageVM {
-  // Convex queries - already reactive!
-  const stats = useQuery(api.stats.getLandingStats)
-  const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
-  const currentPeriod = useQuery(api.admin.getCurrentPeriod)
+export interface LandingStats {
+  readonly isActive: boolean
+  readonly title?: string
+  readonly closeDate?: number
+  readonly openDate?: number
+  readonly totalTopics: number
+  readonly totalStudents: number
+  readonly totalSelections: number
+  readonly averageSelectionsPerStudent: number
+}
+
+export interface AssignmentData {
+  readonly topic: {
+    readonly title: string
+    readonly description?: string
+  }
+  readonly wasPreference: boolean
+  readonly wasTopChoice: boolean
+}
+
+export interface LandingPageVMDeps {
+  readonly stats$: ReadonlySignal<LandingStats | null | undefined>
+  readonly competitionData$: ReadonlySignal<readonly CompetitionDataVM[] | null | undefined>
+  readonly currentPeriod$: ReadonlySignal<Doc<"selectionPeriods"> | null | undefined>
+  readonly myAssignment$: ReadonlySignal<AssignmentData | null | undefined>
+  readonly initialStudentId: string | null
+}
+
+// ============================================================================
+// Factory Function - creates VM with dependencies
+// ============================================================================
+
+export function createLandingPageVM(deps: LandingPageVMDeps): LandingPageVM {
+  const { stats$, competitionData$, currentPeriod$, myAssignment$, initialStudentId } = deps
 
   // Student ID state
-  const studentId$ = signal<string | null>(null)
-
-  // Initialize student ID from localStorage on mount
-  useEffect(() => {
-    const id = getStudentId()
-    studentId$.value = id
-  }, [])
-
-  // Query assignment only when we have a period and student ID
-  const myAssignment = useQuery(
-    api.assignments.getMyAssignment,
-    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId$.value
-      ? { periodId: currentPeriod._id, studentId: studentId$.value }
-      : "skip"
-  )
+  const studentId$ = signal<Option.Option<string>>(Option.fromNullable(initialStudentId))
 
   // ============================================================================
   // Computed: Loading state
   // ============================================================================
 
   const isLoading$ = computed(() => {
-    return stats === undefined || competitionData === undefined || currentPeriod === undefined
+    return stats$.value === undefined || competitionData$.value === undefined || currentPeriod$.value === undefined
   })
 
   // ============================================================================
@@ -121,6 +132,8 @@ export function useLandingPageVM(): LandingPageVM {
   // ============================================================================
 
   const status$ = computed((): StatusVM => {
+    const currentPeriod = currentPeriod$.value
+
     if (!currentPeriod) {
       return {
         status: "none" as const,
@@ -171,19 +184,22 @@ export function useLandingPageVM(): LandingPageVM {
   // ============================================================================
 
   const isActive$ = computed(() => {
-    return stats?.isActive ?? false
+    return stats$.value?.isActive ?? false
   })
 
   // ============================================================================
   // Computed: Banner
   // ============================================================================
 
-  const banner$ = computed((): BannerVM | null => {
+  const banner$ = computed((): Option.Option<BannerVM> => {
+    const stats = stats$.value
+    const currentPeriod = currentPeriod$.value
+
     if (!stats || !stats.isActive || !currentPeriod) {
-      return null
+      return Option.none()
     }
 
-    return SelectionPeriod.matchOptional(currentPeriod)({
+    const bannerOrNull = SelectionPeriod.matchOptional(currentPeriod)({
       open: () => ({
         isVisible: true,
         title: stats.title || "Selection",
@@ -198,13 +214,16 @@ export function useLandingPageVM(): LandingPageVM {
       assigned: () => null,
       none: () => null
     })
+
+    return Option.fromNullable(bannerOrNull)
   })
 
   // ============================================================================
   // Computed: Statistics Cards
   // ============================================================================
 
-  const stats$ = computed((): readonly StatCardVM[] => {
+  const stats_computed$ = computed((): readonly StatCardVM[] => {
+    const stats = stats$.value
     if (!stats) return []
 
     const progressPercentage = stats.totalTopics > 0
@@ -237,7 +256,8 @@ export function useLandingPageVM(): LandingPageVM {
   // Computed: Competition Data
   // ============================================================================
 
-  const competitionData$ = computed((): readonly CompetitionDataVM[] => {
+  const competitionData_computed$ = computed((): readonly CompetitionDataVM[] => {
+    const competitionData = competitionData$.value
     if (!competitionData || !Array.isArray(competitionData)) return []
     return competitionData
   })
@@ -247,6 +267,7 @@ export function useLandingPageVM(): LandingPageVM {
   // ============================================================================
 
   const showAnalytics$ = computed(() => {
+    const competitionData = competitionData$.value
     return !!(competitionData && Array.isArray(competitionData) && competitionData.length > 0)
   })
 
@@ -254,25 +275,27 @@ export function useLandingPageVM(): LandingPageVM {
   // Computed: Current Period ID
   // ============================================================================
 
-  const currentPeriodId$ = computed((): Id<"selectionPeriods"> | null => {
-    return currentPeriod?._id ?? null
+  const currentPeriodId$ = computed((): Option.Option<Id<"selectionPeriods">> => {
+    return Option.fromNullable(currentPeriod$.value?._id)
   })
 
   // ============================================================================
   // Computed: My Assignment
   // ============================================================================
 
-  const myAssignment$ = computed((): AssignmentVM | null => {
+  const myAssignment_computed$ = computed((): Option.Option<AssignmentVM> => {
+    const myAssignment = myAssignment$.value
+
     if (!myAssignment || !myAssignment.topic) {
-      return null
+      return Option.none()
     }
 
-    return {
+    return Option.some({
       topicTitle: myAssignment.topic.title,
       topicDescription: myAssignment.topic.description ?? null,
       wasPreference: myAssignment.wasPreference,
       wasTopChoice: myAssignment.wasTopChoice
-    }
+    })
   })
 
   // ============================================================================
@@ -280,7 +303,7 @@ export function useLandingPageVM(): LandingPageVM {
   // ============================================================================
 
   const setStudentId = (id: string | null): void => {
-    studentId$.value = id
+    studentId$.value = Option.fromNullable(id)
   }
 
   return {
@@ -288,10 +311,10 @@ export function useLandingPageVM(): LandingPageVM {
     isLoading$,
     status$,
     banner$,
-    stats$,
-    competitionData$,
+    stats$: stats_computed$,
+    competitionData$: competitionData_computed$,
     studentId$,
-    myAssignment$,
+    myAssignment$: myAssignment_computed$,
     showAnalytics$,
     currentPeriodId$,
     setStudentId

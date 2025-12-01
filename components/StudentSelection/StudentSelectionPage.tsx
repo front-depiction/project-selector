@@ -31,6 +31,7 @@ import { formatDistanceToNow } from "date-fns"
 import type { Item } from "@/components/ui/sortable-list"
 import type { TopicItemVM, StudentSelectionPageVM } from "./StudentSelectionPageVM"
 import { TopicPopularityChart } from "@/components/charts/topic-popularity-chart"
+import * as Option from "effect/Option"
 
 // ============================================================================
 // Pure UI Helper Functions
@@ -291,11 +292,11 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
   }
 
   // Questionnaire view
-  if (vm.questionnaireState$.value.needsCompletion && vm.currentPeriod$.value) {
+  if (vm.questionnaireState$.value.needsCompletion && Option.isSome(vm.currentPeriod$.value)) {
     return (
       <StudentQuestionPresentationView
         studentId={vm.studentId$.value}
-        selectionPeriodId={vm.currentPeriod$.value as any}
+        selectionPeriodId={vm.currentPeriod$.value.value as any}
         onComplete={vm.handleQuestionnaireComplete}
       />
     )
@@ -332,52 +333,55 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
             </Button>
           </Link>
 
-          {vm.currentPeriod$.value && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <Card className="mb-6 border-primary/10 shadow-lg bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
-                <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.6))] pointer-events-none" />
-                <CardHeader className="relative">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-3">
-                        <Sparkles className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-                          {vm.currentPeriod$.value.title}
-                        </CardTitle>
+          {Option.match(vm.currentPeriod$.value, {
+            onNone: () => null,
+            onSome: (period) => (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Card className="mb-6 border-primary/10 shadow-lg bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
+                  <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.6))] pointer-events-none" />
+                  <CardHeader className="relative">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                          <Sparkles className="h-5 w-5 text-primary" />
+                          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                            {period.title}
+                          </CardTitle>
+                        </div>
+                        <CardDescription className="text-base max-w-2xl">
+                          {period.description}
+                        </CardDescription>
                       </div>
-                      <CardDescription className="text-base max-w-2xl">
-                        {vm.currentPeriod$.value.description}
-                      </CardDescription>
+                      <Badge className="bg-green-500/10 text-green-600 border-green-500/20 shadow-sm">
+                        <CheckCircle className="mr-1 h-3 w-3" />
+                        Open
+                      </Badge>
                     </div>
-                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20 shadow-sm">
-                      <CheckCircle className="mr-1 h-3 w-3" />
-                      Open
-                    </Badge>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4 pt-4 border-t border-border/50">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      <span>Closes {vm.currentPeriod$.value.daysRemaining}</span>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4 pt-4 border-t border-border/50">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>Closes {period.daysRemaining}</span>
+                      </div>
+                      <span className="text-border">•</span>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        <span>ID: {vm.studentId$.value}</span>
+                      </div>
+                      <span className="text-border">•</span>
+                      <div className="flex items-center gap-1">
+                        <CheckCircle className="h-3 w-3" />
+                        <span>{vm.selectionProgress$.value.selectedCount} topics ranked</span>
+                      </div>
                     </div>
-                    <span className="text-border">•</span>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      <span>ID: {vm.studentId$.value}</span>
-                    </div>
-                    <span className="text-border">•</span>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      <span>{vm.selectionProgress$.value.selectedCount} topics ranked</span>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            </motion.div>
-          )}
+                  </CardHeader>
+                </Card>
+              </motion.div>
+            )
+          })}
         </div>
 
         {/* Quick Stats */}
@@ -435,7 +439,10 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                   <div>
                     <p className="text-sm text-muted-foreground">Time Remaining</p>
                     <p className="text-lg font-bold">
-                      {vm.currentPeriod$.value?.daysRemaining || "--"}
+                      {Option.match(vm.currentPeriod$.value, {
+                        onNone: () => "--",
+                        onSome: (period) => period.daysRemaining
+                      })}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
@@ -474,12 +481,15 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                 <Progress value={vm.selectionProgress$.value.progressPercentage} className="w-20 h-2" />
               </div>
             </div>
-            {vm.validationState$.value.error$.value && (
-              <Alert variant="destructive" className="mt-3">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{vm.validationState$.value.error$.value}</AlertDescription>
-              </Alert>
-            )}
+            {Option.match(vm.validationState$.value.error$.value, {
+              onNone: () => null,
+              onSome: (error) => (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )
+            })}
           </div>
 
           <SortableList

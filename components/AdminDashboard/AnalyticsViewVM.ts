@@ -1,9 +1,6 @@
-"use client"
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { computed, ReadonlySignal } from "@preact/signals-react"
 import type { LucideIcon } from "lucide-react"
-import { BarChart3, TrendingUp, Users, FileText } from "lucide-react"
+import { TrendingUp, Users, FileText } from "lucide-react"
 
 // ============================================================================
 // View Model Types
@@ -53,20 +50,27 @@ export interface AnalyticsViewVM {
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Dependencies
 // ============================================================================
 
-export function useAnalyticsViewVM(): AnalyticsViewVM {
-  // Convex queries - already reactive!
-  const topicsData = useQuery(api.topics.getAllTopics, {})
-  const statsData = useQuery(api.stats.getLandingStats)
-  const topicAnalyticsData = useQuery(api.topicAnalytics.getTopicPerformanceAnalytics, {})
+export interface AnalyticsViewVMDeps {
+  readonly topicsData$: ReadonlySignal<any[] | undefined>
+  readonly statsData$: ReadonlySignal<any | undefined>
+  readonly topicAnalyticsData$: ReadonlySignal<any[] | undefined>
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+export function createAnalyticsViewVM(deps: AnalyticsViewVMDeps): AnalyticsViewVM {
+  const { topicsData$, statsData$, topicAnalyticsData$ } = deps
 
   // Computed: stats cards
   const stats$ = computed((): readonly StatCardVM[] => {
-    const topics = topicsData ?? []
-    const stats = statsData
-    const analytics = topicAnalyticsData ?? []
+    const topics = topicsData$.value ?? []
+    const stats = statsData$.value
+    const analytics = topicAnalyticsData$.value ?? []
 
     // Calculate total selections across all topics
     const totalSelections = analytics.reduce((sum, topic: any) =>
@@ -113,7 +117,7 @@ export function useAnalyticsViewVM(): AnalyticsViewVM {
 
   // Computed: topic analytics with pre-formatted data
   const topicAnalytics$ = computed((): readonly TopicAnalyticsItemVM[] => {
-    const analytics = topicAnalyticsData ?? []
+    const analytics = topicAnalyticsData$.value ?? []
 
     return analytics.map((topic: any): TopicAnalyticsItemVM => ({
       key: topic.id ?? topic.topicId,

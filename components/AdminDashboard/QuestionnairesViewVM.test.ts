@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach } from "vitest"
 import { signal, computed } from "@preact/signals-react"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { TemplateFormValues } from "@/components/forms/template-form"
-import type { QuestionItemVM, TemplateItemVM, QuestionnairesVM } from "./QuestionnairesViewVM"
+import type { QuestionItemVM, TemplateItemVM, QuestionnairesViewVM } from "./QuestionnairesViewVM"
 
 /**
  * Following the testing philosophy from viemodel.txt:

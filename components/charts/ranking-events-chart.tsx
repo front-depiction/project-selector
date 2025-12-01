@@ -4,6 +4,8 @@ import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
+import { useComputed } from "@preact/signals-react/runtime"
+import { useRankingEventsChartVM } from "./RankingEventsChartVM"
 
 import {
   Card,
@@ -45,67 +47,17 @@ interface RankingEventsChartProps {
   hours?: number
 }
 
-export function RankingEventsChart({ 
-  className, 
+export function RankingEventsChart({
+  className,
   granularity = "hourly",
-  hours = 48 
+  hours = 48
 }: RankingEventsChartProps) {
-  const [activeChart, setActiveChart] = React.useState<"added" | "moved" | "removed">("added")
-  
   const recentEvents = useQuery(api.analytics.getRecentRankingEvents, { hours })
+  const vm = useRankingEventsChartVM(recentEvents, granularity)
 
-  // Process events into time buckets
-  const chartData = React.useMemo(() => {
-    if (!recentEvents) return []
-    
-    // Calculate bucket size based on granularity
-    const getBucketKey = (timestamp: number): string => {
-      switch (granularity) {
-        case "by-minute":
-          return new Date(Math.floor(timestamp / 60000) * 60000).toISOString()
-        case "hourly":
-          return new Date(Math.floor(timestamp / 3600000) * 3600000).toISOString()
-        case "daily":
-          const date = new Date(timestamp)
-          date.setHours(0, 0, 0, 0)
-          return date.toISOString()
-        default:
-          return new Date(Math.floor(timestamp / 3600000) * 3600000).toISOString()
-      }
-    }
-    
-    // Group events by time bucket
-    const buckets = new Map<string, { added: number; moved: number; removed: number }>()
-    
-    recentEvents.forEach(event => {
-      const key = getBucketKey(event._creationTime)
-      
-      const bucket = buckets.get(key) || { added: 0, moved: 0, removed: 0 }
-      bucket[event.action as keyof typeof bucket]++
-      buckets.set(key, bucket)
-    })
-    
-    // Convert to array and sort
-    const sorted = Array.from(buckets.entries())
-      .map(([date, counts]) => ({
-        date,
-        ...counts
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-    
-    // Limit the number of bars shown based on granularity
-    const maxBars = granularity === "by-minute" ? 60 : granularity === "hourly" ? 24 : 7
-    return sorted.slice(-maxBars)
-  }, [recentEvents, granularity])
-
-  const total = React.useMemo(() => {
-    if (!recentEvents) return { added: 0, moved: 0, removed: 0 }
-    
-    return recentEvents.reduce((acc, event) => {
-      acc[event.action as keyof typeof acc]++
-      return acc
-    }, { added: 0, moved: 0, removed: 0 })
-  }, [recentEvents])
+  const activeChart = useComputed(() => vm.activeChart$.value)
+  const chartData = useComputed(() => vm.chartData$.value)
+  const total = useComputed(() => vm.total$.value)
 
   if (!recentEvents) {
     return (
@@ -134,15 +86,15 @@ export function RankingEventsChart({
             return (
               <button
                 key={key}
-                data-active={activeChart === key}
+                data-active={activeChart.value === key}
                 className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
-                onClick={() => setActiveChart(key)}
+                onClick={() => vm.setActiveChart(key)}
               >
                 <span className="text-muted-foreground text-xs">
                   {chartConfig[key].label}
                 </span>
                 <span className="text-lg leading-none font-bold sm:text-3xl">
-                  {total[key].toLocaleString()}
+                  {total.value[key].toLocaleString()}
                 </span>
               </button>
             )
@@ -156,7 +108,7 @@ export function RankingEventsChart({
         >
           <BarChart
             accessibilityLayer
-            data={chartData}
+            data={[...chartData.value]}
             margin={{
               left: 12,
               right: 12,
@@ -218,7 +170,7 @@ export function RankingEventsChart({
                 />
               }
             />
-            <Bar dataKey={activeChart} fill={`var(--color-${activeChart})`} />
+            <Bar dataKey={activeChart.value} fill={`var(--color-${activeChart.value})`} />
           </BarChart>
         </ChartContainer>
       </CardContent>

@@ -6,13 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2 } from "lucide-react"
-import { useQuestionnairesVM } from "./QuestionnairesViewVM"
+import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
 import TemplateForm from "@/components/forms/template-form"
 
-export function QuestionnairesView() {
+export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm }) => {
   useSignals()
-  const vm = useQuestionnairesVM()
 
   return (
     <div className="space-y-8">
@@ -115,5 +114,3 @@ export function QuestionnairesView() {
     </div>
   )
 }
-
-export default QuestionnairesView

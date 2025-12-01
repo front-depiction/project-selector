@@ -1,7 +1,4 @@
-"use client"
 import { signal, ReadonlySignal } from "@preact/signals-react"
-import { useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
 
 // ============================================================================
 // View Model Types
@@ -23,15 +20,22 @@ export interface SettingsViewVM {
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Dependencies
 // ============================================================================
 
-export function useSettingsViewVM(): SettingsViewVM {
-  // Convex mutations
-  const seedTestDataMutation = useMutation(api.admin.seedTestData)
-  const clearAllDataMutation = useMutation(api.admin.clearAllData)
+export interface SettingsViewVMDeps {
+  readonly seedTestDataMutation: (args: {}) => Promise<any>
+  readonly clearAllDataMutation: (args: {}) => Promise<any>
+}
 
-  // Local reactive state
+// ============================================================================
+// Factory - creates stable VM object with signals
+// ============================================================================
+
+export function createSettingsViewVM(deps: SettingsViewVMDeps): SettingsViewVM {
+  const { seedTestDataMutation, clearAllDataMutation } = deps
+
+  // Create signals once
   const clearDialogOpen$ = signal(false)
   const isSeedingData$ = signal(false)
   const isClearingData$ = signal(false)
