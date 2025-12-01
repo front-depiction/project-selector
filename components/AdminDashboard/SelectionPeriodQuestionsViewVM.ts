@@ -1,7 +1,5 @@
 "use client"
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionOption } from "@/components/forms/template-form"
 
@@ -29,41 +27,90 @@ export interface DialogVM {
   readonly close: () => void
 }
 
-export interface SelectionPeriodQuestionsVM {
+export interface SelectionPeriodQuestionsViewVM {
   readonly currentQuestions$: ReadonlySignal<readonly CurrentQuestionItemVM[]>
   readonly availableQuestions$: ReadonlySignal<readonly QuestionOption[]>
   readonly templates$: ReadonlySignal<readonly TemplateOptionVM[]>
+  readonly selectedQuestionIds$: ReadonlySignal<Set<string>>
+  readonly selectedTemplateId$: ReadonlySignal<string>
   readonly addQuestionsDialog: DialogVM
   readonly addQuestion: (questionId: Id<"questions">) => void
   readonly applyTemplate: (templateId: Id<"questionTemplates">) => void
+  readonly toggleQuestion: (id: string) => void
+  readonly setTemplateId: (id: string) => void
+  readonly addSelectedQuestions: () => void
+  readonly applySelectedTemplate: () => void
 }
 
 // ============================================================================
-// Hook - uses Convex as reactive primitive directly
+// Types for dependencies
 // ============================================================================
 
-export function useSelectionPeriodQuestionsVM(
-  selectionPeriodId: Id<"selectionPeriods">
-): SelectionPeriodQuestionsVM {
-  // Convex queries - already reactive!
-  const currentQuestionsData = useQuery(
-    api.selectionQuestions.getQuestionsForPeriod,
-    { selectionPeriodId }
-  )
-  const allQuestions = useQuery(api.questions.getAllQuestions, {})
-  const templates = useQuery(api.questionTemplates.getAllTemplates, {})
+export interface SelectionQuestion {
+  readonly _id: Id<"selectionQuestions">
+  readonly question?: {
+    readonly _id: Id<"questions">
+    readonly question: string
+    readonly kind: "boolean" | "scale"
+  }
+}
 
-  // Convex mutations
-  const addQuestionMutation = useMutation(api.selectionQuestions.addQuestion)
-  const removeQuestionMutation = useMutation(api.selectionQuestions.removeQuestion)
-  const applyTemplateMutation = useMutation(api.selectionQuestions.applyTemplate)
+export interface Question {
+  readonly _id: Id<"questions">
+  readonly question: string
+  readonly kind: "boolean" | "scale"
+}
 
-  // Dialog state
-  const addQuestionsDialogOpen$ = signal(false)
+export interface QuestionTemplate {
+  readonly _id: Id<"questionTemplates">
+  readonly title: string
+  readonly description?: string
+}
+
+export interface SelectionPeriodQuestionsViewVMDeps {
+  readonly selectionPeriodId: Id<"selectionPeriods">
+  readonly currentQuestionsData$: ReadonlySignal<SelectionQuestion[] | undefined>
+  readonly allQuestions$: ReadonlySignal<Question[] | undefined>
+  readonly templates$: ReadonlySignal<QuestionTemplate[] | undefined>
+  readonly addQuestionMutation: (args: {
+    selectionPeriodId: Id<"selectionPeriods">
+    questionId: Id<"questions">
+  }) => Promise<any>
+  readonly removeQuestionMutation: (args: {
+    selectionPeriodId: Id<"selectionPeriods">
+    questionId: Id<"questions">
+  }) => Promise<any>
+  readonly applyTemplateMutation: (args: {
+    selectionPeriodId: Id<"selectionPeriods">
+    templateId: Id<"questionTemplates">
+  }) => Promise<any>
+}
+
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+export function createSelectionPeriodQuestionsViewVM(
+  deps: SelectionPeriodQuestionsViewVMDeps
+): SelectionPeriodQuestionsViewVM {
+  const {
+    selectionPeriodId,
+    currentQuestionsData$,
+    allQuestions$,
+    templates$: templatesData$,
+    addQuestionMutation,
+    removeQuestionMutation,
+    applyTemplateMutation,
+  } = deps
+
+  // Dialog and selection state - created once
+  const addQuestionsDialogOpen$: Signal<boolean> = signal(false)
+  const selectedQuestionIds$: Signal<Set<string>> = signal<Set<string>>(new Set())
+  const selectedTemplateId$: Signal<string> = signal("")
 
   // Computed: current questions linked to this period
   const currentQuestions$ = computed((): readonly CurrentQuestionItemVM[] =>
-    (currentQuestionsData ?? []).map((sq): CurrentQuestionItemVM => {
+    (currentQuestionsData$.value ?? []).map((sq): CurrentQuestionItemVM => {
       const q = sq.question
       if (!q) {
         return {
@@ -91,7 +138,7 @@ export function useSelectionPeriodQuestionsVM(
 
   // Computed: all available questions for selection UI
   const availableQuestions$ = computed((): readonly QuestionOption[] =>
-    (allQuestions ?? []).map((q): QuestionOption => ({
+    (allQuestions$.value ?? []).map((q): QuestionOption => ({
       id: q._id,
       questionText: q.question,
       kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
@@ -101,7 +148,7 @@ export function useSelectionPeriodQuestionsVM(
 
   // Computed: templates formatted for dropdown/selection
   const templates$ = computed((): readonly TemplateOptionVM[] =>
-    (templates ?? []).map((t): TemplateOptionVM => ({
+    (templatesData$.value ?? []).map((t): TemplateOptionVM => ({
       key: t._id,
       title: t.title,
       description: t.description ?? "",
@@ -134,12 +181,49 @@ export function useSelectionPeriodQuestionsVM(
     }).catch(console.error)
   }
 
+  // Selection actions
+  const toggleQuestion = (id: string): void => {
+    const newSet = new Set(selectedQuestionIds$.value)
+    if (newSet.has(id)) {
+      newSet.delete(id)
+    } else {
+      newSet.add(id)
+    }
+    selectedQuestionIds$.value = newSet
+  }
+
+  const setTemplateId = (id: string): void => {
+    selectedTemplateId$.value = id
+  }
+
+  const addSelectedQuestions = (): void => {
+    selectedQuestionIds$.value.forEach((id) => {
+      addQuestion(id as Id<"questions">)
+    })
+    selectedQuestionIds$.value = new Set()
+    addQuestionsDialog.close()
+  }
+
+  const applySelectedTemplate = (): void => {
+    if (selectedTemplateId$.value) {
+      applyTemplate(selectedTemplateId$.value as Id<"questionTemplates">)
+      selectedTemplateId$.value = ""
+      addQuestionsDialog.close()
+    }
+  }
+
   return {
     currentQuestions$,
     availableQuestions$,
     templates$,
+    selectedQuestionIds$,
+    selectedTemplateId$,
     addQuestionsDialog,
     addQuestion,
     applyTemplate,
+    toggleQuestion,
+    setTemplateId,
+    addSelectedQuestions,
+    applySelectedTemplate,
   }
 }

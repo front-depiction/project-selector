@@ -1,5 +1,5 @@
-"use client"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
+import * as Option from "effect/Option"
 
 // ============================================================================
 // CONSTANTS
@@ -28,7 +28,7 @@ export interface StudentEntryVM {
   readonly digitSlots$: ReadonlySignal<readonly DigitSlotVM[]>
 
   /** Validation error message */
-  readonly errorMessage$: ReadonlySignal<string | null>
+  readonly errorMessage$: ReadonlySignal<Option.Option<string>>
 
   /** Update the input value (validates digits only) */
   readonly setValue: (value: string) => void
@@ -44,20 +44,24 @@ export interface StudentEntryVM {
 }
 
 // ============================================================================
-// Hook - creates the View Model
+// Dependencies
 // ============================================================================
 
-export interface StudentEntryVMOptions {
+export interface StudentEntryVMDeps {
   /** Callback to execute when student ID entry is complete */
   readonly onComplete: (studentId: string) => void
 }
 
-export function useStudentEntryVM(options: StudentEntryVMOptions): StudentEntryVM {
-  const { onComplete } = options
+// ============================================================================
+// Factory - creates the View Model
+// ============================================================================
 
-  // State signals
+export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
+  const { onComplete } = deps
+
+  // State signals - created once in the factory
   const value$ = signal("")
-  const errorMessage$ = signal<string | null>(null)
+  const errorMessage$ = signal<Option.Option<string>>(Option.none())
 
   // Computed: Check if entry is complete
   const isComplete$ = computed(() => {
@@ -73,15 +77,38 @@ export function useStudentEntryVM(options: StudentEntryVMOptions): StudentEntryV
     }))
   })
 
+  // Action: Handle completion
+  const handleComplete = (): void => {
+    const currentValue = value$.value
+
+    if (currentValue.length !== STUDENT_ID_LENGTH) {
+      errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
+      return
+    }
+
+    if (!DIGITS_ONLY.test(currentValue)) {
+      errorMessage$.value = Option.some("Only digits (0-9) are allowed")
+      return
+    }
+
+    errorMessage$.value = Option.none()
+
+    // Save to localStorage
+    localStorage.setItem("studentId", currentValue)
+
+    // Execute callback
+    onComplete(currentValue)
+  }
+
   // Action: Set value with digit-only validation
   const setValue = (newValue: string): void => {
     const digits = newValue.replace(/\D/g, "")
 
     if (digits.length > STUDENT_ID_LENGTH) {
-      errorMessage$.value = `Student ID must be exactly ${STUDENT_ID_LENGTH} digits`
+      errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
       value$.value = digits.slice(0, STUDENT_ID_LENGTH)
     } else {
-      errorMessage$.value = null
+      errorMessage$.value = Option.none()
       value$.value = digits
     }
 
@@ -95,7 +122,7 @@ export function useStudentEntryVM(options: StudentEntryVMOptions): StudentEntryV
   const handleDigitInput = (newValue: string): void => {
     // Validate that input contains only digits
     if (newValue && !DIGITS_ONLY.test(newValue)) {
-      errorMessage$.value = "Only digits (0-9) are allowed"
+      errorMessage$.value = Option.some("Only digits (0-9) are allowed")
       return
     }
 
@@ -107,31 +134,8 @@ export function useStudentEntryVM(options: StudentEntryVMOptions): StudentEntryV
     const currentValue = value$.value
     if (currentValue.length > 0) {
       value$.value = currentValue.slice(0, -1)
-      errorMessage$.value = null
+      errorMessage$.value = Option.none()
     }
-  }
-
-  // Action: Handle completion
-  const handleComplete = (): void => {
-    const currentValue = value$.value
-
-    if (currentValue.length !== STUDENT_ID_LENGTH) {
-      errorMessage$.value = `Student ID must be exactly ${STUDENT_ID_LENGTH} digits`
-      return
-    }
-
-    if (!DIGITS_ONLY.test(currentValue)) {
-      errorMessage$.value = "Only digits (0-9) are allowed"
-      return
-    }
-
-    errorMessage$.value = null
-
-    // Save to localStorage
-    localStorage.setItem("studentId", currentValue)
-
-    // Execute callback
-    onComplete(currentValue)
   }
 
   return {

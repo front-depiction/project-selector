@@ -1,5 +1,4 @@
 "use client"
-import { useState } from "react"
 import { useSignals } from "@preact/signals-react/runtime"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,48 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2 } from "lucide-react"
-import { useSelectionPeriodQuestionsVM } from "./SelectionPeriodQuestionsViewVM"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { SelectionPeriodQuestionsViewVM } from "./SelectionPeriodQuestionsViewVM"
 
-export function SelectionPeriodQuestionsView({
-  selectionPeriodId,
-}: {
-  selectionPeriodId: Id<"selectionPeriods">
-}) {
+export const SelectionPeriodQuestionsView: React.FC<{
+  vm: SelectionPeriodQuestionsViewVM
+}> = ({ vm }) => {
   useSignals()
-  const vm = useSelectionPeriodQuestionsVM(selectionPeriodId)
-
-  // Local state for dialog - selected questions and template
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set())
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("")
-
-  const toggleQuestion = (id: string) => {
-    setSelectedQuestionIds((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(id)) {
-        newSet.delete(id)
-      } else {
-        newSet.add(id)
-      }
-      return newSet
-    })
-  }
-
-  const handleAddSelected = () => {
-    selectedQuestionIds.forEach((id) => {
-      vm.addQuestion(id as Id<"questions">)
-    })
-    setSelectedQuestionIds(new Set())
-    vm.addQuestionsDialog.close()
-  }
-
-  const handleApplyTemplate = () => {
-    if (selectedTemplateId) {
-      vm.applyTemplate(selectedTemplateId as Id<"questionTemplates">)
-      setSelectedTemplateId("")
-      vm.addQuestionsDialog.close()
-    }
-  }
 
   return (
     <div className="space-y-8">
@@ -116,7 +79,7 @@ export function SelectionPeriodQuestionsView({
                 Quickly add all questions from a template.
               </p>
               <div className="flex gap-2">
-                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <Select value={vm.selectedTemplateId$.value} onValueChange={vm.setTemplateId}>
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Select a template..." />
                   </SelectTrigger>
@@ -134,8 +97,8 @@ export function SelectionPeriodQuestionsView({
                   </SelectContent>
                 </Select>
                 <Button
-                  onClick={handleApplyTemplate}
-                  disabled={!selectedTemplateId}
+                  onClick={vm.applySelectedTemplate}
+                  disabled={!vm.selectedTemplateId$.value}
                   variant="outline"
                 >
                   Apply Template
@@ -158,9 +121,9 @@ export function SelectionPeriodQuestionsView({
               <Label>Select Questions</Label>
               <p className="text-sm text-muted-foreground">
                 Choose individual questions to add.
-                {selectedQuestionIds.size > 0 && (
+                {vm.selectedQuestionIds$.value.size > 0 && (
                   <Badge variant="secondary" className="ml-2">
-                    {selectedQuestionIds.size} selected
+                    {vm.selectedQuestionIds$.value.size} selected
                   </Badge>
                 )}
               </p>
@@ -172,7 +135,7 @@ export function SelectionPeriodQuestionsView({
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {vm.availableQuestions$.value.map((q) => {
-                      const isChecked = selectedQuestionIds.has(q.id)
+                      const isChecked = vm.selectedQuestionIds$.value.has(q.id)
                       return (
                         <label
                           key={q.id}
@@ -182,7 +145,7 @@ export function SelectionPeriodQuestionsView({
                           <Checkbox
                             id={`q-${q.id}`}
                             checked={isChecked}
-                            onCheckedChange={() => toggleQuestion(q.id)}
+                            onCheckedChange={() => vm.toggleQuestion(q.id)}
                           />
                           <div className="flex-1 space-y-1">
                             <p className="text-sm font-medium leading-none line-clamp-2">
@@ -206,10 +169,10 @@ export function SelectionPeriodQuestionsView({
               Cancel
             </Button>
             <Button
-              onClick={handleAddSelected}
-              disabled={selectedQuestionIds.size === 0}
+              onClick={vm.addSelectedQuestions}
+              disabled={vm.selectedQuestionIds$.value.size === 0}
             >
-              Add Selected ({selectedQuestionIds.size})
+              Add Selected ({vm.selectedQuestionIds$.value.size})
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -217,5 +180,3 @@ export function SelectionPeriodQuestionsView({
     </div>
   )
 }
-
-export default SelectionPeriodQuestionsView

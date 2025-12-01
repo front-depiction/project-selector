@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import * as Option from "effect/Option"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,44 +30,35 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Plus, Edit, Power, Trash2, MoreVertical } from "lucide-react"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
-import { usePeriodsViewVM } from "./PeriodsViewVM"
-import { useSignal } from "@preact/signals-react/runtime"
+import type { PeriodsViewVM } from "./PeriodsViewVM"
+import { useSignals } from "@preact/signals-react/runtime"
 
 // ============================================================================
 // PERIODS VIEW - Clean table-based layout using View Model
 // ============================================================================
 
-export const PeriodsView: React.FC = () => {
-  const vm = usePeriodsViewVM()
-
-  // Subscribe to reactive signals
-  const currentPeriod = vm.currentPeriod$.value
-  const assignments = vm.assignments$.value
-  const showAssignmentResults = vm.showAssignmentResults$.value
-  const periods = vm.periods$.value
-  const questions = vm.questions$.value
-  const templates = vm.templates$.value
-  const existingQuestionIds = vm.existingQuestionIds$.value
-  const isCreateOpen = vm.createDialog.isOpen$.value
-  const isEditOpen = vm.editDialog.isOpen$.value
-  const editingPeriod = vm.editDialog.editingPeriod$.value
+export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
+  useSignals()
 
   return (
     <div className="space-y-6">
       {/* Assignment Results - Clean data table format */}
-      {showAssignmentResults && (
+      {vm.showAssignmentResults$.value && (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Assignment Results</CardTitle>
             <CardDescription>
-              Students have been assigned to topics for {currentPeriod?.title}
+              Students have been assigned to topics for {Option.match(vm.currentPeriod$.value, {
+                onNone: () => "Unknown Period",
+                onSome: (period) => period.title
+              })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <Badge variant="outline" className="text-sm">
-                  Total Assignments: {assignments.length}
+                  Total Assignments: {vm.assignments$.value.length}
                 </Badge>
               </div>
 
@@ -82,7 +74,7 @@ export const PeriodsView: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {assignments.map((assignment) => (
+                    {vm.assignments$.value.map((assignment) => (
                       <TableRow key={assignment.key}>
                         <TableCell className="font-medium">{assignment.studentId}</TableCell>
                         <TableCell>{assignment.topicTitle}</TableCell>
@@ -130,7 +122,7 @@ export const PeriodsView: React.FC = () => {
       </div>
 
       {/* Selection Periods Table - Clean table format */}
-      {periods.length === 0 ? (
+      {vm.periods$.value.length === 0 ? (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>No Selection Periods</CardTitle>
@@ -151,7 +143,7 @@ export const PeriodsView: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {periods.map((period) => (
+              {vm.periods$.value.map((period) => (
                 <TableRow key={period.key}>
                   <TableCell className="font-medium">{period.title}</TableCell>
                   <TableCell>
@@ -199,7 +191,7 @@ export const PeriodsView: React.FC = () => {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={(open) => open ? vm.createDialog.open() : vm.createDialog.close()}>
+      <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => open ? vm.createDialog.open() : vm.createDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Create Selection Period</DialogTitle>
@@ -208,15 +200,15 @@ export const PeriodsView: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <SelectionPeriodForm
-            questions={questions}
-            templates={templates}
+            questions={vm.questions$.value}
+            templates={vm.templates$.value}
             onSubmit={vm.onCreateSubmit}
           />
         </DialogContent>
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={(open) => open ? vm.editDialog.open() : vm.editDialog.close()}>
+      <Dialog open={vm.editDialog.isOpen$.value} onOpenChange={(open) => open ? vm.editDialog.open() : vm.editDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Selection Period</DialogTitle>
@@ -224,17 +216,17 @@ export const PeriodsView: React.FC = () => {
               Update the details of this selection period.
             </DialogDescription>
           </DialogHeader>
-          {editingPeriod && (
+          {Option.isSome(vm.editDialog.editingPeriod$.value) && (
             <SelectionPeriodForm
-              questions={questions}
-              templates={templates}
+              questions={vm.questions$.value}
+              templates={vm.templates$.value}
               initialValues={{
-                title: editingPeriod.title,
-                selection_period_id: editingPeriod.semesterId,
-                start_deadline: new Date(editingPeriod.openDate),
-                end_deadline: new Date(editingPeriod.closeDate),
-                isActive: editingPeriod.kind === "open",
-                questionIds: [...existingQuestionIds],
+                title: vm.editDialog.editingPeriod$.value.value.title,
+                selection_period_id: vm.editDialog.editingPeriod$.value.value.semesterId,
+                start_deadline: new Date(vm.editDialog.editingPeriod$.value.value.openDate),
+                end_deadline: new Date(vm.editDialog.editingPeriod$.value.value.closeDate),
+                isActive: vm.editDialog.editingPeriod$.value.value.kind === "open",
+                questionIds: [...vm.existingQuestionIds$.value],
               }}
               onSubmit={vm.onEditSubmit}
             />

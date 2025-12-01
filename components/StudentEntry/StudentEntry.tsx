@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useSignals } from "@preact/signals-react/runtime"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
-import { useStudentEntryVM, type StudentEntryVM } from "./StudentEntryVM"
+import { createStudentEntryVM, type StudentEntryVM } from "./StudentEntryVM"
 
 // ============================================================================
 // TYPES
@@ -45,33 +45,27 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
-  useSignals()
   const router = useRouter()
 
-  // Create the View Model
-  const vm = useStudentEntryVM({
-    onComplete: (studentId: string) => {
-      router.push("/student/select")
-    },
-  })
+  // Create the View Model using factory (once per component lifetime)
+  const vmRef = React.useRef<StudentEntryVM | null>(null)
+  if (vmRef.current === null) {
+    vmRef.current = createStudentEntryVM({
+      onComplete: (studentId: string) => {
+        router.push("/student/select")
+      },
+    })
+  }
+  const vm = vmRef.current
 
-  // Read reactive values directly from signals
-  const value = vm.value$.value
-  const isComplete = vm.isComplete$.value
-
-  // Create context value that matches the old API for child components
-  const contextValue = React.useMemo(
-    () => ({
-      value,
-      isComplete,
+  // React compiler handles memoization - no useMemo needed
+  return (
+    <StudentEntryContext.Provider value={{
+      get value() { return vm.value$.value },
+      get isComplete() { return vm.isComplete$.value },
       setValue: vm.setValue,
       handleComplete: vm.handleComplete,
-    }),
-    [value, isComplete, vm.setValue, vm.handleComplete]
-  )
-
-  return (
-    <StudentEntryContext.Provider value={contextValue}>
+    }}>
       {children}
     </StudentEntryContext.Provider>
   )
@@ -109,6 +103,7 @@ export const HelpText: React.FC = () => (
 // ============================================================================
 
 export const StudentIdInput: React.FC = () => {
+  useSignals()
   const { value, setValue } = useStudentEntry()
 
   return (

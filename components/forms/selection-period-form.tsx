@@ -1,5 +1,4 @@
 "use client"
-import { useState } from "react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,12 +33,11 @@ const formSchema = z.object({
     selection_period_id: z.string().min(1, "Selection period ID is required"),
     start_deadline: z.date(),
     end_deadline: z.date(),
-    isActive: z.boolean()
+    isActive: z.boolean(),
+    questionIds: z.array(z.string()),
 });
 
-export type SelectionPeriodFormValues = z.infer<typeof formSchema> & {
-    questionIds: string[]
-}
+export type SelectionPeriodFormValues = z.infer<typeof formSchema>
 
 export interface QuestionOption {
     id: string
@@ -65,10 +63,6 @@ export default function SelectionPeriodForm({
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(
-        new Set(initialValues?.questionIds ?? [])
-    )
-
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -77,37 +71,32 @@ export default function SelectionPeriodForm({
             start_deadline: initialValues?.start_deadline ?? new Date(),
             end_deadline: initialValues?.end_deadline ?? new Date(),
             isActive: initialValues?.isActive ?? false,
+            questionIds: initialValues?.questionIds ?? [],
         },
     })
 
+    const questionIds = form.watch("questionIds")
+
     const toggleQuestion = (id: string) => {
-        setSelectedIds(prev => {
-            const newSet = new Set(prev)
-            if (newSet.has(id)) newSet.delete(id)
-            else newSet.add(id)
-            return newSet
-        })
+        const currentIds = form.getValues("questionIds")
+        const newIds = currentIds.includes(id)
+            ? currentIds.filter(qid => qid !== id)
+            : [...currentIds, id]
+        form.setValue("questionIds", newIds)
     }
 
     const importTemplate = (templateId: string) => {
         const template = templates.find(t => t.id === templateId)
         if (template) {
-            setSelectedIds(prev => {
-                const newSet = new Set(prev)
-                for (const qId of template.questionIds) {
-                    newSet.add(qId)
-                }
-                return newSet
-            })
+            const currentIds = form.getValues("questionIds")
+            const newIds = [...new Set([...currentIds, ...template.questionIds])]
+            form.setValue("questionIds", newIds)
         }
     }
 
     async function handleSubmit(values: z.infer<typeof formSchema>) {
         try {
-            await onSubmit({
-                ...values,
-                questionIds: Array.from(selectedIds),
-            })
+            await onSubmit(values)
         } catch (error) {
             console.error("Form submission error", error);
             toast.error("Failed to submit the form. Please try again.");
@@ -232,8 +221,8 @@ export default function SelectionPeriodForm({
                             <Label className="text-base">Questions</Label>
                             <p className="text-sm text-muted-foreground">
                                 Select questions students will answer during this period.
-                                {selectedIds.size > 0 && (
-                                    <Badge variant="secondary" className="ml-2">{selectedIds.size} selected</Badge>
+                                {questionIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
                                 )}
                             </p>
                         </div>
@@ -243,7 +232,7 @@ export default function SelectionPeriodForm({
                                     // Only show template as selected if ALL its questions are checked
                                     templates.find(t =>
                                         t.questionIds.length > 0 &&
-                                        t.questionIds.every(qId => selectedIds.has(qId))
+                                        t.questionIds.every(qId => questionIds.includes(qId))
                                     )?.id ?? ""
                                 }
                                 onValueChange={importTemplate}
@@ -271,7 +260,7 @@ export default function SelectionPeriodForm({
                         ) : (
                             <div className="grid grid-cols-2 gap-3">
                                 {questions.map((q) => {
-                                    const isChecked = selectedIds.has(q.id)
+                                    const isChecked = questionIds.includes(q.id)
                                     return (
                                         <label
                                             key={q.id}

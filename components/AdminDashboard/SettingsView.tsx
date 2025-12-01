@@ -17,13 +17,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useSettingsViewVM } from "./SettingsViewVM"
+import { SettingsViewVM } from "./SettingsViewVM"
 import { useSignals } from "@preact/signals-react/runtime"
 
-export const SettingsView: React.FC = () => {
+export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
   useSignals()
   const { currentPeriod } = AD.useDashboard()
-  const vm = useSettingsViewVM()
 
   return (
     <div className="space-y-6">

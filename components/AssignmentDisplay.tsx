@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Users, Trophy, Award, User, Hash, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAssignmentDisplayVM } from "./AssignmentDisplayVM"
-import { useSignal } from "@preact/signals-react"
+import { useSignals } from "@preact/signals-react/runtime"
 
 interface AssignmentDisplayProps {
   periodId: Id<"selectionPeriods"> | undefined
@@ -16,6 +16,7 @@ interface AssignmentDisplayProps {
 }
 
 export function AssignmentDisplay({ periodId, studentId }: AssignmentDisplayProps) {
+  useSignals()
   const vm = useAssignmentDisplayVM(periodId, studentId)
 
   const isLoading = vm.isLoading$.value

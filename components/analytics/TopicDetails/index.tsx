@@ -85,12 +85,7 @@ interface ProviderProps {
 }
 
 const Provider: React.FC<ProviderProps> = ({ children, topic, analytics }) => {
-  const value = React.useMemo(
-    () => ({ topic, analytics }),
-    [topic, analytics]
-  )
-
-  return <Context.Provider value={value}>{children}</Context.Provider>
+  return <Context.Provider value={{ topic, analytics }}>{children}</Context.Provider>
 }
 
 // ============================================================================

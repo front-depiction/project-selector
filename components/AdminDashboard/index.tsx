@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { toast } from "sonner"
+import * as Option from "effect/Option"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
@@ -43,25 +43,23 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import { useSignal } from "@preact/signals-react/runtime"
+import { useSignals } from "@preact/signals-react/runtime"
 import {
   useDashboardVM,
-  type DashboardVM,
   type ViewType,
   type PeriodFormData,
-  type TopicFormData
+  type TopicFormData,
+  type SelectionPeriodWithStats
 } from "./DashboardVM"
+
+// Export the VM hook
+export { useDashboardVM }
 
 // ============================================================================
 // LEGACY TYPES (for backwards compatibility with existing components)
 // ============================================================================
 
-export type { ViewType, PeriodFormData, TopicFormData }
-
-export type SelectionPeriodWithStats = Readonly<Doc<"selectionPeriods"> & {
-  studentCount?: number
-  assignmentCount?: number
-}>
+export type { ViewType, PeriodFormData, TopicFormData, SelectionPeriodWithStats }
 
 export interface Assignment {
   readonly studentId: string
@@ -132,181 +130,53 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
-  // Use the View Model
+  useSignals()
   const vm = useDashboardVM()
 
-  // Convert VM stats to legacy format for backwards compatibility
-  const legacyStats = React.useMemo(() => {
-    const stats = vm.stats$.value
-    return {
-      totalTopics: parseInt(stats.totalTopicsDisplay),
-      activeTopics: parseInt(stats.activeTopicsDisplay),
-      totalStudents: parseInt(stats.totalStudentsDisplay),
-      totalSelections: 0, // Not exposed in VM
-      averageSelectionsPerStudent: parseFloat(stats.averageSelectionsDisplay),
-      matchRate: parseFloat(stats.matchRateDisplay.replace('%', '')),
-      topChoiceRate: parseFloat(stats.topChoiceRateDisplay.replace('%', '')),
-      currentPeriodDisplay: stats.currentPeriodDisplay,
-      currentPeriodVariant: stats.currentPeriodVariant
-    }
-  }, [vm.stats$])
-
-  // Convert VM assignments to legacy format
-  const legacyAssignments = React.useMemo((): Assignment[] => {
-    return vm.assignments$.value.map(a => ({
-      studentId: a.studentId,
-      topicTitle: a.topicTitle,
-      preferenceRank: a.preferenceRank,
-      isMatched: a.isMatched,
-      status: a.statusDisplay as "assigned" | "pending"
-    }))
-  }, [vm.assignments$])
-
-  // Convert VM periods to legacy format (need to fetch raw data)
-  // Note: This is a temporary bridge - child components should migrate to using VM directly
-  const legacyPeriods = React.useMemo(() => {
-    // This would need to access the raw periods data
-    // For now, return undefined as child components will use VM directly
-    return undefined
-  }, [])
-
-  // Convert VM topics to legacy format
-  const legacyTopics = React.useMemo(() => {
-    // This would need to access the raw topics data
-    // For now, return undefined as child components will use VM directly
-    return undefined
-  }, [])
-
-  // Legacy action wrappers that add toast notifications
-  const createPeriod = async (data: PeriodFormData): Promise<Id<"selectionPeriods">> => {
-    try {
-      vm.createPeriod(data)
-      toast.success("Selection period created successfully")
-      // Return a mock ID since VM doesn't return promises
-      return "mock_id" as Id<"selectionPeriods">
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create period")
-      throw error
-    }
+  // Extract signal values for legacy context
+  const stats = vm.stats$.value
+  const legacyStats = {
+    totalTopics: parseInt(stats.totalTopicsDisplay),
+    activeTopics: parseInt(stats.activeTopicsDisplay),
+    totalStudents: parseInt(stats.totalStudentsDisplay),
+    totalSelections: 0,
+    averageSelectionsPerStudent: parseFloat(stats.averageSelectionsDisplay),
+    matchRate: parseFloat(stats.matchRateDisplay.replace('%', '')),
+    topChoiceRate: parseFloat(stats.topChoiceRateDisplay.replace('%', '')),
+    currentPeriodDisplay: stats.currentPeriodDisplay,
+    currentPeriodVariant: stats.currentPeriodVariant
   }
 
-  const updatePeriod = async (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => {
-    try {
-      vm.updatePeriod(id, updates)
-      toast.success("Period updated successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update period")
-      throw error
-    }
-  }
+  const legacyAssignments: Assignment[] = vm.assignments$.value.map(a => ({
+    studentId: a.studentId,
+    topicTitle: a.topicTitle,
+    preferenceRank: a.preferenceRank,
+    isMatched: a.isMatched,
+    status: a.statusDisplay as "assigned" | "pending"
+  }))
 
-  const deletePeriod = async (id: Id<"selectionPeriods">) => {
-    try {
-      vm.deletePeriod(id)
-      toast.success("Period deleted successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete period")
-      throw error
-    }
-  }
-
-  const setActivePeriod = async (id: Id<"selectionPeriods">) => {
-    try {
-      vm.setActivePeriod(id)
-      toast.success("Period activated successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to activate period")
-      throw error
-    }
-  }
-
-  const createTopic = async (data: TopicFormData) => {
-    try {
-      vm.createTopic(data)
-      toast.success("Topic created successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create topic")
-      throw error
-    }
-  }
-
-  const updateTopic = async (id: Id<"topics">, updates: Partial<TopicFormData>) => {
-    try {
-      vm.updateTopic(id, updates)
-      toast.success("Topic updated successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update topic")
-      throw error
-    }
-  }
-
-  const toggleTopicActive = async (id: Id<"topics">) => {
-    try {
-      vm.toggleTopicActive(id)
-      toast.success("Topic status updated successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to update topic status")
-      throw error
-    }
-  }
-
-  const deleteTopic = async (id: Id<"topics">) => {
-    try {
-      vm.deleteTopic(id)
-      toast.success("Topic deleted successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete topic")
-      throw error
-    }
-  }
-
-  const assignTopics = async (periodId: Id<"selectionPeriods">) => {
-    vm.assignTopics(periodId)
-    toast.success("Topics assigned successfully")
-  }
-
-  const seedTestData = async () => {
-    try {
-      vm.seedTestData()
-      toast.success("Test data seeded successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to seed test data")
-      throw error
-    }
-  }
-
-  const clearAllData = async () => {
-    try {
-      vm.clearAllData()
-      toast.success("All data cleared successfully")
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to clear data")
-      throw error
-    }
-  }
-
-  // Provide legacy context for backwards compatibility
+  // Legacy interface compatibility - thin wrappers to convert void -> Promise
   const value: DashboardState & DashboardActions = {
     activeView: vm.activeView$.value,
-    periods: legacyPeriods,
-    topics: legacyTopics,
+    periods: undefined,
+    topics: undefined,
     subtopics: vm.subtopics,
-    currentPeriod: vm.currentPeriod$.value,
+    currentPeriod: Option.getOrNull(vm.currentPeriod$.value),
     assignments: legacyAssignments,
     topicAnalytics: vm.topicAnalytics,
     stats: legacyStats,
     setActiveView: vm.setActiveView,
-    createPeriod,
-    updatePeriod,
-    deletePeriod,
-    setActivePeriod,
-    createTopic,
-    updateTopic,
-    toggleTopicActive,
-    deleteTopic,
-    assignTopics,
-    seedTestData,
-    clearAllData
+    createPeriod: async (data) => { vm.createPeriod(data); return "mock_id" as Id<"selectionPeriods"> },
+    updatePeriod: async (id, updates) => vm.updatePeriod(id, updates),
+    deletePeriod: async (id) => vm.deletePeriod(id),
+    setActivePeriod: async (id) => vm.setActivePeriod(id),
+    createTopic: async (data) => vm.createTopic(data),
+    updateTopic: async (id, updates) => vm.updateTopic(id, updates),
+    toggleTopicActive: async (id) => vm.toggleTopicActive(id),
+    deleteTopic: async (id) => vm.deleteTopic(id),
+    assignTopics: async (periodId) => vm.assignTopics(periodId),
+    seedTestData: async () => vm.seedTestData(),
+    clearAllData: async () => vm.clearAllData()
   }
 
   return (

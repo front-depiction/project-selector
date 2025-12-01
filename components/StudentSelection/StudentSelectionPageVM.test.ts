@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { signal, computed } from "@preact/signals-react"
+import * as Option from "effect/Option"
 import type {
   SelectionStep,
   TopicItemVM,
@@ -171,11 +172,11 @@ function createSelectionProgressSignal(selectedTopicIds: Id<"topics">[], topicsC
   })
 }
 
-function createValidationStateSignal(selectedTopicIds: Id<"topics">[], error: string | null) {
+function createValidationStateSignal(selectedTopicIds: Id<"topics">[], error: Option.Option<string>) {
   const error$ = signal(error)
   return computed((): ValidationStateVM => {
     const hasExistingRanking = selectedTopicIds.length > 0
-    const canSubmit = selectedTopicIds.length > 0 && !error$.value
+    const canSubmit = selectedTopicIds.length > 0 && Option.isNone(error$.value)
 
     return {
       hasExistingRanking,
@@ -464,28 +465,31 @@ describe("StudentSelectionPageVM", () => {
   describe("validationState$ signal", () => {
     it("should allow submission when has rankings and no error", () => {
       const selectedTopicIds = ["t1", "t2"] as Id<"topics">[]
-      const validation$ = createValidationStateSignal(selectedTopicIds, null)
+      const validation$ = createValidationStateSignal(selectedTopicIds, Option.none())
 
       expect(validation$.value).toMatchObject({
         hasExistingRanking: true,
         canSubmit: true
       })
-      expect(validation$.value.error$.value).toBeNull()
+      expect(Option.isNone(validation$.value.error$.value)).toBe(true)
     })
 
     it("should prevent submission when error exists", () => {
       const selectedTopicIds = ["t1", "t2"] as Id<"topics">[]
-      const validation$ = createValidationStateSignal(selectedTopicIds, "Network error")
+      const validation$ = createValidationStateSignal(selectedTopicIds, Option.some("Network error"))
 
       expect(validation$.value).toMatchObject({
         hasExistingRanking: true,
         canSubmit: false
       })
-      expect(validation$.value.error$.value).toBe("Network error")
+      expect(Option.isSome(validation$.value.error$.value)).toBe(true)
+      if (Option.isSome(validation$.value.error$.value)) {
+        expect(validation$.value.error$.value.value).toBe("Network error")
+      }
     })
 
     it("should prevent submission when no rankings", () => {
-      const validation$ = createValidationStateSignal([], null)
+      const validation$ = createValidationStateSignal([], Option.none())
 
       expect(validation$.value).toMatchObject({
         hasExistingRanking: false,
@@ -653,13 +657,16 @@ describe("StudentSelectionPageVM", () => {
       const selectedIds = ["t1", "t2"] as Id<"topics">[]
 
       // No error - can submit
-      let validation$ = createValidationStateSignal(selectedIds, null)
+      let validation$ = createValidationStateSignal(selectedIds, Option.none())
       expect(validation$.value.canSubmit).toBe(true)
 
       // With error - cannot submit
-      validation$ = createValidationStateSignal(selectedIds, "Failed to save")
+      validation$ = createValidationStateSignal(selectedIds, Option.some("Failed to save"))
       expect(validation$.value.canSubmit).toBe(false)
-      expect(validation$.value.error$.value).toBe("Failed to save")
+      expect(Option.isSome(validation$.value.error$.value)).toBe(true)
+      if (Option.isSome(validation$.value.error$.value)) {
+        expect(validation$.value.error$.value.value).toBe("Failed to save")
+      }
     })
   })
 })
