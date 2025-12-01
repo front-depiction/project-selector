@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { StudentQuestionPresentationView } from "@/components/StudentQuestionnaire/StudentQuestionPresentationView"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -299,6 +300,7 @@ export default function SelectTopics() {
 
   const [error, setError] = useState<string | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string | number>>(new Set())
+  const [questionnaireCompleted, setQuestionnaireCompleted] = useState(false)
 
   // Get data from Convex using the new aggregate query
   const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
@@ -307,6 +309,22 @@ export default function SelectTopics() {
     studentId ? { studentId } : "skip"
   )
   const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
+
+  // Check if period has questions and if student completed them
+  const periodQuestions = useQuery(
+    api.selectionQuestions.getQuestionsForPeriod,
+    currentPeriod?._id ? { selectionPeriodId: currentPeriod._id } : "skip"
+  )
+  const hasCompletedQuestionnaire = useQuery(
+    api.studentAnswers.hasCompletedQuestionnaire,
+    currentPeriod?._id && studentId
+      ? { studentId, selectionPeriodId: currentPeriod._id }
+      : "skip"
+  )
+
+  // Determine if we need to show questionnaire
+  const hasQuestions = periodQuestions && periodQuestions.length > 0
+  const needsQuestionnaire = hasQuestions && !hasCompletedQuestionnaire && !questionnaireCompleted
   const savePreferences = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
     (localStore, args) => {
       const { studentId, topicOrder } = args
@@ -387,11 +405,23 @@ export default function SelectTopics() {
   // Handle completion (not used but required by sortable)
   const handleCompleteItem = () => { }
 
-  if (!topics) {
+  // Show loading while checking questionnaire status
+  if (!topics || (hasQuestions && hasCompletedQuestionnaire === undefined)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
+    )
+  }
+
+  // Show questionnaire if needed
+  if (needsQuestionnaire && currentPeriod?._id) {
+    return (
+      <StudentQuestionPresentationView
+        studentId={studentId}
+        selectionPeriodId={currentPeriod._id}
+        onComplete={() => setQuestionnaireCompleted(true)}
+      />
     )
   }
 

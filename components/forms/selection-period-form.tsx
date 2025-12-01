@@ -1,25 +1,10 @@
 "use client"
-import {
-    useState
-} from "react"
-import {
-    toast
-} from "sonner"
-import {
-    useForm
-} from "react-hook-form"
-import {
-    zodResolver
-} from "@hookform/resolvers/zod"
-import {
-    z
-} from "zod"
-import {
-    cn
-} from "@/lib/utils"
-import {
-    Button
-} from "@/components/ui/button"
+import { useState } from "react"
+import { toast } from "sonner"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { Button } from "@/components/ui/button"
 import {
     Form,
     FormControl,
@@ -29,15 +14,20 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { SmartDatetimeInput } from "@/components/ui/smart-datetime-input"
+import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import {
-    Input
-} from "@/components/ui/input"
-import {
-    SmartDatetimeInput
-} from "@/components/ui/smart-datetime-input"
-import {
-    Switch
-} from "@/components/ui/switch"
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+import { FileDown } from "lucide-react"
 
 const formSchema = z.object({
     title: z.string().min(3, "Title must be at least 3 characters"),
@@ -47,15 +37,37 @@ const formSchema = z.object({
     isActive: z.boolean()
 });
 
-export type SelectionPeriodFormValues = z.infer<typeof formSchema>
+export type SelectionPeriodFormValues = z.infer<typeof formSchema> & {
+    questionIds: string[]
+}
+
+export interface QuestionOption {
+    id: string
+    questionText: string
+    kindDisplay: string
+    kindVariant: "secondary" | "outline"
+}
+
+export interface TemplateOption {
+    id: string
+    title: string
+    questionIds: string[]
+}
 
 export default function SelectionPeriodForm({
+    questions = [],
+    templates = [],
     initialValues,
     onSubmit,
 }: {
+    questions?: readonly QuestionOption[]
+    templates?: readonly TemplateOption[]
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(
+        new Set(initialValues?.questionIds ?? [])
+    )
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -68,9 +80,34 @@ export default function SelectionPeriodForm({
         },
     })
 
+    const toggleQuestion = (id: string) => {
+        setSelectedIds(prev => {
+            const newSet = new Set(prev)
+            if (newSet.has(id)) newSet.delete(id)
+            else newSet.add(id)
+            return newSet
+        })
+    }
+
+    const importTemplate = (templateId: string) => {
+        const template = templates.find(t => t.id === templateId)
+        if (template) {
+            setSelectedIds(prev => {
+                const newSet = new Set(prev)
+                for (const qId of template.questionIds) {
+                    newSet.add(qId)
+                }
+                return newSet
+            })
+        }
+    }
+
     async function handleSubmit(values: z.infer<typeof formSchema>) {
         try {
-            await onSubmit(values)
+            await onSubmit({
+                ...values,
+                questionIds: Array.from(selectedIds),
+            })
         } catch (error) {
             console.error("Form submission error", error);
             toast.error("Failed to submit the form. Please try again.");
@@ -79,7 +116,7 @@ export default function SelectionPeriodForm({
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8 max-w-3xl mx-auto py-10">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-w-3xl mx-auto max-h-[70vh] overflow-y-auto pr-2">
 
                 <div className="grid grid-cols-12 gap-4">
 
@@ -187,6 +224,81 @@ export default function SelectionPeriodForm({
                         </FormItem>
                     )}
                 />
+
+                {/* Questions Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base">Questions</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Select questions students will answer during this period.
+                                {selectedIds.size > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{selectedIds.size} selected</Badge>
+                                )}
+                            </p>
+                        </div>
+                        {templates.length > 0 && (
+                            <Select
+                                value={
+                                    // Only show template as selected if ALL its questions are checked
+                                    templates.find(t =>
+                                        t.questionIds.length > 0 &&
+                                        t.questionIds.every(qId => selectedIds.has(qId))
+                                    )?.id ?? ""
+                                }
+                                onValueChange={importTemplate}
+                            >
+                                <SelectTrigger className="w-[200px]">
+                                    <FileDown className="h-4 w-4 mr-2" />
+                                    <SelectValue placeholder="Import from template" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {templates.map((t) => (
+                                        <SelectItem key={t.id} value={t.id}>
+                                            {t.title} ({t.questionIds.length})
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
+
+                    <div className="h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
+                        {questions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-8 text-center">
+                                No questions available. Create some in the Questionnaires tab first.
+                            </p>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                {questions.map((q) => {
+                                    const isChecked = selectedIds.has(q.id)
+                                    return (
+                                        <label
+                                            key={q.id}
+                                            htmlFor={`sp-q-${q.id}`}
+                                            className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                        >
+                                            <Checkbox
+                                                id={`sp-q-${q.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleQuestion(q.id)}
+                                            />
+                                            <div className="flex-1 space-y-1">
+                                                <p className="text-sm font-medium leading-none line-clamp-2">
+                                                    {q.questionText}
+                                                </p>
+                                                <Badge variant={q.kindVariant} className="text-xs">
+                                                    {q.kindDisplay}
+                                                </Badge>
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 <Button type="submit">Submit</Button>
             </form>
         </Form>
