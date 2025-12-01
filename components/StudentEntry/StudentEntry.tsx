@@ -2,14 +2,9 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useSignals } from "@preact/signals-react/runtime"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const STUDENT_ID_LENGTH = 7
-const DIGITS_ONLY = /^[0-9]+$/
+import { useStudentEntryVM, type StudentEntryVM } from "./StudentEntryVM"
 
 // ============================================================================
 // TYPES
@@ -26,7 +21,7 @@ export interface StudentEntryActions {
 }
 
 // ============================================================================
-// CONTEXT
+// CONTEXT (for child components)
 // ============================================================================
 
 const StudentEntryContext = React.createContext<
@@ -50,41 +45,31 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
+  useSignals()
   const router = useRouter()
-  const [value, setValue] = React.useState("")
-  const [prevValue, setPrevValue] = React.useState("")
-  
-  const isComplete = value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
-  
-  // Handle completion during render (no useEffect needed)
-  if (isComplete && value !== prevValue) {
-    setPrevValue(value)
-    localStorage.setItem("studentId", value)
-    router.push("/student/select")
-  }
-  
-  const handleComplete = React.useCallback(() => {
-    if (isComplete) {
-      localStorage.setItem("studentId", value)
+
+  // Create the View Model
+  const vm = useStudentEntryVM({
+    onComplete: (studentId: string) => {
       router.push("/student/select")
-    }
-  }, [isComplete, value, router])
-  
-  const setDigitsOnly = React.useCallback((v: string) => {
-    const digits = v.replace(/\D/g, "")
-    setValue(digits)
-  }, [])
-  
+    },
+  })
+
+  // Read reactive values directly from signals
+  const value = vm.value$.value
+  const isComplete = vm.isComplete$.value
+
+  // Create context value that matches the old API for child components
   const contextValue = React.useMemo(
     () => ({
       value,
       isComplete,
-      setValue: setDigitsOnly,
-      handleComplete,
+      setValue: vm.setValue,
+      handleComplete: vm.handleComplete,
     }),
-    [value, isComplete, setDigitsOnly, handleComplete]
+    [value, isComplete, vm.setValue, vm.handleComplete]
   )
-  
+
   return (
     <StudentEntryContext.Provider value={contextValue}>
       {children}
@@ -125,17 +110,17 @@ export const HelpText: React.FC = () => (
 
 export const StudentIdInput: React.FC = () => {
   const { value, setValue } = useStudentEntry()
-  
+
   return (
     <InputOTP
-      maxLength={STUDENT_ID_LENGTH}
+      maxLength={7}
       value={value}
       onChange={setValue}
       containerClassName="justify-center"
       className="text-2xl sm:text-3xl"
     >
       <InputOTPGroup>
-        {Array.from({ length: STUDENT_ID_LENGTH }).map((_, i) => (
+        {Array.from({ length: 7 }).map((_, i) => (
           <InputOTPSlot key={i} index={i} />
         ))}
       </InputOTPGroup>

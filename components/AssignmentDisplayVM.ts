@@ -1,0 +1,250 @@
+"use client"
+import { signal, computed, ReadonlySignal } from "@preact/signals-react"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
+
+// ============================================================================
+// View Model Types
+// ============================================================================
+
+export interface StudentItemVM {
+  readonly key: string
+  readonly studentIdDisplay: string
+  readonly isCurrentUser: boolean
+  readonly rankDisplay: string | null
+  readonly rankBadgeVariant: "default" | "outline"
+}
+
+export interface TopicAssignmentVM {
+  readonly key: string
+  readonly title: string
+  readonly studentCount: number
+  readonly studentCountDisplay: string
+  readonly isUserAssigned: boolean
+  readonly students: readonly StudentItemVM[]
+  readonly hasMoreStudents: boolean
+  readonly moreStudentsDisplay: string | null
+}
+
+export interface MyAssignmentVM {
+  readonly topicTitle: string
+  readonly topicDescription: string | null
+  readonly wasTopChoice: boolean
+  readonly wasPreference: boolean
+  readonly iconType: "trophy" | "award" | "users"
+  readonly iconColorClass: string
+  readonly badgeText: string | null
+  readonly badgeVariant: "default" | "secondary" | "outline"
+  readonly badgeIcon: "trophy" | "hash" | "none"
+}
+
+export interface StatsVM {
+  readonly totalAssigned: number
+  readonly matchedCount: number
+  readonly alternativeCount: number
+  readonly matchRate: string
+  readonly topChoiceRate: string
+}
+
+export interface AssignmentDisplayVM {
+  readonly assignments$: ReadonlySignal<readonly TopicAssignmentVM[]>
+  readonly myAssignment$: ReadonlySignal<MyAssignmentVM | null>
+  readonly stats$: ReadonlySignal<StatsVM | null>
+  readonly isLoading$: ReadonlySignal<boolean>
+  readonly isEmpty$: ReadonlySignal<boolean>
+  readonly showExportButton$: ReadonlySignal<boolean>
+  readonly exportToCSV: () => void
+}
+
+// ============================================================================
+// Hook - uses Convex as reactive primitive directly
+// ============================================================================
+
+export function useAssignmentDisplayVM(
+  periodId: Id<"selectionPeriods"> | undefined,
+  studentId?: string
+): AssignmentDisplayVM {
+  // Convex queries - already reactive!
+  const assignments = useQuery(
+    api.assignments.getAssignments,
+    periodId ? { periodId } : "skip"
+  )
+
+  const myAssignment = useQuery(
+    api.assignments.getMyAssignment,
+    periodId && studentId ? { periodId, studentId } : "skip"
+  )
+
+  const stats = useQuery(
+    api.assignments.getAssignmentStats,
+    periodId ? { periodId } : "skip"
+  )
+
+  const exportData = useQuery(
+    api.assignments.getAllAssignmentsForExport,
+    periodId ? { periodId } : "skip"
+  )
+
+  // Loading state
+  const isLoading$ = computed(() =>
+    assignments === undefined ||
+    (studentId && myAssignment === undefined) ||
+    stats === undefined
+  )
+
+  // Empty state
+  const isEmpty$ = computed(() =>
+    !isLoading$.value &&
+    (!assignments || Object.keys(assignments).length === 0)
+  )
+
+  // Show export button only for admins (no studentId)
+  const showExportButton$ = computed(() => !studentId)
+
+  // Computed: my assignment with pre-formatted display data
+  const myAssignment$ = computed((): MyAssignmentVM | null => {
+    if (!myAssignment) return null
+
+    const wasTopChoice = myAssignment.wasTopChoice
+    const wasPreference = myAssignment.wasPreference
+
+    let iconType: "trophy" | "award" | "users"
+    let iconColorClass: string
+    let badgeText: string | null
+    let badgeVariant: "default" | "secondary" | "outline"
+    let badgeIcon: "trophy" | "hash" | "none"
+
+    if (wasTopChoice) {
+      iconType = "trophy"
+      iconColorClass = "p-2 bg-yellow-100 rounded-full"
+      badgeText = "Your top choice!"
+      badgeVariant = "default"
+      badgeIcon = "trophy"
+    } else if (wasPreference) {
+      iconType = "award"
+      iconColorClass = "p-2 bg-blue-100 rounded-full"
+      badgeText = `Rank ${myAssignment.assignment.originalRank}`
+      badgeVariant = "secondary"
+      badgeIcon = "hash"
+    } else {
+      iconType = "users"
+      iconColorClass = "p-2 bg-gray-100 rounded-full"
+      badgeText = "Randomly Assigned"
+      badgeVariant = "outline"
+      badgeIcon = "none"
+    }
+
+    return {
+      topicTitle: myAssignment.topic?.title ?? "Unknown Topic",
+      topicDescription: myAssignment.topic?.description ?? null,
+      wasTopChoice,
+      wasPreference,
+      iconType,
+      iconColorClass,
+      badgeText,
+      badgeVariant,
+      badgeIcon,
+    }
+  })
+
+  // Computed: stats with pre-formatted display data
+  const stats$ = computed((): StatsVM | null => {
+    if (!stats) return null
+
+    const matchRate = stats.totalAssignments > 0
+      ? Math.round((stats.matchedPreferences / stats.totalAssignments) * 100)
+      : 0
+
+    const topChoiceRate = stats.totalAssignments > 0
+      ? Math.round((stats.topChoices / stats.totalAssignments) * 100)
+      : 0
+
+    return {
+      totalAssigned: stats.totalAssignments,
+      matchedCount: stats.matchedPreferences,
+      alternativeCount: stats.topChoices,
+      matchRate: `${matchRate}%`,
+      topChoiceRate: `${topChoiceRate}%`,
+    }
+  })
+
+  // Computed: assignments list with pre-formatted display data
+  const assignments$ = computed((): readonly TopicAssignmentVM[] => {
+    if (!assignments) return []
+
+    const topicEntries = Object.entries(assignments).sort(
+      ([, a], [, b]) => (b as any).students.length - (a as any).students.length
+    )
+
+    return topicEntries.map(([topicId, data]): TopicAssignmentVM => {
+      const topicData = data as any
+      const isUserAssigned = myAssignment?.topic?._id === topicId
+      const studentCount = topicData.students.length
+      const hasMoreStudents = studentCount > 4
+      const displayedStudents = topicData.students.slice(0, 4)
+
+      const students: StudentItemVM[] = displayedStudents.map((student: any): StudentItemVM => {
+        const isCurrentUser = student.studentId === studentId
+        const hasRank = student.originalRank != null
+
+        return {
+          key: student.studentId,
+          studentIdDisplay: isCurrentUser ? `${student.studentId} (You)` : student.studentId,
+          isCurrentUser,
+          rankDisplay: hasRank ? `#${student.originalRank}` : null,
+          rankBadgeVariant: student.originalRank === 1 ? "default" : "outline",
+        }
+      })
+
+      const moreCount = studentCount - 4
+      const moreStudentsDisplay = hasMoreStudents
+        ? `+${moreCount} more student${moreCount !== 1 ? 's' : ''}`
+        : null
+
+      return {
+        key: topicId,
+        title: topicData.topic?.title ?? "Unknown Topic",
+        studentCount,
+        studentCountDisplay: `${studentCount} student${studentCount !== 1 ? 's' : ''}`,
+        isUserAssigned,
+        students,
+        hasMoreStudents,
+        moreStudentsDisplay,
+      }
+    })
+  })
+
+  // Export to CSV action
+  const exportToCSV = (): void => {
+    if (!exportData) return
+
+    const headers = ['student_id', 'assigned_topic']
+    const csvContent = [
+      headers.join(','),
+      ...exportData.map(row =>
+        `"${row.student_id}","${row.assigned_topic.replace(/"/g, '""')}"`
+      )
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `assignments_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  return {
+    assignments$,
+    myAssignment$,
+    stats$,
+    isLoading$,
+    isEmpty$,
+    showExportButton$,
+    exportToCSV,
+  }
+}

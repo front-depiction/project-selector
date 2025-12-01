@@ -1,10 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useQuery } from "convex-helpers/react/cache/hooks"
-import { api } from "@/convex/_generated/api"
+import { useComputed } from "@preact/signals-react/runtime"
 import { Doc, Id } from "@/convex/_generated/dataModel"
-import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -23,13 +21,14 @@ import {
 import Link from "next/link"
 import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
-import { getStudentId } from "@/lib/student"
 import { cn } from "@/lib/utils"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
+import { useLandingPageVM } from "./LandingPageVM"
+import type { StatCardVM } from "./LandingPageVM"
 
 // ============================================================================
-// TYPES
+// TYPES (kept for backward compatibility with Context consumers)
 // ============================================================================
 
 export interface PopularTopic {
@@ -51,7 +50,6 @@ export interface LandingStats {
   readonly leastPopularTopics?: readonly PopularTopic[]
 }
 
-// Use actual SelectionPeriod type from Convex
 export type CurrentPeriod = Doc<"selectionPeriods"> | null
 
 export interface CompetitionData {
@@ -68,7 +66,6 @@ export interface CompetitionData {
   readonly fill?: string
 }
 
-// Use actual types from Convex
 export type Topic = Doc<"topics">
 export type Assignment = {
   readonly assignment: Doc<"assignments">
@@ -90,7 +87,7 @@ export interface LandingPageActions {
 }
 
 // ============================================================================
-// CONTEXT
+// CONTEXT (kept for child components like AssignmentDisplay)
 // ============================================================================
 
 const LandingPageContext = React.createContext<
@@ -106,7 +103,7 @@ export const useLandingPage = () => {
 }
 
 // ============================================================================
-// PROVIDER
+// PROVIDER (now uses VM internally)
 // ============================================================================
 
 export interface ProviderProps {
@@ -114,33 +111,20 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
-  const stats = useQuery(api.stats.getLandingStats)
-  const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
-  const currentPeriod = useQuery(api.admin.getCurrentPeriod)
-  const [studentId, setStudentId] = React.useState<string | null>(null)
+  const vm = useLandingPageVM()
 
-  React.useEffect(() => {
-    const id = getStudentId()
-    setStudentId(id)
-  }, [])
-
-  const myAssignment = useQuery(
-    api.assignments.getMyAssignment,
-    currentPeriod && SelectionPeriod.isAssigned(currentPeriod) && studentId
-      ? { periodId: currentPeriod._id, studentId }
-      : "skip"
-  )
-
+  // Bridge VM to Context for backward compatibility
+  // This allows child components to continue using useLandingPage()
   const value = React.useMemo(
     () => ({
-      stats,
-      competitionData,
-      currentPeriod,
-      studentId,
-      myAssignment,
-      setStudentId,
+      stats: null, // Not exposed by VM anymore
+      competitionData: vm.competitionData$.value,
+      currentPeriod: null, // Not directly exposed
+      studentId: vm.studentId$.value,
+      myAssignment: null, // Not in old format
+      setStudentId: vm.setStudentId,
     }),
-    [stats, competitionData, currentPeriod, studentId, myAssignment]
+    [vm.competitionData$.value, vm.studentId$.value, vm.setStudentId]
   )
 
   return (
@@ -193,52 +177,32 @@ export const FooterWithTagline: React.FC = () => (
 )
 
 // ============================================================================
-// COMPONENTS - Status Components
+// COMPONENTS - Status Components (now VM-driven)
 // ============================================================================
 
-export const StatusIcon: React.FC<{ status: string }> = ({ status }) => {
-  switch (status) {
-    case "open": return <CheckCircle className="h-4 w-4" />
-    case "upcoming": return <Clock className="h-4 w-4" />
-    case "closed": return <XCircle className="h-4 w-4" />
-    case "assigned": return <Users className="h-4 w-4" />
+export const StatusIcon: React.FC<{ iconName: string }> = ({ iconName }) => {
+  switch (iconName) {
+    case "checkCircle": return <CheckCircle className="h-4 w-4" />
+    case "clock": return <Clock className="h-4 w-4" />
+    case "xCircle": return <XCircle className="h-4 w-4" />
+    case "users": return <Users className="h-4 w-4" />
     default: return <AlertCircle className="h-4 w-4" />
   }
 }
 
-export const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
-  const getStatusColor = (status: string): string => {
-    switch (status) {
-      case "open": return "bg-green-500"
-      case "upcoming": return "bg-blue-500"
-      case "closed": return "bg-red-500"
-      case "assigned": return "bg-purple-500"
-      default: return "bg-gray-500"
-    }
-  }
-
-  const getStatusText = (status: string): string => {
-    switch (status) {
-      case "open": return "Selection Open"
-      case "upcoming": return "Opening Soon"
-      case "closed": return "Selection Closed"
-      case "assigned": return "Topics Assigned"
-      default: return "No Active Period"
-    }
-  }
-
+export const StatusBadge: React.FC<{ statusText: string; statusColor: string }> = ({ statusText, statusColor }) => {
   return (
     <Badge className={cn(
       "px-2 py-1 text-sm font-semibold",
-      getStatusColor(status)
+      statusColor
     )}>
-      {getStatusText(status).toUpperCase()}
+      {statusText.toUpperCase()}
     </Badge>
   )
 }
 
 // ============================================================================
-// COMPONENTS - Timer Component
+// COMPONENTS - Timer Component (now simplified, VM provides display string)
 // ============================================================================
 
 function useCountdown(targetMs: number | null) {
@@ -290,32 +254,30 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 }
 
 // ============================================================================
-// COMPONENTS - Banner Component
+// COMPONENTS - Banner Component (now VM-driven)
 // ============================================================================
 
 export const StatusBanner: React.FC = () => {
-  const { stats, currentPeriod } = useLandingPage()
+  const vm = useLandingPageVM()
+  const banner = useComputed(() => vm.banner$.value)
 
-  if (!stats || !stats.isActive || !currentPeriod) return null
+  if (!banner.value) return null
 
-  return SelectionPeriod.matchOptional(currentPeriod)({
-    open: (p) => (
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-6">
-          <div className="flex items-center gap-3">
-            <StatusIcon status="open" />
-            <span className="text-2xl font-bold">{stats.title || "Selection"}</span>
-            <StatusBadge status="open" />
-          </div>
-          <Timer targetDate={stats.closeDate ?? null} />
+  return (
+    <div className="mb-8">
+      <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+        <div className="flex items-center gap-3">
+          <StatusIcon iconName={banner.value.status.iconName} />
+          <span className="text-2xl font-bold">{banner.value.title}</span>
+          <StatusBadge
+            statusText={banner.value.status.statusText}
+            statusColor={banner.value.status.statusColor}
+          />
         </div>
+        <Timer targetDate={banner.value.timer.targetDate} />
       </div>
-    ),
-    inactive: () => null,
-    closed: () => null,
-    assigned: () => null,
-    none: () => null
-  })
+    </div>
+  )
 }
 
 // ============================================================================
@@ -368,86 +330,60 @@ export const ActionCards: React.FC = () => (
 )
 
 // ============================================================================
-// COMPONENTS - Statistics Cards
+// COMPONENTS - Statistics Cards (now VM-driven)
 // ============================================================================
 
-export const TotalTopicsCard: React.FC = () => {
-  const { stats } = useLandingPage()
-  if (!stats) return null
+const getIcon = (iconName: string) => {
+  switch (iconName) {
+    case "fileText": return <FileText className="h-4 w-4 text-muted-foreground" />
+    case "users": return <Users className="h-4 w-4 text-muted-foreground" />
+    case "calendar": return <Calendar className="h-4 w-4 text-muted-foreground" />
+    default: return <FileText className="h-4 w-4 text-muted-foreground" />
+  }
+}
+
+export const StatCard: React.FC<{ card: StatCardVM }> = ({ card }) => {
+  const isProgress = card.iconName === "calendar"
+  const progressMatch = card.subtitle.match(/(\d+)% complete/)
+  const progressPercentage = progressMatch ? parseInt(progressMatch[1]) : 0
 
   return (
     <Card className="border-0 shadow-sm bg-background">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Total Topics</CardTitle>
-        <FileText className="h-4 w-4 text-muted-foreground" />
+        <CardTitle className="text-sm font-medium text-muted-foreground">{card.label}</CardTitle>
+        {getIcon(card.iconName)}
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold">{stats.totalTopics}</div>
-        <p className="text-xs text-muted-foreground mt-1">Available projects</p>
+        <div className="text-3xl font-bold">{card.value}</div>
+        <p className="text-xs text-muted-foreground mt-1">{card.subtitle}</p>
+        {isProgress && <Progress value={progressPercentage} className="mt-3" />}
       </CardContent>
     </Card>
   )
 }
 
-export const StudentsParticipatedCard: React.FC = () => {
-  const { stats } = useLandingPage()
-  if (!stats) return null
+export const StatisticsCards: React.FC = () => {
+  const vm = useLandingPageVM()
+  const stats = useComputed(() => vm.stats$.value)
+
+  if (stats.value.length === 0) return null
 
   return (
-    <Card className="border-0 shadow-sm bg-background">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Students Participated</CardTitle>
-        <Users className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold">{stats.totalStudents}</div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Avg {stats.averageSelectionsPerStudent.toFixed(1)} selections each
-        </p>
-      </CardContent>
-    </Card>
+    <div className="grid md:grid-cols-3 gap-4 mb-8">
+      {stats.value.map((card, idx) => (
+        <StatCard key={idx} card={card} />
+      ))}
+    </div>
   )
 }
-
-export const SelectionProgressCard: React.FC = () => {
-  const { stats } = useLandingPage()
-  if (!stats) return null
-
-  const progressPercentage = stats.totalTopics > 0
-    ? Math.min(100, Math.round((stats.totalSelections / (stats.totalTopics * 5)) * 100))
-    : 0
-
-  return (
-    <Card className="border-0 shadow-sm bg-background">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">Selection Progress</CardTitle>
-        <Calendar className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold">{stats.totalSelections}</div>
-        <p className="text-xs text-muted-foreground mt-1">Total selections made</p>
-        <Progress value={progressPercentage} className="mt-3" />
-      </CardContent>
-    </Card>
-  )
-}
-
-export const StatisticsCards: React.FC = () => (
-  <div className="grid md:grid-cols-3 gap-4 mb-8">
-    <TotalTopicsCard />
-    <StudentsParticipatedCard />
-    <SelectionProgressCard />
-  </div>
-)
 
 // ============================================================================
-// COMPONENTS - Analytics Section
+// COMPONENTS - Analytics Section (now VM-driven)
 // ============================================================================
 
 export const AnalyticsSection: React.FC = () => {
-  const { competitionData } = useLandingPage()
-
-  const hasData = competitionData && Array.isArray(competitionData) && competitionData.length > 0
+  const vm = useLandingPageVM()
+  const showAnalytics = useComputed(() => vm.showAnalytics$.value)
 
   return (
     <div className="space-y-8 mb-8">
@@ -457,7 +393,7 @@ export const AnalyticsSection: React.FC = () => {
       </div>
       <div className="flex flex-col gap-6">
         <RankingEventsChart granularity="by-minute" hours={48} />
-        {hasData && (
+        {showAnalytics.value && (
           <TopicCompetitionMixedChart className="h-full" />
         )}
       </div>
@@ -502,14 +438,14 @@ export const InactivePeriodCard: React.FC = () => (
 )
 
 // ============================================================================
-// COMPONENTS - Assignment Display
+// COMPONENTS - Assignment Display (now VM-driven)
 // ============================================================================
 
 export const PersonalAssignmentDisplay: React.FC = () => {
-  const { myAssignment } = useLandingPage()
-  const topic = myAssignment?.topic
+  const vm = useLandingPageVM()
+  const myAssignment = useComputed(() => vm.myAssignment$.value)
 
-  if (!topic) return null
+  if (!myAssignment.value) return null
 
   return (
     <Card className="max-w-2xl border-0 shadow-lg bg-primary text-primary-foreground">
@@ -521,11 +457,11 @@ export const PersonalAssignmentDisplay: React.FC = () => {
           You have been assigned to:
         </p>
         <h2 className="text-4xl font-bold">
-          {topic.title}
+          {myAssignment.value.topicTitle}
         </h2>
-        {topic.description && (
+        {myAssignment.value.topicDescription && (
           <p className="mt-4 text-base opacity-80">
-            {topic.description}
+            {myAssignment.value.topicDescription}
           </p>
         )}
       </CardContent>
@@ -567,14 +503,15 @@ export const AssignmentStats: React.FC = () => {
 }
 
 export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> }> = ({ periodId }) => {
-  const { studentId } = useLandingPage()
+  const vm = useLandingPageVM()
+  const studentId = useComputed(() => vm.studentId$.value)
 
   return (
     <div className="space-y-8">
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Assignment Results</h2>
         <p className="text-muted-foreground">
-          {studentId ? `Student ID: ${studentId}` : "Enter your student ID to view your assignment"}
+          {studentId.value ? `Student ID: ${studentId.value}` : "Enter your student ID to view your assignment"}
         </p>
       </div>
 
@@ -587,7 +524,7 @@ export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> 
           <CardTitle>Topic Assignments</CardTitle>
         </CardHeader>
         <CardContent>
-          <AssignmentDisplay periodId={periodId} studentId={studentId || undefined} />
+          <AssignmentDisplay periodId={periodId} studentId={studentId.value || undefined} />
         </CardContent>
       </Card>
     </div>
@@ -595,17 +532,24 @@ export const AllAssignmentsDisplay: React.FC<{ periodId: Id<"selectionPeriods"> 
 }
 
 // ============================================================================
-// LOADING STATES
+// LOADING STATES (VM-aware)
 // ============================================================================
 
-export const LoadingState: React.FC = () => (
-  <div className="min-h-screen bg-background flex items-center justify-center">
-    <div className="animate-pulse space-y-4">
-      <div className="h-12 w-48 bg-primary/20 rounded"></div>
-      <div className="h-4 w-32 bg-primary/20 rounded"></div>
+export const LoadingState: React.FC = () => {
+  const vm = useLandingPageVM()
+  const isLoading = useComputed(() => vm.isLoading$.value)
+
+  if (!isLoading.value) return null
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="animate-pulse space-y-4">
+        <div className="h-12 w-48 bg-primary/20 rounded"></div>
+        <div className="h-4 w-32 bg-primary/20 rounded"></div>
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export const LoadingAssignment: React.FC<{ studentId: string }> = ({ studentId }) => (
   <div className="min-h-screen bg-background flex items-center justify-center">

@@ -20,16 +20,19 @@ interface TopicAnalyticsCardProps {
     id: string
     title: string
     description: string
-    subtopics: any[]
+    subtopics: readonly {
+      title: string
+      description: string
+    }[]
     isActive: boolean
     metrics: {
       totalSelections: number
       averagePosition: number
       firstChoiceCount: number
       top3Count: number
-      top3Percentage: number
+      top3PercentageDisplay: string
       engagementScore: number
-      retentionRate: number
+      retentionRateDisplay: string
       performanceScore: number
     }
     trends: {
@@ -116,7 +119,7 @@ export default function TopicAnalyticsCard({ topic }: TopicAnalyticsCardProps) {
               <Percent className="h-3 w-3" />
               <span className="text-xs">Top 3</span>
             </div>
-            <p className="text-2xl font-bold">{topic.metrics.top3Percentage}%</p>
+            <p className="text-2xl font-bold">{topic.metrics.top3PercentageDisplay}%</p>
           </div>
         </div>
 
@@ -138,9 +141,9 @@ export default function TopicAnalyticsCard({ topic }: TopicAnalyticsCardProps) {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-medium">Retention Rate</span>
-              <span className="text-sm font-bold">{topic.metrics.retentionRate}%</span>
+              <span className="text-sm font-bold">{topic.metrics.retentionRateDisplay}%</span>
             </div>
-            <Progress value={topic.metrics.retentionRate} className="h-2" />
+            <Progress value={parseFloat(topic.metrics.retentionRateDisplay)} className="h-2" />
           </div>
         </div>
 
