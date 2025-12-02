@@ -16,6 +16,7 @@ import {
 
 /**
  * Seeds test data for development.
+ * Includes topics (some with allow-list restrictions) and sample allow-list entries.
  * 
  * @category Mutations
  * @since 0.1.0
@@ -37,6 +38,36 @@ export const seedTestData = mutation({
       insertTestPreferences(ctx, students, semesterId),
       createTestRankings(ctx, students, semesterId)
     ])
+
+    // Seed sample allow-list entries for testing
+    const identity = await ctx.auth.getUserIdentity()
+    const addedBy = identity?.email ?? "system"
+    const sampleEmails = [
+      "student1@university.edu",
+      "student2@university.edu",
+      "test@example.com",
+      "demo@test.com",
+      "allowed@student.edu"
+    ]
+
+    // Add emails to allow-list (skip if already exists)
+    for (const email of sampleEmails) {
+      const normalizedEmail = email.toLowerCase().trim()
+      const existing = await ctx.db
+        .query("allowList")
+        .withIndex("by_email", (q) => q.eq("email", normalizedEmail))
+        .first()
+
+      if (!existing) {
+        await ctx.db.insert("allowList", {
+          email: normalizedEmail,
+          note: "Sample test email for allow-list testing",
+          addedAt: Date.now(),
+          addedBy,
+        })
+      }
+    }
+
     return preferenceIds
   }
 })
@@ -52,7 +83,8 @@ export const createTopic = mutation({
     title: v.string(),
     description: v.string(),
     semesterId: v.string(),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    requiresAllowList: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("topics", Topic.make({
@@ -60,7 +92,8 @@ export const createTopic = mutation({
       description: args.description,
       semesterId: args.semesterId,
       isActive: true,
-      subtopicIds: args.subtopicIds?.map(id => id as string)
+      subtopicIds: args.subtopicIds?.map(id => id as string),
+      requiresAllowList: args.requiresAllowList
     }))
     return id
   }
@@ -78,7 +111,8 @@ export const updateTopic = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    requiresAllowList: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     await ctx.db.get(args.id).then(maybeTopic =>
@@ -90,6 +124,7 @@ export const updateTopic = mutation({
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
     if (args.subtopicIds !== undefined) updates.subtopicIds = args.subtopicIds
+    if (args.requiresAllowList !== undefined) updates.requiresAllowList = args.requiresAllowList
 
     await ctx.db.patch(args.id, updates)
   }

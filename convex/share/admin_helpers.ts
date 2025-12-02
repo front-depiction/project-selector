@@ -11,47 +11,60 @@ import { createRankingEventsAndUpdateAggregate } from "./rankings"
 
 /**
  * Sample topics for seeding test data.
+ * Some topics require allow-list access (marked with requiresAllowList: true).
  */
 export const TOPICDATA = [
+  // Regular topics (no allow-list required)
   {
     title: "Machine Learning Recommendation System",
-    description: "Build a recommendation system using collaborative filtering and deep learning techniques"
-  },
-  {
-    title: "Blockchain Smart Contracts",
-    description: "Develop and deploy smart contracts on Ethereum for decentralized applications"
+    description: "Build a recommendation system using collaborative filtering and deep learning techniques",
+    requiresAllowList: false
   },
   {
     title: "Mobile AR Gaming Application",
-    description: "Create an augmented reality mobile game using Unity and ARCore/ARKit"
+    description: "Create an augmented reality mobile game using Unity and ARCore/ARKit",
+    requiresAllowList: false
   },
   {
     title: "Cloud-Native Microservices",
-    description: "Design and implement a microservices architecture using Kubernetes and service mesh"
+    description: "Design and implement a microservices architecture using Kubernetes and service mesh",
+    requiresAllowList: false
   },
   {
     title: "Natural Language Processing Chatbot",
-    description: "Build an intelligent chatbot using transformer models and conversational AI"
-  },
-  {
-    title: "Computer Vision for Medical Imaging",
-    description: "Apply deep learning to medical image analysis for disease detection"
+    description: "Build an intelligent chatbot using transformer models and conversational AI",
+    requiresAllowList: false
   },
   {
     title: "IoT Smart Home System",
-    description: "Develop an integrated IoT system for home automation and monitoring"
-  },
-  {
-    title: "Quantum Computing Algorithms",
-    description: "Implement quantum algorithms and explore quantum supremacy applications"
+    description: "Develop an integrated IoT system for home automation and monitoring",
+    requiresAllowList: false
   },
   {
     title: "Cybersecurity Threat Detection",
-    description: "Build an AI-powered system for detecting and preventing cyber threats"
+    description: "Build an AI-powered system for detecting and preventing cyber threats",
+    requiresAllowList: false
   },
   {
     title: "Data Visualization Dashboard",
-    description: "Create interactive data visualization tools for business intelligence"
+    description: "Create interactive data visualization tools for business intelligence",
+    requiresAllowList: false
+  },
+  // Restricted topics (require allow-list)
+  {
+    title: "Blockchain Smart Contracts",
+    description: "Develop and deploy smart contracts on Ethereum for decentralized applications [RESTRICTED]",
+    requiresAllowList: true
+  },
+  {
+    title: "Computer Vision for Medical Imaging",
+    description: "Apply deep learning to medical image analysis for disease detection [RESTRICTED]",
+    requiresAllowList: true
+  },
+  {
+    title: "Quantum Computing Algorithms",
+    description: "Implement quantum algorithms and explore quantum supremacy applications [RESTRICTED]",
+    requiresAllowList: true
   }
 ] as const
 
@@ -96,9 +109,11 @@ export const createTestTopics = (ctx: MutationCtx, semesterId: string) =>
   pipe(
     TOPICDATA,
     Array.map(data => Topic.make({
-      ...data,
+      title: data.title,
+      description: data.description,
       semesterId,
-      isActive: true
+      isActive: true,
+      requiresAllowList: data.requiresAllowList ?? false
     })),
     topics => Promise.all(topics.map(topic => ctx.db.insert("topics", topic)))
   )
@@ -172,4 +187,5 @@ export const deleteAllFromTable = <T extends keyof DataModel>(
 export const cancelAllScheduled = (ctx: MutationCtx) =>
   ctx.db.system.query("_scheduled_functions").collect()
     .then(Array.map(fn => ctx.scheduler.cancel(fn._id)))
+    .then(ps => Promise.all(ps))
     .then(ps => Promise.all(ps))
