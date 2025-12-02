@@ -1,4 +1,4 @@
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
+import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import * as Option from "effect/Option"
 
 // ============================================================================
@@ -105,11 +105,15 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
     const digits = newValue.replace(/\D/g, "")
 
     if (digits.length > STUDENT_ID_LENGTH) {
-      errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
-      value$.value = digits.slice(0, STUDENT_ID_LENGTH)
+      batch(() => {
+        errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
+        value$.value = digits.slice(0, STUDENT_ID_LENGTH)
+      })
     } else {
-      errorMessage$.value = Option.none()
-      value$.value = digits
+      batch(() => {
+        errorMessage$.value = Option.none()
+        value$.value = digits
+      })
     }
 
     // Auto-complete when valid
@@ -133,8 +137,10 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
   const handleBackspace = (): void => {
     const currentValue = value$.value
     if (currentValue.length > 0) {
-      value$.value = currentValue.slice(0, -1)
-      errorMessage$.value = Option.none()
+      batch(() => {
+        value$.value = currentValue.slice(0, -1)
+        errorMessage$.value = Option.none()
+      })
     }
   }
 

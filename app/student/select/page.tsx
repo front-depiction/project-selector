@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
-import { signal } from "@preact/signals-react"
+import { signal, batch } from "@preact/signals-react"
 import { createStudentSelectionPageVM } from "@/components/StudentSelection/StudentSelectionPageVM"
 import { StudentSelectionPage } from "@/components/StudentSelection/StudentSelectionPage"
 
@@ -73,12 +73,14 @@ export default function SelectTopics() {
     hasCompletedQuestionnaire$: signal(hasCompletedQuestionnaire)
   }), [])
 
-  // Update signal values when data changes
-  dataSignals.topics$.value = topics
-  dataSignals.preferences$.value = preferences
-  dataSignals.currentPeriod$.value = currentPeriod
-  dataSignals.periodQuestions$.value = periodQuestions
-  dataSignals.hasCompletedQuestionnaire$.value = hasCompletedQuestionnaire
+  // Update signal values when data changes (batched to avoid render issues)
+  batch(() => {
+    dataSignals.topics$.value = topics
+    dataSignals.preferences$.value = preferences
+    dataSignals.currentPeriod$.value = currentPeriod
+    dataSignals.periodQuestions$.value = periodQuestions
+    dataSignals.hasCompletedQuestionnaire$.value = hasCompletedQuestionnaire
+  })
 
   // Create VM using factory - created once
   const vm = useMemo(
