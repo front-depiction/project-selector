@@ -398,13 +398,19 @@ function SelectTopicsContent() {
 
   if (topics.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-6">
+        <Alert className="max-w-md">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             No topics are available for selection at this time.
           </AlertDescription>
         </Alert>
+        <Link href="/">
+          <Button variant="outline">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Home
+          </Button>
+        </Link>
       </div>
     )
   }

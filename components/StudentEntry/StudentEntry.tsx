@@ -52,16 +52,16 @@ export interface ProviderProps {
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const router = useRouter()
   const [value, setValue] = React.useState("")
-  const [prevValue, setPrevValue] = React.useState("")
   
   const isComplete = value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
   
-  // Handle completion during render (no useEffect needed)
-  if (isComplete && value !== prevValue) {
-    setPrevValue(value)
-    localStorage.setItem("studentId", value)
-    router.push("/student/select")
-  }
+  // Handle auto-redirect when student ID is complete
+  React.useEffect(() => {
+    if (isComplete) {
+      localStorage.setItem("studentId", value)
+      router.push("/student/select")
+    }
+  }, [isComplete, value, router])
   
   const handleComplete = React.useCallback(() => {
     if (isComplete) {
