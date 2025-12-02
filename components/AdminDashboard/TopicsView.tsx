@@ -31,11 +31,24 @@ export const TopicsView: React.FC = () => {
   const [subtopicForm, setSubtopicForm] = React.useState({ title: "", description: "" })
 
   // Format periods for the form
+  // Deduplicate by semesterId to avoid duplicate keys, keeping the most recent period for each semesterId
   const periodOptions = React.useMemo(() => {
-    return periods?.map(p => ({
+    if (!periods) return []
+    
+    // Group by semesterId and keep the most recent one (by openDate)
+    const uniqueBySemester = new Map<string, typeof periods[0]>()
+    for (const period of periods) {
+      const existing = uniqueBySemester.get(period.semesterId)
+      if (!existing || period.openDate > existing.openDate) {
+        uniqueBySemester.set(period.semesterId, period)
+      }
+    }
+    
+    return Array.from(uniqueBySemester.values()).map(p => ({
       value: p.semesterId,
-      label: p.title
-    })) || []
+      label: p.title,
+      id: p._id // Include _id for unique key if needed
+    }))
   }, [periods])
 
   // For subtopics, we'll need to add these to the dashboard context later
@@ -49,21 +62,23 @@ export const TopicsView: React.FC = () => {
     console.log("Deleting subtopic:", id)
   }, [])
 
-  const handleCreateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
+  const handleCreateTopic = async (values: { title: string; description: string; selection_period_id: string; requiresAllowList?: boolean }) => {
     await createTopic({
       title: values.title,
       description: values.description,
-      semesterId: values.selection_period_id || "2024-spring"
+      semesterId: values.selection_period_id || "2024-spring",
+      requiresAllowList: values.requiresAllowList ?? false
     })
     setIsCreateTopicOpen(false)
   }
 
-  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string }) => {
+  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string; requiresAllowList?: boolean }) => {
     if (!editingTopic) return
     await updateTopic(editingTopic._id, {
       title: values.title,
       description: values.description,
-      semesterId: values.selection_period_id
+      semesterId: values.selection_period_id,
+      requiresAllowList: values.requiresAllowList
     })
     setEditingTopic(null)
   }
@@ -160,7 +175,8 @@ export const TopicsView: React.FC = () => {
               initialValues={{
                 title: editingTopic.title,
                 description: editingTopic.description,
-                selection_period_id: editingTopic.semesterId
+                selection_period_id: editingTopic.semesterId,
+                requiresAllowList: editingTopic.requiresAllowList ?? false
               }}
               onSubmit={handleUpdateTopic}
             />

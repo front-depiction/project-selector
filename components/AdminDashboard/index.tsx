@@ -113,6 +113,7 @@ export interface TopicFormData {
   readonly description: string
   readonly semesterId: string
   readonly subtopicIds?: readonly Id<"subtopics">[]
+  readonly requiresAllowList?: boolean
 }
 
 // ============================================================================
@@ -255,7 +256,8 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
         title: data.title,
         description: data.description,
         semesterId: data.semesterId,
-        subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined
+        subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined,
+        requiresAllowList: data.requiresAllowList ?? false
       })
       toast.success("Topic created successfully")
     } catch (error) {
@@ -270,7 +272,8 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
         id,
         title: updates.title,
         description: updates.description,
-        subtopicIds: updates.subtopicIds ? [...updates.subtopicIds] : undefined
+        subtopicIds: updates.subtopicIds ? [...updates.subtopicIds] : undefined,
+        requiresAllowList: updates.requiresAllowList
       })
       toast.success("Topic updated successfully")
     } catch (error) {
