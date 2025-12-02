@@ -1,4 +1,4 @@
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
+import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriodFormValues, QuestionOption, TemplateOption } from "@/components/forms/selection-period-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
@@ -244,8 +244,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         closeDateDisplay: format(period.closeDate, "MMM d, yyyy"),
         studentCountDisplay: String(period.studentCount || 0),
         onEdit: () => {
-          editingPeriod$.value = Option.some(period)
-          editDialogOpen$.value = true
+          batch(() => {
+            editingPeriod$.value = Option.some(period)
+            editDialogOpen$.value = true
+          })
         },
         onSetActive: () => {
           if (period._id && canSetActive) {
@@ -308,12 +310,16 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       editDialogOpen$.value = true
     },
     close: () => {
-      editDialogOpen$.value = false
-      editingPeriod$.value = Option.none()
+      batch(() => {
+        editDialogOpen$.value = false
+        editingPeriod$.value = Option.none()
+      })
     },
     openWithPeriod: (period: SelectionPeriodWithStats) => {
-      editingPeriod$.value = Option.some(period)
-      editDialogOpen$.value = true
+      batch(() => {
+        editingPeriod$.value = Option.some(period)
+        editDialogOpen$.value = true
+      })
     },
   }
 

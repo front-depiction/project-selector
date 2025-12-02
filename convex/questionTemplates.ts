@@ -158,6 +158,7 @@ export const getAllTemplatesWithQuestionIds = query({
         return {
           _id: template._id,
           title: template.title,
+          description: template.description,
           questionIds: tqs.map(tq => tq.questionId)
         }
       })

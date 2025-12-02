@@ -1,4 +1,4 @@
-import { signal, computed, ReadonlySignal } from "@preact/signals-react"
+import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { TopicFormValues } from "@/components/forms/topic-form"
 import * as Option from "effect/Option"
@@ -131,13 +131,15 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     const fullTopic = topics?.find(t => t._id === topicId)
     if (!fullTopic) return
 
-    editingTopic$.value = Option.some({
-      id: fullTopic._id,
-      title: fullTopic.title,
-      description: fullTopic.description,
-      semesterId: fullTopic.semesterId,
+    batch(() => {
+      editingTopic$.value = Option.some({
+        id: fullTopic._id,
+        title: fullTopic.title,
+        description: fullTopic.description,
+        semesterId: fullTopic.semesterId,
+      })
+      editTopicDialogOpen$.value = true
     })
-    editTopicDialogOpen$.value = true
   }
 
   // Computed: topics list for table with edit handler
@@ -212,8 +214,10 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       editTopicDialogOpen$.value = true
     },
     close: () => {
-      editTopicDialogOpen$.value = false
-      editingTopic$.value = Option.none()
+      batch(() => {
+        editTopicDialogOpen$.value = false
+        editingTopic$.value = Option.none()
+      })
     },
   }
 

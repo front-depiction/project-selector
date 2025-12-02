@@ -1,6 +1,6 @@
 "use client"
 import { toast } from "sonner"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
@@ -75,7 +75,7 @@ export default function SelectionPeriodForm({
         },
     })
 
-    const questionIds = form.watch("questionIds")
+    const questionIds = useWatch({ control: form.control, name: "questionIds" })
 
     const toggleQuestion = (id: string) => {
         const currentIds = form.getValues("questionIds")

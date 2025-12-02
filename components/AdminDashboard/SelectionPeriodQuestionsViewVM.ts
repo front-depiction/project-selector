@@ -1,5 +1,5 @@
 "use client"
-import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
+import { signal, computed, ReadonlySignal, Signal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionOption } from "@/components/forms/template-form"
 
@@ -200,15 +200,19 @@ export function createSelectionPeriodQuestionsViewVM(
     selectedQuestionIds$.value.forEach((id) => {
       addQuestion(id as Id<"questions">)
     })
-    selectedQuestionIds$.value = new Set()
-    addQuestionsDialog.close()
+    batch(() => {
+      selectedQuestionIds$.value = new Set()
+      addQuestionsDialogOpen$.value = false
+    })
   }
 
   const applySelectedTemplate = (): void => {
     if (selectedTemplateId$.value) {
       applyTemplate(selectedTemplateId$.value as Id<"questionTemplates">)
-      selectedTemplateId$.value = ""
-      addQuestionsDialog.close()
+      batch(() => {
+        selectedTemplateId$.value = ""
+        addQuestionsDialogOpen$.value = false
+      })
     }
   }
 
