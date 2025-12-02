@@ -1,7 +1,12 @@
 "use client"
 
 import { StudentEntry } from "@/components/StudentEntry/views"
+import { AuthGuard } from "@/components/auth"
 
 export default function StudentEntryPage() {
-  return <StudentEntry />
+  return (
+    <AuthGuard>
+      <StudentEntry />
+    </AuthGuard>
+  )
 }

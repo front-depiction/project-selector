@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useQuery } from "convex-helpers/react/cache/hooks"
+import { useConvexAuth } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Doc, Id } from "@/convex/_generated/dataModel"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
@@ -27,6 +28,7 @@ import { getStudentId } from "@/lib/student"
 import { cn } from "@/lib/utils"
 import { RankingEventsChart } from "@/components/charts/ranking-events-chart"
 import { TopicCompetitionMixedChart } from "@/components/charts/topic-competition-mixed"
+import { LoginButton, UserProfile } from "@/components/auth"
 
 // ============================================================================
 // TYPES
@@ -154,13 +156,29 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 // COMPONENTS - Layout Components
 // ============================================================================
 
-export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="min-h-screen bg-background">
-    <div className="container mx-auto py-12 px-4">
-      {children}
+export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isLoading, isAuthenticated } = useConvexAuth()
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Auth Header Bar */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-3 flex justify-end items-center">
+          {isLoading ? (
+            <div className="h-8 w-20 bg-muted animate-pulse rounded" />
+          ) : isAuthenticated ? (
+            <UserProfile />
+          ) : (
+            <LoginButton variant="outline" size="sm" />
+          )}
+        </div>
+      </div>
+      <div className="container mx-auto py-12 px-4">
+        {children}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 export const Header: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
   <div className="text-center mb-12">

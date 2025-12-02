@@ -1,4 +1,4 @@
-import { query } from "./_generated/server"
+import { query, QueryCtx } from "./_generated/server"
 import { v } from "convex/values"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
@@ -8,6 +8,7 @@ import { api } from "./_generated/api"
 import { DirectAggregate } from "@convex-dev/aggregate"
 import { components } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
+import { getCurrentUser } from "./users"
 
 // Access the rankings aggregate
 const rankingsAggregate = new DirectAggregate<{
@@ -15,6 +16,25 @@ const rankingsAggregate = new DirectAggregate<{
   Key: number;
   Id: string;
 }>(components.aggregate)
+
+/**
+ * Helper: Filter topics based on user's allow-list status.
+ * Topics with requiresAllowList=true are only visible to allowed users.
+ */
+async function filterTopicsByAllowList<T extends { requiresAllowList?: boolean }>(
+  ctx: QueryCtx,
+  topics: T[]
+): Promise<T[]> {
+  const user = await getCurrentUser(ctx)
+  const isAllowed = user?.isAllowed ?? false
+
+  return topics.filter((topic) => {
+    // If topic doesn't require allow-list, everyone can see it
+    if (!topic.requiresAllowList) return true
+    // If topic requires allow-list, only allowed users can see it
+    return isAllowed
+  })
+}
 
 /**
  * Gets all active topics with congestion data for the current selection period.
@@ -49,8 +69,11 @@ export const getActiveTopicsWithCongestion = query({
     // Calculate congestion for each topic
     const totalStudents = allPreferences.length
 
+    // Filter topics by allow-list access
+    const accessibleTopics = await filterTopicsByAllowList(ctx, topics)
+
     // Map topics to include congestion data
-    return topics.map(topic => {
+    return accessibleTopics.map(topic => {
       const studentCount = allPreferences.filter(pref =>
         Preference.hasSelectedTopic(topic._id)(pref)
       ).length
@@ -58,7 +81,7 @@ export const getActiveTopicsWithCongestion = query({
       const congestionData = Congestion.calculateCongestionData({
         studentCount,
         totalStudents,
-        totalTopics: topics.length
+        totalTopics: accessibleTopics.length
       })
 
       return {
@@ -92,11 +115,14 @@ export const getActiveTopicsWithMetrics = query({
     if (!SelectionPeriod.isOpen(activePeriod)) return []
 
     // Get all active topics for this semester
-    const topics = await ctx.db
+    const allTopics = await ctx.db
       .query("topics")
       .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
       .filter(q => q.eq(q.field("isActive"), true))
       .collect()
+
+    // Filter topics by allow-list access
+    const topics = await filterTopicsByAllowList(ctx, allTopics)
 
     // Get metrics for each topic from the aggregate
     const topicsWithMetrics = await Promise.all(

@@ -12,7 +12,9 @@ export const Topic = v.object({
   description: v.string(),
   semesterId: v.string(),
   isActive: v.boolean(),
-  subtopicIds: v.optional(v.array(v.id("subtopics")))
+  subtopicIds: v.optional(v.array(v.id("subtopics"))),
+  // If true, only users on the allow-list can view/select this topic
+  requiresAllowList: v.optional(v.boolean()),
 })
 
 /**
@@ -44,12 +46,14 @@ export const make = (params: {
   readonly semesterId: string
   readonly isActive?: boolean
   readonly subtopicIds?: ReadonlyArray<string>
+  readonly requiresAllowList?: boolean
 }): Topic => ({
   title: params.title,
   description: params.description,
   semesterId: params.semesterId,
   isActive: params.isActive ?? true,
-  subtopicIds: params.subtopicIds?.map(id => id as any)
+  subtopicIds: params.subtopicIds?.map(id => id as any),
+  requiresAllowList: params.requiresAllowList ?? false,
 } as const)
 
 /**

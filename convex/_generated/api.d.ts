@@ -15,12 +15,14 @@ import type * as lib_congestion from "../lib/congestion.js";
 import type * as lib_utils from "../lib/utils.js";
 import type * as preferences from "../preferences.js";
 import type * as rankings from "../rankings.js";
+import type * as schemas_AllowListEntry from "../schemas/AllowListEntry.js";
 import type * as schemas_Assignment from "../schemas/Assignment.js";
 import type * as schemas_Preference from "../schemas/Preference.js";
 import type * as schemas_RankingEvent from "../schemas/RankingEvent.js";
 import type * as schemas_SelectionPeriod from "../schemas/SelectionPeriod.js";
 import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
+import type * as schemas_User from "../schemas/User.js";
 import type * as selectionPeriods from "../selectionPeriods.js";
 import type * as share_admin_helpers from "../share/admin_helpers.js";
 import type * as share_rankings from "../share/rankings.js";
@@ -29,6 +31,7 @@ import type * as stats from "../stats.js";
 import type * as subtopics from "../subtopics.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
 import type * as topics from "../topics.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -36,14 +39,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
@@ -52,12 +47,14 @@ declare const fullApi: ApiFromModules<{
   "lib/utils": typeof lib_utils;
   preferences: typeof preferences;
   rankings: typeof rankings;
+  "schemas/AllowListEntry": typeof schemas_AllowListEntry;
   "schemas/Assignment": typeof schemas_Assignment;
   "schemas/Preference": typeof schemas_Preference;
   "schemas/RankingEvent": typeof schemas_RankingEvent;
   "schemas/SelectionPeriod": typeof schemas_SelectionPeriod;
   "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/Topic": typeof schemas_Topic;
+  "schemas/User": typeof schemas_User;
   selectionPeriods: typeof selectionPeriods;
   "share/admin_helpers": typeof share_admin_helpers;
   "share/rankings": typeof share_rankings;
@@ -66,15 +63,32 @@ declare const fullApi: ApiFromModules<{
   subtopics: typeof subtopics;
   topicAnalytics: typeof topicAnalytics;
   topics: typeof topics;
+  users: typeof users;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
@@ -207,17 +221,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",

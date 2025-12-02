@@ -5,6 +5,7 @@ import { api } from "@/convex/_generated/api"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
 import { useEffect, useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { AuthGuard } from "@/components/auth"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -284,7 +285,7 @@ const TopicCard = ({
   )
 }
 
-export default function SelectTopics() {
+function SelectTopicsContent() {
   const router = useRouter()
 
   // Get student ID from localStorage immediately
@@ -678,5 +679,14 @@ export default function SelectTopics() {
         </motion.div>
       </div>
     </div>
+  )
+}
+
+// Wrap the content with auth protection
+export default function SelectTopics() {
+  return (
+    <AuthGuard>
+      <SelectTopicsContent />
+    </AuthGuard>
   )
 }

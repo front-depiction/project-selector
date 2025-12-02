@@ -5,6 +5,8 @@ import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as RankingEvent from "./schemas/RankingEvent"
 import * as Assignment from "./schemas/Assignment"
+import * as User from "./schemas/User"
+import * as AllowListEntry from "./schemas/AllowListEntry"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -30,5 +32,13 @@ export default defineSchema({
     .index("by_period", ["periodId"])
     .index("by_student", ["studentId", "periodId"])
     .index("by_batch", ["batchId"])
-    .index("by_topic", ["topicId", "periodId"])
+    .index("by_topic", ["topicId", "periodId"]),
+
+  // Auth tables
+  users: defineTable(User.User)
+    .index("by_authId", ["authId"])
+    .index("by_email", ["email"]),
+
+  allowList: defineTable(AllowListEntry.AllowListEntry)
+    .index("by_email", ["email"]),
 })
