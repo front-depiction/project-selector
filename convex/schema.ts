@@ -7,6 +7,7 @@ import * as RankingEvent from "./schemas/RankingEvent"
 import * as Assignment from "./schemas/Assignment"
 import * as User from "./schemas/User"
 import * as AllowListEntry from "./schemas/AllowListEntry"
+import * as TopicAllowListEntry from "./schemas/TopicAllowListEntry"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -40,5 +41,11 @@ export default defineSchema({
     .index("by_email", ["email"]),
 
   allowList: defineTable(AllowListEntry.AllowListEntry)
+    .index("by_email", ["email"]),
+
+  // Per-topic allow-lists
+  topicAllowList: defineTable(TopicAllowListEntry.TopicAllowListEntry)
+    .index("by_topic", ["topicId"])
+    .index("by_topic_email", ["topicId", "email"])
     .index("by_email", ["email"]),
 })

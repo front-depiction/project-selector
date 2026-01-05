@@ -90,7 +90,7 @@ export interface DashboardActions {
   readonly updatePeriod: (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>) => Promise<void>
   readonly deletePeriod: (id: Id<"selectionPeriods">) => Promise<void>
   readonly setActivePeriod: (id: Id<"selectionPeriods">) => Promise<void>
-  readonly createTopic: (topic: TopicFormData) => Promise<void>
+  readonly createTopic: (topic: TopicFormData) => Promise<Id<"topics"> | undefined>
   readonly updateTopic: (id: Id<"topics">, updates: Partial<TopicFormData>) => Promise<void>
   readonly toggleTopicActive: (id: Id<"topics">) => Promise<void>
   readonly deleteTopic: (id: Id<"topics">) => Promise<void>
@@ -252,14 +252,14 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 
   const createTopic = async (data: TopicFormData) => {
     try {
-      await createTopicMutation({
+      const topicId = await createTopicMutation({
         title: data.title,
         description: data.description,
         semesterId: data.semesterId,
         subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined,
-        requiresAllowList: data.requiresAllowList ?? false
+        requiresAllowList: data.requiresAllowList ?? true // Always require allow-list
       })
-      toast.success("Topic created successfully")
+      return topicId
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create topic")
       throw error

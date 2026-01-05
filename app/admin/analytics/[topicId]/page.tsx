@@ -8,12 +8,13 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TopicDetails } from "@/components/analytics/TopicDetails"
+import { AuthGuard } from "@/components/auth"
 
 interface PageProps {
   params: Promise<{ topicId: string }>
 }
 
-export default function TopicAnalyticsPage({ params }: PageProps) {
+function TopicAnalyticsPageContent({ params }: PageProps) {
   const resolvedParams = React.use(params)
   const topicId = resolvedParams.topicId as Id<"topics">
 
@@ -68,5 +69,16 @@ export default function TopicAnalyticsPage({ params }: PageProps) {
         </TopicDetails.Provider>
       </div>
     </div>
+  )
+}
+
+export default function TopicAnalyticsPage({ params }: PageProps) {
+  return (
+    <AuthGuard 
+      requireAllowList={true}
+      notAllowedMessage="You don't have admin access to view topic analytics."
+    >
+      <TopicAnalyticsPageContent params={params} />
+    </AuthGuard>
   )
 }

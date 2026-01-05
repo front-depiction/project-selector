@@ -14,10 +14,14 @@ import {
 } from "@/components/ui/dialog"
 import { Plus, Trash2 } from "lucide-react"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
-import TopicForm from "@/components/forms/topic-form"
+import TopicForm, { TopicFormValues } from "@/components/forms/topic-form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useQuery, useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { toast } from "sonner"
 
 // ============================================================================
 // TOPICS VIEW - Clean table-based layout
@@ -29,6 +33,16 @@ export const TopicsView: React.FC = () => {
   const [isCreateSubtopicOpen, setIsCreateSubtopicOpen] = React.useState(false)
   const [editingTopic, setEditingTopic] = React.useState<Doc<"topics"> | null>(null)
   const [subtopicForm, setSubtopicForm] = React.useState({ title: "", description: "" })
+
+  // Get allow-list for editing topic
+  const editingTopicAllowList = useQuery(
+    api.topicAllowList.getTopicAllowList,
+    editingTopic ? { topicId: editingTopic._id } : "skip"
+  )
+
+  // Mutations for allow-list
+  const bulkAddEmails = useMutation(api.topicAllowList.bulkAddEmails)
+  const clearAllEmails = useMutation(api.topicAllowList.clearAllEmails)
 
   // Format periods for the form
   // Deduplicate by semesterId to avoid duplicate keys, keeping the most recent period for each semesterId
@@ -51,6 +65,12 @@ export const TopicsView: React.FC = () => {
     }))
   }, [periods])
 
+  // Get initial emails for editing
+  const initialEmails = React.useMemo(() => {
+    if (!editingTopicAllowList) return []
+    return editingTopicAllowList.map(entry => entry.email)
+  }, [editingTopicAllowList])
+
   // For subtopics, we'll need to add these to the dashboard context later
   const createSubtopic = React.useCallback(async (data: { title: string; description: string }) => {
     // TODO: Implement createSubtopic mutation
@@ -62,25 +82,64 @@ export const TopicsView: React.FC = () => {
     console.log("Deleting subtopic:", id)
   }, [])
 
-  const handleCreateTopic = async (values: { title: string; description: string; selection_period_id: string; requiresAllowList?: boolean }) => {
-    await createTopic({
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id || "2024-spring",
-      requiresAllowList: values.requiresAllowList ?? false
-    })
-    setIsCreateTopicOpen(false)
+  const handleCreateTopic = async (values: TopicFormValues) => {
+    try {
+      // Create the topic (always with requiresAllowList: true)
+      const topicId = await createTopic({
+        title: values.title,
+        description: values.description,
+        semesterId: values.selection_period_id || "2024-spring",
+        requiresAllowList: true // Always required now
+      })
+
+      // Add emails to the allow-list if any
+      if (values.emails && values.emails.length > 0 && topicId) {
+        await bulkAddEmails({
+          topicId: topicId as Id<"topics">,
+          emails: values.emails,
+          note: "Added during topic creation"
+        })
+      }
+
+      toast.success("Topic created successfully")
+      setIsCreateTopicOpen(false)
+    } catch (error) {
+      console.error("Failed to create topic:", error)
+      toast.error("Failed to create topic")
+    }
   }
 
-  const handleUpdateTopic = async (values: { title: string; description: string; selection_period_id: string; requiresAllowList?: boolean }) => {
+  const handleUpdateTopic = async (values: TopicFormValues) => {
     if (!editingTopic) return
-    await updateTopic(editingTopic._id, {
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id,
-      requiresAllowList: values.requiresAllowList
-    })
-    setEditingTopic(null)
+
+    try {
+      // Update the topic
+      await updateTopic(editingTopic._id, {
+        title: values.title,
+        description: values.description,
+        semesterId: values.selection_period_id,
+        requiresAllowList: true // Always required
+      })
+
+      // Update the allow-list
+      // Clear existing and add new emails
+      if (values.emails !== undefined) {
+        await clearAllEmails({ topicId: editingTopic._id })
+        if (values.emails.length > 0) {
+          await bulkAddEmails({
+            topicId: editingTopic._id,
+            emails: values.emails,
+            note: "Updated via topic edit"
+          })
+        }
+      }
+
+      toast.success("Topic updated successfully")
+      setEditingTopic(null)
+    } catch (error) {
+      console.error("Failed to update topic:", error)
+      toast.error("Failed to update topic")
+    }
   }
 
   const handleCreateSubtopic = async () => {
@@ -149,37 +208,46 @@ export const TopicsView: React.FC = () => {
 
       {/* Create Topic Dialog */}
       <Dialog open={isCreateTopicOpen} onOpenChange={setIsCreateTopicOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Create Topic</DialogTitle>
             <DialogDescription>
-              Add a new topic that students can select.
+              Add a new topic and specify which students can see it.
             </DialogDescription>
           </DialogHeader>
-          <TopicForm periods={periodOptions} onSubmit={handleCreateTopic} />
+          <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+            <TopicForm 
+              periods={periodOptions} 
+              onSubmit={handleCreateTopic}
+              isEditing={false}
+            />
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
       {/* Edit Topic Dialog */}
       <Dialog open={!!editingTopic} onOpenChange={(open) => !open && setEditingTopic(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
             <DialogDescription>
-              Update the details of this topic.
+              Update topic details and manage student access.
             </DialogDescription>
           </DialogHeader>
           {editingTopic && (
-            <TopicForm
-              periods={periodOptions}
-              initialValues={{
-                title: editingTopic.title,
-                description: editingTopic.description,
-                selection_period_id: editingTopic.semesterId,
-                requiresAllowList: editingTopic.requiresAllowList ?? false
-              }}
-              onSubmit={handleUpdateTopic}
-            />
+            <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
+              <TopicForm
+                periods={periodOptions}
+                initialValues={{
+                  title: editingTopic.title,
+                  description: editingTopic.description,
+                  selection_period_id: editingTopic.semesterId,
+                }}
+                initialEmails={initialEmails}
+                onSubmit={handleUpdateTopic}
+                isEditing={true}
+              />
+            </ScrollArea>
           )}
         </DialogContent>
       </Dialog>

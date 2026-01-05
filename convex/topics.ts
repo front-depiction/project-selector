@@ -7,7 +7,7 @@ import * as Congestion from "./lib/congestion"
 import { api } from "./_generated/api"
 import { DirectAggregate } from "@convex-dev/aggregate"
 import { components } from "./_generated/api"
-import type { Id } from "./_generated/dataModel"
+import type { Id, Doc } from "./_generated/dataModel"
 import { getCurrentUser } from "./users"
 
 // Access the rankings aggregate
@@ -18,22 +18,38 @@ const rankingsAggregate = new DirectAggregate<{
 }>(components.aggregate)
 
 /**
- * Helper: Filter topics based on user's allow-list status.
- * Topics with requiresAllowList=true are only visible to allowed users.
+ * Helper: Filter topics based on per-topic allow-list.
+ * All topics require allow-list - students can only see topics they've been added to.
  */
-async function filterTopicsByAllowList<T extends { requiresAllowList?: boolean }>(
+async function filterTopicsByAllowList<T extends { _id: Id<"topics"> }>(
   ctx: QueryCtx,
   topics: T[]
 ): Promise<T[]> {
   const user = await getCurrentUser(ctx)
-  const isAllowed = user?.isAllowed ?? false
+  const userEmail = user?.email?.toLowerCase().trim()
 
-  return topics.filter((topic) => {
-    // If topic doesn't require allow-list, everyone can see it
-    if (!topic.requiresAllowList) return true
-    // If topic requires allow-list, only allowed users can see it
-    return isAllowed
-  })
+  // If user is not authenticated, they can't see any topics
+  if (!userEmail) {
+    return []
+  }
+
+  // Check which topics the user has access to
+  const accessibleTopicIds = new Set<string>()
+  
+  for (const topic of topics) {
+    const entry = await ctx.db
+      .query("topicAllowList")
+      .withIndex("by_topic_email", (q) =>
+        q.eq("topicId", topic._id).eq("email", userEmail)
+      )
+      .first()
+    
+    if (entry) {
+      accessibleTopicIds.add(topic._id)
+    }
+  }
+
+  return topics.filter((topic) => accessibleTopicIds.has(topic._id))
 }
 
 /**

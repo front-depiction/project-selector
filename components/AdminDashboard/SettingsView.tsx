@@ -9,8 +9,10 @@ import { toast } from "sonner"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Settings, Database, RefreshCw, Trash2, Users, Upload } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Settings, Database, RefreshCw, Trash2, ShieldCheck, UserPlus, X, Crown } from "lucide-react"
 import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import {
   AlertDialog,
@@ -39,6 +41,31 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">System Settings</h2>
+
+      {/* Admin Access Management */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-6 w-6 text-muted-foreground" />
+            <div>
+              <CardTitle>Admin Access</CardTitle>
+              <CardDescription>
+                Manage who can access the admin dashboard and manage topics
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Add Admin Section */}
+          <AdminAddForm />
+
+          {/* Current Admins */}
+          <div className="space-y-2">
+            <Label>Current Administrators</Label>
+            <AdminListDisplay />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Development Tools */}
       <Card className="border-0 shadow-sm">
@@ -111,31 +138,6 @@ export const SettingsView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Email Allow-List Management */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <Users className="h-6 w-6 text-muted-foreground" />
-            <div>
-              <CardTitle>Email Allow-List</CardTitle>
-              <CardDescription>
-                Manage which students can access restricted topics
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Bulk Import Section */}
-          <AllowListBulkImport />
-
-          {/* Current Allow-List */}
-          <div className="space-y-2">
-            <Label>Current Allow-List</Label>
-            <AllowListDisplay />
-          </div>
-        </CardContent>
-      </Card>
-
       {/* System Configuration */}
       <Card className="border-0 shadow-sm">
         <CardHeader>
@@ -189,40 +191,34 @@ export const SettingsView: React.FC = () => {
 }
 
 // ============================================================================
-// ALLOW-LIST COMPONENTS
+// ADMIN ACCESS COMPONENTS
 // ============================================================================
 
-const AllowListBulkImport: React.FC = () => {
-  const [emailText, setEmailText] = React.useState("")
+const AdminAddForm: React.FC = () => {
+  const [email, setEmail] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
-  const bulkAdd = useMutation(api.users.bulkAddToAllowList)
+  const addAdmin = useMutation(api.users.addToAllowList)
 
-  const handleBulkImport = async () => {
-    // Parse emails from textarea (one per line or comma-separated)
-    const emails = emailText
-      .split(/[,\n]/)
-      .map(e => e.trim())
-      .filter(e => {
-        // Basic email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        return e.length > 0 && emailRegex.test(e)
-      })
+  const handleAddAdmin = async () => {
+    const trimmedEmail = email.trim().toLowerCase()
     
-    if (emails.length === 0) {
-      toast.error("Please enter at least one valid email address")
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address")
       return
     }
 
     setIsLoading(true)
     try {
-      const result = await bulkAdd({ 
-        emails, 
-        note: "Bulk import from admin panel" 
+      await addAdmin({ 
+        email: trimmedEmail, 
+        note: "Admin access granted" 
       })
-      toast.success(`Added ${result.added} new emails, updated ${result.updated} existing entries`)
-      setEmailText("")
+      toast.success(`Admin access granted to ${trimmedEmail}`)
+      setEmail("")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to add emails")
+      toast.error(error instanceof Error ? error.message : "Failed to add admin")
     } finally {
       setIsLoading(false)
     }
@@ -230,51 +226,64 @@ const AllowListBulkImport: React.FC = () => {
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="email-import">Bulk Import Emails</Label>
-      <Textarea
-        id="email-import"
-        value={emailText}
-        onChange={(e) => setEmailText(e.target.value)}
-        placeholder="Enter emails (one per line or comma-separated)&#10;student1@university.edu&#10;student2@university.edu"
-        className="font-mono text-sm min-h-[120px]"
-        rows={6}
-      />
+      <Label htmlFor="admin-email">Add Administrator</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          id="admin-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="teacher@university.edu"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              handleAddAdmin()
+            }
+          }}
+        />
+        <Button 
+          onClick={handleAddAdmin} 
+          disabled={isLoading || !email.trim()}
+        >
+          <UserPlus className="mr-2 h-4 w-4" />
+          Add
+        </Button>
+      </div>
       <p className="text-xs text-muted-foreground">
-        Paste email addresses separated by commas or new lines. Invalid emails will be skipped.
+        Administrators can access this dashboard, create topics, manage periods, and view all data.
       </p>
-      <Button 
-        onClick={handleBulkImport} 
-        disabled={isLoading || !emailText.trim()}
-        className="w-full"
-      >
-        <Upload className="mr-2 h-4 w-4" />
-        {isLoading ? "Importing..." : "Import Emails"}
-      </Button>
     </div>
   )
 }
 
-const AllowListDisplay: React.FC = () => {
-  const allowList = useQuery(api.users.getAllowList)
-  const removeEmail = useMutation(api.users.removeFromAllowList)
+const AdminListDisplay: React.FC = () => {
+  const adminList = useQuery(api.users.getAllowList)
+  const currentUser = useQuery(api.users.getMe)
+  const removeAdmin = useMutation(api.users.removeFromAllowList)
   const [removingEmail, setRemovingEmail] = React.useState<string | null>(null)
 
   const handleRemove = async (email: string) => {
+    // Prevent removing yourself
+    if (currentUser?.email?.toLowerCase() === email.toLowerCase()) {
+      toast.error("You cannot remove yourself from the admin list")
+      return
+    }
+
     setRemovingEmail(email)
     try {
-      await removeEmail({ email })
-      toast.success(`Removed ${email} from allow-list`)
+      await removeAdmin({ email })
+      toast.success(`Removed admin access for ${email}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to remove email")
+      toast.error(error instanceof Error ? error.message : "Failed to remove admin")
     } finally {
       setRemovingEmail(null)
     }
   }
 
-  if (allowList === undefined) {
+  if (adminList === undefined) {
     return (
       <div className="border rounded-lg p-4 text-center text-muted-foreground">
-        Loading allow-list...
+        Loading administrators...
       </div>
     )
   }
@@ -282,38 +291,63 @@ const AllowListDisplay: React.FC = () => {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{allowList.length} email{allowList.length !== 1 ? "s" : ""} in allow-list</span>
+        <span>{adminList.length} administrator{adminList.length !== 1 ? "s" : ""}</span>
       </div>
-      <div className="max-h-60 overflow-y-auto border rounded-lg p-3 space-y-1">
-        {allowList.length > 0 ? (
-          allowList.map((entry) => (
-            <div 
-              key={entry._id} 
-              className="flex items-center justify-between p-2 hover:bg-muted rounded transition-colors"
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{entry.email}</p>
-                {entry.note && (
-                  <p className="text-xs text-muted-foreground truncate">{entry.note}</p>
-                )}
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => handleRemove(entry.email)}
-                disabled={removingEmail === entry.email}
-                className="ml-2 flex-shrink-0"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No emails in allow-list. Add emails above to restrict topic access.
-          </p>
-        )}
-      </div>
+      
+      {adminList.length > 0 ? (
+        <ScrollArea className="h-[200px] rounded-md border">
+          <div className="p-2 space-y-1">
+            {adminList.map((entry) => {
+              const isCurrentUser = currentUser?.email?.toLowerCase() === entry.email.toLowerCase()
+              
+              return (
+                <div 
+                  key={entry._id} 
+                  className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg transition-colors group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      {isCurrentUser ? (
+                        <Crown className="h-4 w-4 text-primary" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate flex items-center gap-2">
+                        {entry.email}
+                        {isCurrentUser && (
+                          <Badge variant="outline" className="text-xs">You</Badge>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Added {new Date(entry.addedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  {!isCurrentUser && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleRemove(entry.email)}
+                      disabled={removingEmail === entry.email}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </ScrollArea>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground border rounded-lg border-dashed">
+          <ShieldCheck className="h-10 w-10 mb-3 opacity-50" />
+          <p className="text-sm font-medium">No administrators added yet</p>
+          <p className="text-xs mt-1">Add an email above to grant admin access</p>
+        </div>
+      )}
     </div>
   )
 }

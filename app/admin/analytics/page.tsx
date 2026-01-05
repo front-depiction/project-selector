@@ -8,8 +8,9 @@ import Link from "next/link"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
 import { cn } from "@/lib/utils"
+import { AuthGuard } from "@/components/auth"
 
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const trends = useQuery(api.analytics.getOverallRankingTrends, { days: 7 })
   const allMetrics = useQuery(api.rankings.getAllTopicMetrics)
 
@@ -266,5 +267,16 @@ export default function AnalyticsPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function AnalyticsPage() {
+  return (
+    <AuthGuard 
+      requireAllowList={true}
+      notAllowedMessage="You don't have admin access to view analytics."
+    >
+      <AnalyticsPageContent />
+    </AuthGuard>
   )
 }
