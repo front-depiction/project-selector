@@ -97,7 +97,7 @@ export const LandingPageContent: React.FC = () => {
         case undefined:
           return <LP.LoadingAssignment studentId={studentId} />
         case null:
-          return <LP.NoAssignmentFound studentId={studentId} />
+          return <AllAssignmentsView periodId={period._id} />
         default:
           return <PersonalAssignmentView />
       }
