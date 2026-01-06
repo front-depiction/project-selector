@@ -12,7 +12,6 @@ import {
   Users,
   BarChart3,
   Settings,
-  Home,
   Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -190,12 +189,6 @@ export const AdminDashboardView: React.FC = () => {
   const { activeView, setActiveView } = AD.useDashboard()
 
   const dockItems = [
-    {
-      id: "home",
-      icon: <Home className="h-6 w-6" />,
-      label: "Home",
-      onClick: () => router.push("/")
-    },
     {
       id: "overview",
       icon: <BarChart3 className="h-6 w-6" />,

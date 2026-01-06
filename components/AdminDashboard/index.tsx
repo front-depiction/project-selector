@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useQuery, useMutation } from "convex/react"
+import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { toast } from "sonner"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
@@ -765,12 +766,22 @@ export const TabNavigation: React.FC = () => {
 // PAGE HEADER
 // ============================================================================
 
-export const PageHeader: React.FC = () => (
-  <div className="mb-6">
-    <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-    <p className="text-muted-foreground">Manage topics, periods, and student assignments</p>
-  </div>
-)
+export const PageHeader: React.FC = () => {
+  const router = useRouter()
+  
+  return (
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+        <p className="text-muted-foreground">Manage topics, periods, and student assignments</p>
+      </div>
+      <Button variant="ghost" size="lg" onClick={() => router.push("/")}>
+        <Home className="mr-2 h-5 w-5" />
+        Back to Home
+      </Button>
+    </div>
+  )
+}
 
 // Export all components as a namespace
 export * as AdminDashboard from "./index"
