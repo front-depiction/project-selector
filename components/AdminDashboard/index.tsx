@@ -766,17 +766,9 @@ export const TabNavigation: React.FC = () => {
 // ============================================================================
 
 export const PageHeader: React.FC = () => (
-  <div className="flex items-center justify-between mb-6">
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-      <p className="text-muted-foreground">Manage topics, periods, and student assignments</p>
-    </div>
-    <Button variant="ghost" size="lg" asChild>
-      <a href="/">
-        <ArrowLeft className="mr-2 h-5 w-5" />
-        Back to Home
-      </a>
-    </Button>
+  <div className="mb-6">
+    <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+    <p className="text-muted-foreground">Manage topics, periods, and student assignments</p>
   </div>
 )
 

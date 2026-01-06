@@ -85,6 +85,7 @@ export interface LandingPageState {
   readonly currentPeriod: CurrentPeriod | undefined
   readonly studentId: string | null
   readonly myAssignment: Assignment | null | undefined
+  readonly isAdmin: boolean
 }
 
 export interface LandingPageActions {
@@ -119,6 +120,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const stats = useQuery(api.stats.getLandingStats)
   const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
   const currentPeriod = useQuery(api.admin.getCurrentPeriod)
+  const userStatus = useQuery(api.users.checkUserAllowed)
   const [studentId, setStudentId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -141,8 +143,9 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       studentId,
       myAssignment,
       setStudentId,
+      isAdmin: userStatus?.isAllowed ?? false,
     }),
-    [stats, competitionData, currentPeriod, studentId, myAssignment]
+    [stats, competitionData, currentPeriod, studentId, myAssignment, userStatus]
   )
 
   return (
@@ -359,31 +362,42 @@ export const StudentPortalCard: React.FC = () => (
   </Card>
 )
 
-export const AdminPortalCard: React.FC = () => (
-  <Card className="border-0 shadow-sm hover:shadow-lg transition-shadow cursor-pointer bg-background">
-    <Link href="/admin">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
-        <FileText className="h-8 w-8 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground mb-4">
-          Manage topics and view selection statistics
-        </p>
-        <Button className="w-full" size="lg">
-          Admin Access <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </CardContent>
-    </Link>
-  </Card>
-)
+export const AdminPortalCard: React.FC = () => {
+  const { isAdmin } = useLandingPage()
+  
+  // Only show admin portal card if user is admin
+  if (!isAdmin) return null
+  
+  return (
+    <Card className="border-0 shadow-sm hover:shadow-lg transition-shadow cursor-pointer bg-background">
+      <Link href="/dashboard">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-2xl font-bold">Admin Dashboard</CardTitle>
+          <FileText className="h-8 w-8 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground mb-4">
+            Manage topics and view selection statistics
+          </p>
+          <Button className="w-full" size="lg">
+            Admin Access <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Link>
+    </Card>
+  )
+}
 
-export const ActionCards: React.FC = () => (
-  <div className="grid md:grid-cols-2 gap-4 mb-8">
-    <StudentPortalCard />
-    <AdminPortalCard />
-  </div>
-)
+export const ActionCards: React.FC = () => {
+  const { isAdmin } = useLandingPage()
+  
+  return (
+    <div className={`grid ${isAdmin ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-4 mb-8 max-w-2xl mx-auto`}>
+      <StudentPortalCard />
+      <AdminPortalCard />
+    </div>
+  )
+}
 
 // ============================================================================
 // COMPONENTS - Statistics Cards

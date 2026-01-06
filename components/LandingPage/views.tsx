@@ -5,6 +5,8 @@ import * as LP from "./LandingPage"
 import { Separator } from "@/components/ui/separator"
 import { Id } from "@/convex/_generated/dataModel"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
+import { AdminDashboard } from "@/components/AdminDashboard/views"
+import { AuthGuard } from "@/components/auth"
 
 // ============================================================================
 // COMPOSED VIEWS - Built from atomic components
@@ -69,25 +71,26 @@ export const AllAssignmentsView: React.FC<{ periodId: Id<"selectionPeriods"> }> 
 // ============================================================================
 
 export const LandingPageContent: React.FC = () => {
-  const { stats, currentPeriod, studentId, myAssignment } = LP.useLandingPage()
+  const { stats, currentPeriod, studentId, myAssignment, isAdmin } = LP.useLandingPage()
 
   // Loading state
   if (stats === undefined || currentPeriod === undefined) {
     return <LP.LoadingState />
   }
 
-  // No active period
-  if (currentPeriod === null) {
-    return <InactivePeriodView />
+  // Always show SelectionView (with action cards) as the home screen
+  // This ensures everyone sees the portal options first
+  if (currentPeriod === null || SelectionPeriod.isOpen(currentPeriod)) {
+    return <SelectionView />
   }
 
   // Use pattern matching for different period states
   return SelectionPeriod.match(currentPeriod)({
-    inactive: () => <InactivePeriodView />,
+    inactive: () => <SelectionView />, // Show portal options even when inactive
 
     open: () => <SelectionView />,
 
-    closed: () => <InactivePeriodView />,
+    closed: () => <SelectionView />, // Show portal options even when closed
 
     assigned: (period) => {
       if (!studentId)
