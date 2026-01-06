@@ -717,52 +717,6 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
 }
 
 // ============================================================================
-// NAVIGATION COMPONENTS
-// ============================================================================
-
-export interface TabItem {
-  readonly id: ViewType
-  readonly label: string
-  readonly icon: React.ReactNode
-}
-
-export const TabNavigation: React.FC = () => {
-  const { activeView, setActiveView } = useDashboard()
-
-  const tabs: TabItem[] = [
-    { id: "overview", label: "Overview", icon: <Home className="h-4 w-4" /> },
-    { id: "periods", label: "Periods", icon: <Calendar className="h-4 w-4" /> },
-    { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
-    { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
-    { id: "analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
-    { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }
-  ]
-
-  return (
-    <div className="border-b">
-      <div className="flex space-x-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveView(tab.id)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors",
-              "border-b-2 -mb-px",
-              activeView === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ============================================================================
 // PAGE HEADER
 // ============================================================================
 
