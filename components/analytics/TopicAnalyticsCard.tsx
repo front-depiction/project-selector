@@ -1,7 +1,5 @@
-import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
   TrendingUp,
@@ -11,8 +9,7 @@ import {
   Trophy,
   Target,
   Percent,
-  Layers,
-  ChevronRight
+  Layers
 } from "lucide-react"
 
 interface TopicAnalyticsCardProps {
@@ -170,13 +167,6 @@ export default function TopicAnalyticsCard({ topic }: TopicAnalyticsCardProps) {
           </div>
         )}
 
-        {/* Action Button */}
-        <Link href={`/admin/analytics/${topic.id}`} className="block">
-          <Button variant="outline" className="w-full">
-            View Detailed Analytics
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
-        </Link>
       </CardContent>
     </Card>
   )
