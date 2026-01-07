@@ -74,9 +74,9 @@ export interface TopicsViewVM {
 // ============================================================================
 
 export interface TopicsViewVMDeps {
-  readonly topics: readonly any[] | undefined
-  readonly subtopics: readonly any[] | undefined
-  readonly periods: readonly any[] | undefined
+  readonly topics$: ReadonlySignal<readonly any[] | undefined>
+  readonly subtopics$: ReadonlySignal<readonly any[] | undefined>
+  readonly periods$: ReadonlySignal<readonly any[] | undefined>
   readonly createTopic: (args: {
     title: string
     description: string
@@ -102,9 +102,9 @@ export interface TopicsViewVMDeps {
 
 export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const {
-    topics,
-    subtopics,
-    periods,
+    topics$,
+    subtopics$,
+    periods$,
     createTopic,
     updateTopic,
     toggleTopicActive,
@@ -128,23 +128,21 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
     // Find the full topic from the raw data
-    const fullTopic = topics?.find(t => t._id === topicId)
+    const fullTopic = topics$.value?.find(t => t._id === topicId)
     if (!fullTopic) return
 
-    batch(() => {
-      editingTopic$.value = Option.some({
-        id: fullTopic._id,
-        title: fullTopic.title,
-        description: fullTopic.description,
-        semesterId: fullTopic.semesterId,
-      })
-      editTopicDialogOpen$.value = true
+    editingTopic$.value = Option.some({
+      id: fullTopic._id,
+      title: fullTopic.title,
+      description: fullTopic.description,
+      semesterId: fullTopic.semesterId,
     })
+    editTopicDialogOpen$.value = true
   }
 
   // Computed: topics list for table with edit handler
-  const topics$ = computed((): readonly TopicItemVM[] =>
-    (topics ?? []).map((topic): TopicItemVM => ({
+  const topicItems$ = computed((): readonly TopicItemVM[] =>
+    (topics$.value ?? []).map((topic): TopicItemVM => ({
       key: topic._id,
       title: topic.title,
       description: topic.description,
@@ -165,8 +163,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   )
 
   // Computed: subtopics list for grid
-  const subtopics$ = computed((): readonly SubtopicItemVM[] =>
-    (subtopics ?? []).map((subtopic): SubtopicItemVM => ({
+  const subtopicItems$ = computed((): readonly SubtopicItemVM[] =>
+    (subtopics$.value ?? []).map((subtopic): SubtopicItemVM => ({
       key: subtopic._id,
       title: subtopic.title,
       description: subtopic.description,
@@ -178,7 +176,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   // Computed: period options for form
   const periodOptions$ = computed((): readonly PeriodOptionVM[] =>
-    (periods ?? []).map((period: any): PeriodOptionVM => ({
+    (periods$.value ?? []).map((period: any): PeriodOptionVM => ({
       value: period.semesterId,
       label: period.title,
     }))
@@ -285,8 +283,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   }
 
   return {
-    topics$,
-    subtopics$,
+    topics$: topicItems$,
+    subtopics$: subtopicItems$,
     periodOptions$,
     subtopicForm$,
     createTopicDialog,

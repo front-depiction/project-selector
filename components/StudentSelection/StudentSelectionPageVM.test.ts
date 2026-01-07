@@ -145,6 +145,7 @@ function createPeriodDisplaySignal(currentPeriod: any | null) {
     const daysRemaining = Math.ceil((closeDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
     return {
+      _id: currentPeriod._id,
       title: currentPeriod.title,
       description: currentPeriod.description,
       closeDateDisplay: closeDate.toLocaleDateString(),

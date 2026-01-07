@@ -23,14 +23,26 @@ export const hasCompletedQuestionnaire = query({
     selectionPeriodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
+    // Get all questions for this period
+    const periodQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
+      .collect()
+
+    // No questions means questionnaire is complete (nothing to answer)
+    if (periodQuestions.length === 0) return true
+
+    // Get all answers for this student/period
     const answers = await ctx.db.query("studentAnswers")
       .withIndex("by_student_period", q =>
         q.eq("studentId", args.studentId)
          .eq("selectionPeriodId", args.selectionPeriodId)
       )
-      .first()
+      .collect()
 
-    return answers !== null
+    // Check if every question has been answered
+    const answeredQuestionIds = new Set(answers.map(a => a.questionId))
+    return periodQuestions.every(pq => answeredQuestionIds.has(pq.questionId))
   }
 })
 

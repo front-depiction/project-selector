@@ -166,10 +166,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
       )}
 
       {/* Create Topic Dialog */}
-      <Dialog open={vm.createTopicDialog.isOpen$.value} onOpenChange={(open) => {
-        if (open) vm.createTopicDialog.open()
-        else vm.createTopicDialog.close()
-      }}>
+      <Dialog open={vm.createTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createTopicDialog.close()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create Topic</DialogTitle>
@@ -182,9 +179,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
       </Dialog>
 
       {/* Edit Topic Dialog */}
-      <Dialog open={vm.editTopicDialog.isOpen$.value} onOpenChange={(open) => {
-        if (!open) vm.editTopicDialog.close()
-      }}>
+      <Dialog open={vm.editTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editTopicDialog.close()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
@@ -207,10 +202,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
       </Dialog>
 
       {/* Create Subtopic Dialog */}
-      <Dialog open={vm.createSubtopicDialog.isOpen$.value} onOpenChange={(open) => {
-        if (open) vm.createSubtopicDialog.open()
-        else vm.createSubtopicDialog.close()
-      }}>
+      <Dialog open={vm.createSubtopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createSubtopicDialog.close()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Subtopic</DialogTitle>

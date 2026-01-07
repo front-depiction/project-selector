@@ -292,12 +292,10 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
   }
 
   // Questionnaire view
-  if (vm.questionnaireState$.value.needsCompletion && Option.isSome(vm.currentPeriod$.value)) {
+  if (vm.questionnaireState$.value.needsCompletion && vm.questionnaireVM$.value) {
     return (
       <StudentQuestionPresentationView
-        studentId={vm.studentId$.value}
-        selectionPeriodId={vm.currentPeriod$.value.value as any}
-        onComplete={vm.handleQuestionnaireComplete}
+        vm={vm.questionnaireVM$.value}
       />
     )
   }

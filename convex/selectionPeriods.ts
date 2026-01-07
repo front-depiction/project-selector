@@ -235,28 +235,46 @@ export const setActivePeriod = mutation({
       throw new Error("Period not found")
     }
 
-    // First close all open periods
+    // Can't activate an already assigned period
+    if (SelectionPeriod.isAssigned(period)) {
+      throw new Error("Cannot activate an already assigned period")
+    }
+
+    // Close all other open periods first
     const allPeriods = await ctx.db.query("selectionPeriods").collect()
     await Promise.all(
-      allPeriods.map(async p => {
-        if (p._id === args.periodId) {
-          // Open the selected period if it has a scheduled function and isn't assigned
-          if (SelectionPeriod.hasScheduledFunction(p) && !SelectionPeriod.isAssigned(p)) {
-            await ctx.db.replace(p._id, SelectionPeriod.makeOpen({
-              semesterId: p.semesterId,
-              title: p.title,
-              description: p.description,
-              openDate: p.openDate,
-              closeDate: p.closeDate,
-              scheduledFunctionId: p.scheduledFunctionId
-            }))
-          }
-        } else if (SelectionPeriod.isOpen(p)) {
-          // Close other open periods
-          await ctx.db.replace(p._id, SelectionPeriod.close(p))
-        }
-      })
+      allPeriods
+        .filter(p => p._id !== args.periodId && SelectionPeriod.isOpen(p))
+        .map(p => ctx.db.replace(p._id, SelectionPeriod.toClosed(p as SelectionPeriod.OpenPeriod)))
     )
+
+    // If already open, nothing more to do
+    if (SelectionPeriod.isOpen(period)) {
+      return { success: true }
+    }
+
+    // For inactive or closed periods, we need to schedule and open
+    const now = Date.now()
+    if (period.closeDate <= now) {
+      throw new Error("Cannot activate a period with a past close date")
+    }
+
+    // Schedule the assignment function
+    const scheduledId = await ctx.scheduler.runAt(
+      period.closeDate,
+      internal.assignments.assignPeriod,
+      { periodId: args.periodId }
+    )
+
+    // Update to open state
+    await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
+      semesterId: period.semesterId,
+      title: period.title,
+      description: period.description,
+      openDate: period.openDate,
+      closeDate: period.closeDate,
+      scheduledFunctionId: scheduledId
+    }))
 
     return { success: true }
   }

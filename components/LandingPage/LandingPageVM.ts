@@ -72,6 +72,7 @@ export interface LandingPageVM {
   readonly myAssignment$: ReadonlySignal<Option.Option<AssignmentVM>>
   readonly showAnalytics$: ReadonlySignal<boolean>
   readonly currentPeriodId$: ReadonlySignal<Option.Option<Id<"selectionPeriods">>>
+  readonly currentPeriod$: ReadonlySignal<Doc<"selectionPeriods"> | null | undefined>
 
   // Actions
   readonly setStudentId: (id: string | null) => void
@@ -317,6 +318,7 @@ export function createLandingPageVM(deps: LandingPageVMDeps): LandingPageVM {
     myAssignment$: myAssignment_computed$,
     showAnalytics$,
     currentPeriodId$,
+    currentPeriod$,
     setStudentId
   }
 }

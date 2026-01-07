@@ -6,17 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, ArrowRight, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Id } from "@/convex/_generated/dataModel"
-import { useStudentQuestionPresentationVM } from "./StudentQuestionPresentationViewVM"
+import type { StudentQuestionPresentationVM } from "./StudentQuestionPresentationViewVM"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export interface StudentQuestionPresentationViewProps {
-  readonly studentId: string
-  readonly selectionPeriodId: Id<"selectionPeriods">
-  readonly onComplete?: () => void
+  readonly vm: StudentQuestionPresentationVM
 }
 
 // ============================================================================
@@ -24,12 +21,9 @@ export interface StudentQuestionPresentationViewProps {
 // ============================================================================
 
 export const StudentQuestionPresentationView: React.FC<StudentQuestionPresentationViewProps> = ({
-  studentId,
-  selectionPeriodId,
-  onComplete,
+  vm,
 }) => {
   useSignals()
-  const vm = useStudentQuestionPresentationVM({ studentId, selectionPeriodId, onComplete })
 
   // Loading state
   if (!vm.currentQuestion$.value && vm.totalQuestions$.value === 0) {
@@ -67,7 +61,7 @@ export const StudentQuestionPresentationView: React.FC<StudentQuestionPresentati
         <div className="space-y-2">
           <Progress value={vm.progress$.value} className="h-3" />
           <p className="text-sm text-muted-foreground text-center">
-            Question {vm.currentIndex$.value + 1} of {vm.totalQuestions$.value}
+            {vm.answeredCount$.value} of {vm.totalQuestions$.value} answered ({vm.remainingCount$.value} remaining)
           </p>
         </div>
 

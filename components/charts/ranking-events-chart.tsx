@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
+import { signal } from "@preact/signals-react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
-import { useComputed } from "@preact/signals-react/runtime"
-import { useRankingEventsChartVM } from "./RankingEventsChartVM"
+import { useSignals } from "@preact/signals-react/runtime"
+import { createRankingEventsChartVM, type TimeGranularity } from "./RankingEventsChartVM"
 
 import {
   Card,
@@ -39,8 +40,6 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export type TimeGranularity = "by-minute" | "hourly" | "daily"
-
 interface RankingEventsChartProps {
   className?: string
   granularity?: TimeGranularity
@@ -52,12 +51,24 @@ export function RankingEventsChart({
   granularity = "hourly",
   hours = 48
 }: RankingEventsChartProps) {
-  const recentEvents = useQuery(api.analytics.getRecentRankingEvents, { hours })
-  const vm = useRankingEventsChartVM(recentEvents, granularity)
+  useSignals()
 
-  const activeChart = useComputed(() => vm.activeChart$.value)
-  const chartData = useComputed(() => vm.chartData$.value)
-  const total = useComputed(() => vm.total$.value)
+  // Query for events
+  const recentEvents = useQuery(api.analytics.getRecentRankingEvents, { hours })
+
+  // Create signal for events data
+  const events$ = React.useMemo(() => signal(recentEvents), [])
+
+  // Sync signal with query data
+  React.useEffect(() => {
+    events$.value = recentEvents
+  }, [recentEvents, events$])
+
+  // Create VM once with stable signal
+  const vm = React.useMemo(
+    () => createRankingEventsChartVM({ events$, granularity }),
+    [events$, granularity]
+  )
 
   if (!recentEvents) {
     return (
@@ -86,7 +97,7 @@ export function RankingEventsChart({
             return (
               <button
                 key={key}
-                data-active={activeChart.value === key}
+                data-active={vm.activeChart$.value === key}
                 className="data-[active=true]:bg-muted/50 relative z-30 flex flex-1 flex-col justify-center gap-1 border-t px-6 py-4 text-left even:border-l sm:border-t-0 sm:border-l sm:px-8 sm:py-6"
                 onClick={() => vm.setActiveChart(key)}
               >
@@ -94,7 +105,7 @@ export function RankingEventsChart({
                   {chartConfig[key].label}
                 </span>
                 <span className="text-lg leading-none font-bold sm:text-3xl">
-                  {total.value[key].toLocaleString()}
+                  {vm.total$.value[key].toLocaleString()}
                 </span>
               </button>
             )
@@ -108,7 +119,7 @@ export function RankingEventsChart({
         >
           <BarChart
             accessibilityLayer
-            data={[...chartData.value]}
+            data={[...vm.chartData$.value]}
             margin={{
               left: 12,
               right: 12,
@@ -123,7 +134,7 @@ export function RankingEventsChart({
               minTickGap={32}
               tickFormatter={(value) => {
                 const date = new Date(value)
-                
+
                 switch (granularity) {
                   case "by-minute":
                     return date.toLocaleTimeString("en-US", {
@@ -170,7 +181,7 @@ export function RankingEventsChart({
                 />
               }
             />
-            <Bar dataKey={activeChart.value} fill={`var(--color-${activeChart.value})`} />
+            <Bar dataKey={vm.activeChart$.value} fill={`var(--color-${vm.activeChart$.value})`} />
           </BarChart>
         </ChartContainer>
       </CardContent>

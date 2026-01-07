@@ -260,20 +260,22 @@ export function useDashboardVM(): DashboardVM {
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
   }).current
 
-  // Update signals when query data changes (batched to avoid multiple re-renders)
-  batch(() => {
-    dataSignals.periodsData$.value = periodsData
-    dataSignals.currentPeriodData$.value = currentPeriodData
-    dataSignals.assignmentsData$.value = assignmentsData
-    dataSignals.topicsData$.value = topicsData
-    dataSignals.subtopicsData$.value = subtopicsData
-    dataSignals.periodsForTopics$.value = periodsData
-    dataSignals.questionsData$.value = questionsData
-    dataSignals.templatesData$.value = templatesData
-    dataSignals.existingQuestionsData$.value = existingQuestionsData
-    dataSignals.statsData$.value = statsData
-    dataSignals.topicAnalyticsData$.value = topicAnalyticsData
-  })
+  // Update signals when query data changes - must be in useEffect to avoid setState during render
+  React.useEffect(() => {
+    batch(() => {
+      dataSignals.periodsData$.value = periodsData
+      dataSignals.currentPeriodData$.value = currentPeriodData
+      dataSignals.assignmentsData$.value = assignmentsData
+      dataSignals.topicsData$.value = topicsData
+      dataSignals.subtopicsData$.value = subtopicsData
+      dataSignals.periodsForTopics$.value = periodsData
+      dataSignals.questionsData$.value = questionsData
+      dataSignals.templatesData$.value = templatesData
+      dataSignals.existingQuestionsData$.value = existingQuestionsData
+      dataSignals.statsData$.value = statsData
+      dataSignals.topicAnalyticsData$.value = topicAnalyticsData
+    })
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, statsData, topicAnalyticsData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -620,9 +622,9 @@ export function useDashboardVM(): DashboardVM {
     })
 
     const topicsView = createTopicsViewVM({
-      topics: topicsData,
-      subtopics: subtopicsData,
-      periods: periodsData,
+      topics$: dataSignals.topicsData$,
+      subtopics$: dataSignals.subtopicsData$,
+      periods$: dataSignals.periodsData$,
       createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
       toggleTopicActive: toggleTopicActiveMutation,

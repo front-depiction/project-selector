@@ -4,6 +4,7 @@ import type { Item } from "@/components/ui/sortable-list"
 import * as Option from "effect/Option"
 import type { FunctionReturnType } from "convex/server"
 import type { api } from "@/convex/_generated/api"
+import type { StudentQuestionPresentationVM } from "@/components/StudentQuestionnaire/StudentQuestionPresentationViewVM"
 
 // ============================================================================
 // View Model Types
@@ -37,6 +38,7 @@ export interface QuestionnaireStateVM {
  * Current period display data
  */
 export interface PeriodDisplayVM {
+  readonly _id: Id<"selectionPeriods">
   readonly title: string
   readonly description: string
   readonly closeDateDisplay: string
@@ -79,6 +81,9 @@ export interface StudentSelectionPageVM {
   readonly expandedTopicIds$: ReadonlySignal<Set<string | number>>
   readonly isLoading$: ReadonlySignal<boolean>
 
+  // Nested VMs
+  readonly questionnaireVM$: ReadonlySignal<StudentQuestionPresentationVM | null>
+
   // Actions
   readonly setStudentId: (id: string) => void
   readonly updateSelection: (newItems: Item[] | ((prev: Item[]) => Item[])) => void
@@ -99,6 +104,7 @@ export interface StudentSelectionPageVMDeps {
   readonly hasCompletedQuestionnaire$: ReadonlySignal<boolean | undefined>
   readonly savePreferences: (args: { studentId: string; topicOrder: Id<"topics">[] }) => Promise<any>
   readonly initialStudentId?: string
+  readonly questionnaireVM$: ReadonlySignal<StudentQuestionPresentationVM | null>
 }
 
 // ============================================================================
@@ -113,7 +119,8 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     periodQuestions$: periodQuestionsData$,
     hasCompletedQuestionnaire$: hasCompletedQuestionnaireData$,
     savePreferences,
-    initialStudentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
+    initialStudentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : "",
+    questionnaireVM$
   } = deps
 
   // Local signals for UI state - created once in factory
@@ -189,6 +196,7 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     const daysRemaining = Math.ceil((closeDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
     return Option.some({
+      _id: currentPeriod._id,
       title: currentPeriod.title,
       description: currentPeriod.description,
       closeDateDisplay: closeDate.toLocaleDateString(),
@@ -346,6 +354,7 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     validationState$,
     expandedTopicIds$,
     isLoading$,
+    questionnaireVM$,
     setStudentId,
     updateSelection,
     toggleTopicExpanded,

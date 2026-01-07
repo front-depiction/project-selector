@@ -191,7 +191,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
       )}
 
       {/* Create Dialog */}
-      <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => open ? vm.createDialog.open() : vm.createDialog.close()}>
+      <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Create Selection Period</DialogTitle>
@@ -208,7 +208,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={vm.editDialog.isOpen$.value} onOpenChange={(open) => open ? vm.editDialog.open() : vm.editDialog.close()}>
+      <Dialog open={vm.editDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Selection Period</DialogTitle>

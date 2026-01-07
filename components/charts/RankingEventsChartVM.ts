@@ -1,4 +1,3 @@
-"use client"
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
 
 // ============================================================================
@@ -34,6 +33,15 @@ export interface RankingEventsChartVM {
 
   // Actions
   readonly setActiveChart: (chart: ActiveChart) => void
+}
+
+// ============================================================================
+// Dependency Types
+// ============================================================================
+
+export interface RankingEventsChartVMDeps {
+  readonly events$: ReadonlySignal<readonly RankingEvent[] | undefined>
+  readonly granularity: TimeGranularity
 }
 
 // ============================================================================
@@ -95,29 +103,25 @@ function calculateTotal(events: readonly RankingEvent[] | undefined): ChartTotal
 }
 
 // ============================================================================
-// Hook
+// Factory Function
 // ============================================================================
 
-export function useRankingEventsChartVM(
-  recentEvents: readonly RankingEvent[] | undefined,
-  granularity: TimeGranularity = "hourly"
-): RankingEventsChartVM {
-  // Active chart state - initialize with "added"
+export function createRankingEventsChartVM(deps: RankingEventsChartVMDeps): RankingEventsChartVM {
+  const { events$, granularity } = deps
+
+  // Active chart state - stable signal created once
   const activeChart$ = signal<ActiveChart>("added")
 
   // Computed signals for chart data processing
   const chartData$ = computed(() =>
-    processEventsIntoChartData(recentEvents, granularity)
+    processEventsIntoChartData(events$.value, granularity)
   )
 
   const total$ = computed(() =>
-    calculateTotal(recentEvents)
+    calculateTotal(events$.value)
   )
 
-  // ============================================================================
   // Actions
-  // ============================================================================
-
   const setActiveChart = (chart: ActiveChart): void => {
     activeChart$.value = chart
   }
