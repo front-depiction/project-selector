@@ -1,38 +1,45 @@
-"use client"
-import { signal, computed, type ReadonlySignal } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
-import { api } from "@/convex/_generated/api"
+import { signal, computed, type ReadonlySignal, effect } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useMemo, useEffect } from "react"
+import type { FunctionReturnType } from "convex/server"
+import type { api } from "@/convex/_generated/api"
 
 // ============================================================================
 // View Model Types
 // ============================================================================
 
+interface QuestionVM {
+  readonly questionId: Id<"questions">
+  readonly text: string
+  readonly kind: "boolean" | "0to10"
+  readonly order: number
+}
+
 export interface StudentQuestionPresentationVM {
-  /** Current question index (writable signal) */
+  /** Current question index in unanswered list */
   readonly currentIndex$: ReadonlySignal<number>
 
   /** Current question derived from index */
-  readonly currentQuestion$: ReadonlySignal<{
-    readonly questionId: Id<"questions">
-    readonly text: string
-    readonly kind: "boolean" | "0to10"
-  } | null>
+  readonly currentQuestion$: ReadonlySignal<QuestionVM | null>
 
   /** Current answer for the current question */
   readonly currentAnswer$: ReadonlySignal<boolean | number | undefined>
 
-  /** Progress percentage (0-100) */
+  /** Progress percentage (0-100) - based on total answered / total questions */
   readonly progress$: ReadonlySignal<number>
 
-  /** Total number of questions */
+  /** Total number of questions (all, not just unanswered) */
   readonly totalQuestions$: ReadonlySignal<number>
 
-  /** Is this the first question? */
+  /** Number of answered questions */
+  readonly answeredCount$: ReadonlySignal<number>
+
+  /** Number of unanswered questions remaining */
+  readonly remainingCount$: ReadonlySignal<number>
+
+  /** Is this the first unanswered question? */
   readonly isFirst$: ReadonlySignal<boolean>
 
-  /** Is this the last question? */
+  /** Is this the last unanswered question? */
   readonly isLast$: ReadonlySignal<boolean>
 
   /** Are all questions answered? */
@@ -44,10 +51,10 @@ export interface StudentQuestionPresentationVM {
   /** Update the answer for the current question */
   readonly setAnswer: (value: number | boolean) => void
 
-  /** Navigate to next question */
+  /** Navigate to next unanswered question */
   readonly next: () => void
 
-  /** Navigate to previous question */
+  /** Navigate to previous unanswered question */
   readonly previous: () => void
 
   /** Submit all answers */
@@ -55,169 +62,253 @@ export interface StudentQuestionPresentationVM {
 }
 
 // ============================================================================
-// Hook
+// Dependency Types
 // ============================================================================
 
-export interface StudentQuestionPresentationVMProps {
+export interface StudentQuestionPresentationVMDeps {
   readonly studentId: string
   readonly selectionPeriodId: Id<"selectionPeriods">
+  readonly questions$: ReadonlySignal<FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod> | undefined>
+  readonly existingAnswers$: ReadonlySignal<FunctionReturnType<typeof api.studentAnswers.getAnswers> | undefined>
+  readonly saveAnswers: (args: {
+    studentId: string
+    selectionPeriodId: Id<"selectionPeriods">
+    answers: Array<{
+      questionId: Id<"questions">
+      kind: "boolean" | "0to10"
+      value: boolean | number
+    }>
+  }) => Promise<void>
   readonly onComplete?: () => void
 }
 
-export function useStudentQuestionPresentationVM(
-  props: StudentQuestionPresentationVMProps
+// ============================================================================
+// Factory Function
+// ============================================================================
+
+export function createStudentQuestionPresentationVM(
+  deps: StudentQuestionPresentationVMDeps
 ): StudentQuestionPresentationVM {
-  const { studentId, selectionPeriodId, onComplete } = props
+  const {
+    studentId,
+    selectionPeriodId,
+    questions$: questionsData$,
+    existingAnswers$: existingAnswersData$,
+    saveAnswers,
+    onComplete
+  } = deps
 
-  // Convex queries
-  const questionsData = useQuery(api.selectionQuestions.getQuestionsForPeriod, { selectionPeriodId })
-  const existingAnswersData = useQuery(api.studentAnswers.getAnswers, { studentId, selectionPeriodId })
+  // Local signals for UI state
+  const currentIndexSignal = signal(0)
+  const answersMapSignal = signal(new Map<string, boolean | number>())
+  const isSubmittingSignal = signal(false)
+  const initializedSignal = signal(false)
 
-  // Convex mutations
-  const saveAnswersMutation = useMutation(api.studentAnswers.saveAnswers)
+  // Computed: ALL questions sorted by order (stable)
+  const allQuestions$ = computed((): readonly QuestionVM[] => {
+    const questionsData = questionsData$.value
+    if (!questionsData) return []
 
-  // Create signals once using useMemo - these are the stateful primitives
-  const signals = useMemo(() => ({
-    currentIndexSignal: signal(0),
-    answersMapSignal: signal(new Map<string, boolean | number>()),
-    isSubmittingSignal: signal(false),
-  }), [])
+    return questionsData
+      .filter(sq => sq.question !== null)
+      .sort((a, b) => a.order - b.order)
+      .map(sq => ({
+        questionId: sq.questionId,
+        text: sq.question!.question,
+        kind: sq.question!.kind as "boolean" | "0to10",
+        order: sq.order
+      }))
+  })
 
-  // Initialize answers from existing data using useEffect
-  useEffect(() => {
-    if (existingAnswersData && existingAnswersData.length > 0 && signals.answersMapSignal.value.size === 0) {
+  // Effect: Initialize answers map from existing data (once)
+  effect(() => {
+    const existingAnswers = existingAnswersData$.value
+    if (!existingAnswers || initializedSignal.value) return
+
+    if (existingAnswers.length > 0) {
       const newMap = new Map<string, boolean | number>()
-      for (const answer of existingAnswersData) {
+      for (const answer of existingAnswers) {
         newMap.set(answer.questionId, answer.rawAnswer.value)
       }
-      signals.answersMapSignal.value = newMap
+      answersMapSignal.value = newMap
     }
-  }, [existingAnswersData, signals])
+    initializedSignal.value = true
+  })
 
-  // Create VM once - computed signals reference the live questionsData through closure
-  const vm = useMemo(() => {
-    const { currentIndexSignal, answersMapSignal, isSubmittingSignal } = signals
+  // Computed: unanswered questions (for navigation) - based on PERSISTED answers only
+  const unansweredQuestions$ = computed((): readonly QuestionVM[] => {
+    const allQuestions = allQuestions$.value
+    const existingAnswers = existingAnswersData$.value
+    const persistedIds = new Set(existingAnswers?.map(a => a.questionId) ?? [])
+    return allQuestions.filter(q => !persistedIds.has(q.questionId))
+  })
 
-    // Computed: questions list (filtered and mapped)
-    const questions$ = computed(() => {
-      if (!questionsData) return []
-      return questionsData
-        .filter(sq => sq.question !== null)
-        .map(sq => ({
-          questionId: sq.questionId,
-          text: sq.question!.question,
-          kind: sq.question!.kind as "boolean" | "0to10"
-        }))
-    })
+  // Computed: total questions count (stable)
+  const totalQuestions$ = computed(() => allQuestions$.value.length)
 
-    // Computed: total questions
-    const totalQuestions$ = computed(() => questions$.value.length)
+  // Computed: answered count - based on PERSISTED answers only
+  const answeredCount$ = computed(() => {
+    const existingAnswers = existingAnswersData$.value
+    return existingAnswers?.length ?? 0
+  })
 
-    // Computed: current question
-    const currentQuestion$ = computed(() => {
-      const questions = questions$.value
-      const index = currentIndexSignal.value
-      if (questions.length === 0 || index < 0 || index >= questions.length) {
-        return null
-      }
-      return questions[index]
-    })
+  // Computed: remaining unanswered
+  const remainingCount$ = computed(() => unansweredQuestions$.value.length)
 
-    // Computed: current answer
-    const currentAnswer$ = computed(() => {
-      const question = currentQuestion$.value
-      if (!question) return undefined
-      return answersMapSignal.value.get(question.questionId)
-    })
+  // Computed: current question (from unanswered list)
+  const currentQuestion$ = computed((): QuestionVM | null => {
+    const unanswered = unansweredQuestions$.value
+    const index = currentIndexSignal.value
+    if (unanswered.length === 0 || index < 0 || index >= unanswered.length) {
+      return null
+    }
+    return unanswered[index]
+  })
 
-    // Computed: progress percentage
-    const progress$ = computed(() => {
-      const total = totalQuestions$.value
-      if (total === 0) return 0
-      return ((currentIndexSignal.value + 1) / total) * 100
-    })
+  // Computed: current answer
+  const currentAnswer$ = computed(() => {
+    const question = currentQuestion$.value
+    if (!question) return undefined
+    return answersMapSignal.value.get(question.questionId)
+  })
 
-    // Computed: navigation state
-    const isFirst$ = computed(() => currentIndexSignal.value === 0)
-    const isLast$ = computed(() => currentIndexSignal.value === totalQuestions$.value - 1)
+  // Computed: progress percentage (answered / total)
+  const progress$ = computed(() => {
+    const total = totalQuestions$.value
+    if (total === 0) return 0
+    return (answeredCount$.value / total) * 100
+  })
 
-    // Computed: completion state
-    const isComplete$ = computed(() => {
-      const questions = questions$.value
-      const answers = answersMapSignal.value
-      if (questions.length === 0) return false
-      return questions.every(q => answers.has(q.questionId))
-    })
+  // Computed: navigation state (within unanswered list)
+  const isFirst$ = computed(() => currentIndexSignal.value === 0)
+  const isLast$ = computed(() => {
+    const remaining = remainingCount$.value
+    return remaining === 0 || currentIndexSignal.value === remaining - 1
+  })
 
-    // Actions
-    const setAnswer = (value: number | boolean) => {
-      const question = currentQuestion$.value
-      if (!question) return
+  // Computed: completion state - checks BOTH persisted and local answers
+  const isComplete$ = computed(() => {
+    const allQuestions = allQuestions$.value
+    if (allQuestions.length === 0) return false
 
+    const existingAnswers = existingAnswersData$.value
+    const persistedIds = new Set(existingAnswers?.map(a => a.questionId) ?? [])
+    const localAnswers = answersMapSignal.value
+
+    // Complete if every question has either a persisted or local answer
+    return allQuestions.every(q => persistedIds.has(q.questionId) || localAnswers.has(q.questionId))
+  })
+
+  // Helper: persist current answer to database (fire and forget)
+  const persistCurrentAnswer = (): void => {
+    const question = currentQuestion$.value
+    if (!question) return
+
+    // Use stored answer or default (5 for scale, false for boolean)
+    const storedAnswer = answersMapSignal.value.get(question.questionId)
+    const answer = storedAnswer ?? (question.kind === "0to10" ? 5 : false)
+
+    // Also update local map with default if not set
+    if (storedAnswer === undefined) {
       const newMap = new Map(answersMapSignal.value)
-      newMap.set(question.questionId, value)
+      newMap.set(question.questionId, answer)
       answersMapSignal.value = newMap
     }
 
-    const next = () => {
-      const total = totalQuestions$.value
-      if (currentIndexSignal.value < total - 1) {
-        currentIndexSignal.value = currentIndexSignal.value + 1
-      }
+    // Fire and forget
+    saveAnswers({
+      studentId,
+      selectionPeriodId,
+      answers: [{
+        questionId: question.questionId,
+        kind: question.kind,
+        value: answer
+      }]
+    }).catch((error) => {
+      console.error("Failed to persist answer:", error)
+    })
+  }
+
+  // Actions
+  const setAnswer = (value: number | boolean): void => {
+    const question = currentQuestion$.value
+    if (!question) return
+
+    const newMap = new Map(answersMapSignal.value)
+    newMap.set(question.questionId, value)
+    answersMapSignal.value = newMap
+  }
+
+  const next = (): void => {
+    // Persist current answer (fire and forget with optimistic update)
+    // The optimistic update shrinks unansweredQuestions$, so staying at
+    // the same index shows the next question
+    persistCurrentAnswer()
+
+    // Clamp index if we're at the end
+    const remaining = remainingCount$.value
+    if (remaining > 0 && currentIndexSignal.value >= remaining - 1) {
+      currentIndexSignal.value = Math.max(0, remaining - 2)
     }
+  }
 
-    const previous = () => {
-      if (currentIndexSignal.value > 0) {
-        currentIndexSignal.value = currentIndexSignal.value - 1
-      }
+  const previous = (): void => {
+    if (currentIndexSignal.value > 0) {
+      currentIndexSignal.value = currentIndexSignal.value - 1
     }
+  }
 
-    const submit = () => {
-      if (isSubmittingSignal.value) return
+  const submit = (): void => {
+    if (isSubmittingSignal.value) return
 
-      isSubmittingSignal.value = true
+    // Persist any final answer
+    persistCurrentAnswer()
 
-      const questions = questions$.value
-      const answers = answersMapSignal.value
+    isSubmittingSignal.value = true
 
-      const answersArray = questions.map(q => ({
+    // Submit all answers from the map
+    const allQuestions = allQuestions$.value
+    const answers = answersMapSignal.value
+
+    const answersArray = allQuestions
+      .filter(q => answers.has(q.questionId))
+      .map(q => ({
         questionId: q.questionId,
         kind: q.kind,
-        value: answers.get(q.questionId) ?? (q.kind === "boolean" ? false : 5)
+        value: answers.get(q.questionId)!
       }))
 
-      saveAnswersMutation({
-        studentId,
-        selectionPeriodId,
-        answers: answersArray
+    saveAnswers({
+      studentId,
+      selectionPeriodId,
+      answers: answersArray
+    })
+      .then(() => {
+        onComplete?.()
       })
-        .then(() => {
-          onComplete?.()
-        })
-        .catch((error) => {
-          console.error("Failed to save answers:", error)
-        })
-        .finally(() => {
-          isSubmittingSignal.value = false
-        })
-    }
+      .catch((error) => {
+        console.error("Failed to save answers:", error)
+      })
+      .finally(() => {
+        isSubmittingSignal.value = false
+      })
+  }
 
-    return {
-      currentIndex$: currentIndexSignal,
-      currentQuestion$,
-      currentAnswer$,
-      progress$,
-      totalQuestions$,
-      isFirst$,
-      isLast$,
-      isComplete$,
-      isSubmitting$: isSubmittingSignal,
-      setAnswer,
-      next,
-      previous,
-      submit,
-    }
-  }, [signals, questionsData, saveAnswersMutation, studentId, selectionPeriodId, onComplete])
-
-  return vm
+  return {
+    currentIndex$: currentIndexSignal,
+    currentQuestion$,
+    currentAnswer$,
+    progress$,
+    totalQuestions$,
+    answeredCount$,
+    remainingCount$,
+    isFirst$,
+    isLast$,
+    isComplete$,
+    isSubmitting$: isSubmittingSignal,
+    setAnswer,
+    next,
+    previous,
+    submit,
+  }
 }

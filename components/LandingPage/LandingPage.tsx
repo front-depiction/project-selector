@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useComputed } from "@preact/signals-react/runtime"
+import { useSignals } from "@preact/signals-react/runtime"
 import * as Option from "effect/Option"
 import { Doc, Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
@@ -112,14 +112,16 @@ export interface ProviderProps {
 }
 
 export const Provider: React.FC<ProviderProps> = ({ vm, children }) => {
+  // Enable signal tracking for reactivity
+  useSignals()
+
   // Bridge VM to Context for backward compatibility
   // This allows child components to continue using useLandingPage()
-  // React compiler handles memoization - no useMemo needed
   return (
     <LandingPageContext.Provider value={{
       stats: null, // Not exposed by VM anymore
       competitionData: vm.competitionData$.value,
-      currentPeriod: null, // Not directly exposed
+      currentPeriod: vm.currentPeriod$.value ?? null,
       studentId: Option.getOrNull(vm.studentId$.value),
       myAssignment: null, // Not in old format
       setStudentId: vm.setStudentId,
@@ -257,9 +259,9 @@ export const Timer: React.FC<{ targetDate: number | null }> = ({ targetDate }) =
 // ============================================================================
 
 export const StatusBanner: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
-  const banner = useComputed(() => vm.banner$.value)
+  useSignals()
 
-  return Option.match(banner.value, {
+  return Option.match(vm.banner$.value, {
     onNone: () => null,
     onSome: (bannerData) => (
       <div className="mb-8">
@@ -362,13 +364,13 @@ export const StatCard: React.FC<{ card: StatCardVM }> = ({ card }) => {
 }
 
 export const StatisticsCards: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
-  const stats = useComputed(() => vm.stats$.value)
+  useSignals()
 
-  if (stats.value.length === 0) return null
+  if (vm.stats$.value.length === 0) return null
 
   return (
     <div className="grid md:grid-cols-3 gap-4 mb-8">
-      {stats.value.map((card, idx) => (
+      {vm.stats$.value.map((card, idx) => (
         <StatCard key={idx} card={card} />
       ))}
     </div>
@@ -380,7 +382,7 @@ export const StatisticsCards: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
 // ============================================================================
 
 export const AnalyticsSection: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
-  const showAnalytics = useComputed(() => vm.showAnalytics$.value)
+  useSignals()
 
   return (
     <div className="space-y-8 mb-8">
@@ -390,7 +392,7 @@ export const AnalyticsSection: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
       </div>
       <div className="flex flex-col gap-6">
         <RankingEventsChart granularity="by-minute" hours={48} />
-        {showAnalytics.value && (
+        {vm.showAnalytics$.value && (
           <TopicCompetitionMixedChart className="h-full" />
         )}
       </div>
@@ -439,9 +441,9 @@ export const InactivePeriodCard: React.FC = () => (
 // ============================================================================
 
 export const PersonalAssignmentDisplay: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
-  const myAssignment = useComputed(() => vm.myAssignment$.value)
+  useSignals()
 
-  return Option.match(myAssignment.value, {
+  return Option.match(vm.myAssignment$.value, {
     onNone: () => null,
     onSome: (assignment) => (
       <Card className="max-w-2xl border-0 shadow-lg bg-primary text-primary-foreground">
@@ -500,14 +502,14 @@ export const AssignmentStats: React.FC = () => {
 }
 
 export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"selectionPeriods"> }> = ({ vm, periodId }) => {
-  const studentId = useComputed(() => vm.studentId$.value)
+  useSignals()
 
   return (
     <div className="space-y-8">
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Assignment Results</h2>
         <p className="text-muted-foreground">
-          {Option.match(studentId.value, {
+          {Option.match(vm.studentId$.value, {
             onNone: () => "Enter your student ID to view your assignment",
             onSome: (id) => `Student ID: ${id}`
           })}
@@ -523,7 +525,7 @@ export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"
           <CardTitle>Topic Assignments</CardTitle>
         </CardHeader>
         <CardContent>
-          <AssignmentDisplay periodId={periodId} studentId={Option.getOrUndefined(studentId.value)} />
+          <AssignmentDisplay periodId={periodId} studentId={Option.getOrUndefined(vm.studentId$.value)} />
         </CardContent>
       </Card>
     </div>
@@ -535,9 +537,9 @@ export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"
 // ============================================================================
 
 export const LoadingState: React.FC<{ vm: LandingPageVM }> = ({ vm }) => {
-  const isLoading = useComputed(() => vm.isLoading$.value)
+  useSignals()
 
-  if (!isLoading.value) return null
+  if (!vm.isLoading$.value) return null
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">

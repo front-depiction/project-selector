@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronsUpDown, Plus } from "lucide-react"
-import { useComputed } from "@preact/signals-react/runtime"
+import { useSignals } from "@preact/signals-react/runtime"
 
 import {
   DropdownMenu,
@@ -30,11 +30,11 @@ export function TeamSwitcher({
     plan: string
   }[]
 }) {
+  useSignals()
   const { isMobile } = useSidebar()
   const vm = useTeamSwitcherVM(teams)
-  const activeTeam = useComputed(() => vm.activeTeam$.value)
 
-  if (!activeTeam.value) {
+  if (!vm.activeTeam$.value) {
     return null
   }
 
@@ -48,11 +48,11 @@ export function TeamSwitcher({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <activeTeam.value.logo className="size-4" />
+                <vm.activeTeam$.value.logo className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{activeTeam.value.name}</span>
-                <span className="truncate text-xs">{activeTeam.value.plan}</span>
+                <span className="truncate font-medium">{vm.activeTeam$.value.name}</span>
+                <span className="truncate text-xs">{vm.activeTeam$.value.plan}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>

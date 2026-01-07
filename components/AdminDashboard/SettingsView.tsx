@@ -120,7 +120,7 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
       </Card>
 
       {/* Clear Data Confirmation Dialog */}
-      <AlertDialog open={vm.clearDialog.isOpen$.value} onOpenChange={(open) => open ? vm.clearDialog.open() : vm.clearDialog.close()}>
+      <AlertDialog open={vm.clearDialog.isOpen$.value} onOpenChange={(open) => !open && vm.clearDialog.close()}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

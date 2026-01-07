@@ -15,7 +15,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { useComputed } from "@preact/signals-react/runtime"
+import { useSignals } from "@preact/signals-react/runtime"
 import { createEventChartVM } from "./EventChartVM"
 
 export type ChartType = "line" | "bar" | "area"
@@ -72,9 +72,8 @@ export function EventChart({
   formatValue,
   additionalMetrics
 }: EventChartProps) {
+  useSignals()
   const vm = createEventChartVM(data, valueKey, aggregateFunction, groupBy, showTrend)
-  const processedData = useComputed(() => vm.processedData$.value)
-  const trend = useComputed(() => vm.trend$.value)
 
   const chartConfig = {
     [valueKey]: {
@@ -99,7 +98,7 @@ export function EventChart({
     )
   }
 
-  if (processedData.value.length === 0) {
+  if (vm.processedData$.value.length === 0) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -115,9 +114,9 @@ export function EventChart({
     )
   }
 
-  const hoursDiff = processedData.value.length > 0
-    ? (new Date(processedData.value[processedData.value.length - 1].timestamp).getTime() -
-       new Date(processedData.value[0].timestamp).getTime()) / (1000 * 60 * 60)
+  const hoursDiff = vm.processedData$.value.length > 0
+    ? (new Date(vm.processedData$.value[vm.processedData$.value.length - 1].timestamp).getTime() -
+       new Date(vm.processedData$.value[0].timestamp).getTime()) / (1000 * 60 * 60)
     : 0
 
   return (
@@ -128,21 +127,21 @@ export function EventChart({
             <CardTitle className="text-base">{title}</CardTitle>
             {description && <CardDescription>{description}</CardDescription>}
           </div>
-          {showTrend && trend.value && (
+          {showTrend && vm.trend$.value && (
             <div className="flex items-center gap-1 text-sm">
-              {trend.value === "up" && (
+              {vm.trend$.value === "up" && (
                 <>
                   <TrendingUp className="h-4 w-4 text-green-500" />
                   <span className="text-green-600">Trending up</span>
                 </>
               )}
-              {trend.value === "down" && (
+              {vm.trend$.value === "down" && (
                 <>
                   <TrendingDown className="h-4 w-4 text-red-500" />
                   <span className="text-red-600">Trending down</span>
                 </>
               )}
-              {trend.value === "stable" && (
+              {vm.trend$.value === "stable" && (
                 <>
                   <Minus className="h-4 w-4 text-gray-500" />
                   <span className="text-gray-600">Stable</span>
@@ -165,7 +164,7 @@ export function EventChart({
         <ChartContainer config={chartConfig} className={`h-[${height}px] w-full`}>
           {chartType === "bar" ? (
             <BarChart
-              data={[...processedData.value]}
+              data={[...vm.processedData$.value]}
               margin={{
                 left: 0,
                 right: 0,
@@ -214,7 +213,7 @@ export function EventChart({
             </BarChart>
           ) : chartType === "area" ? (
             <AreaChart
-              data={[...processedData.value]}
+              data={[...vm.processedData$.value]}
               margin={{
                 left: 0,
                 right: 0,
@@ -264,7 +263,7 @@ export function EventChart({
             </AreaChart>
           ) : (
             <LineChart
-              data={[...processedData.value]}
+              data={[...vm.processedData$.value]}
               margin={{
                 left: 0,
                 right: 0,
