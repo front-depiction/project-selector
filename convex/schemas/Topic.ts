@@ -12,7 +12,8 @@ export const Topic = v.object({
   description: v.string(),
   semesterId: v.string(),
   isActive: v.boolean(),
-  subtopicIds: v.optional(v.array(v.id("subtopics")))
+  subtopicIds: v.optional(v.array(v.id("subtopics"))),
+  requiresAllowList: v.optional(v.boolean())
 })
 
 /**
