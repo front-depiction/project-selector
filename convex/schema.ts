@@ -13,6 +13,7 @@ import * as StudentAnswer from "./schemas/StudentAnswer"
 import * as User from "./schemas/User"
 import * as TopicStudentAllowList from "./schemas/TopicStudentAllowList"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
+import * as Category from "./schemas/Category"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -41,10 +42,15 @@ export default defineSchema({
     .index("by_topic", ["topicId", "periodId"]),
 
   questions: defineTable(Question.Question)
-    .index("by_semester", ["semesterId"]),
+    .index("by_semester", ["semesterId"])
+    .index("by_category", ["category"]),
 
   questionTemplates: defineTable(QuestionTemplate.QuestionTemplate)
     .index("by_semester", ["semesterId"]),
+
+  categories: defineTable(Category.Category)
+    .index("by_semester", ["semesterId"])
+    .index("by_name", ["name"]),
 
   templateQuestions: defineTable(TemplateQuestion.TemplateQuestion)
     .index("by_template", ["templateId", "order"])

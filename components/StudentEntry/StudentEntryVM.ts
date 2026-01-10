@@ -5,42 +5,46 @@ import * as Option from "effect/Option"
 // CONSTANTS
 // ============================================================================
 
-const STUDENT_ID_LENGTH = 7
-const DIGITS_ONLY = /^[0-9]+$/
+const ACCESS_CODE_LENGTH = 6
+const ALPHANUMERIC = /^[A-Z0-9]+$/i
 
 // ============================================================================
 // View Model Types
 // ============================================================================
 
-export interface DigitSlotVM {
+export interface CharSlotVM {
   readonly key: string
   readonly index: number
 }
 
 export interface StudentEntryVM {
-  /** The current input value - string of digits */
+  /** The current input value - string of alphanumeric characters */
   readonly value$: ReadonlySignal<string>
 
-  /** Whether all digits have been entered (length check) */
+  /** Whether all characters have been entered (length check) */
   readonly isComplete$: ReadonlySignal<boolean>
 
-  /** Pre-computed array of digit slot display states */
-  readonly digitSlots$: ReadonlySignal<readonly DigitSlotVM[]>
+  /** Pre-computed array of character slot display states */
+  readonly charSlots$: ReadonlySignal<readonly CharSlotVM[]>
 
   /** Validation error message */
   readonly errorMessage$: ReadonlySignal<Option.Option<string>>
 
-  /** Update the input value (validates digits only) */
+  /** Update the input value (validates alphanumeric only) */
   readonly setValue: (value: string) => void
 
-  /** Handle digit input with validation */
-  readonly handleDigitInput: (value: string) => void
+  /** Handle character input with validation */
+  readonly handleCharInput: (value: string) => void
 
   /** Handle backspace/delete action */
   readonly handleBackspace: () => void
 
   /** Handle completion (save and navigate) */
   readonly handleComplete: () => void
+
+  // Legacy aliases for compatibility
+  readonly digitSlots$: ReadonlySignal<readonly CharSlotVM[]>
+  readonly handleDigitInput: (value: string) => void
 }
 
 // ============================================================================
@@ -48,8 +52,8 @@ export interface StudentEntryVM {
 // ============================================================================
 
 export interface StudentEntryVMDeps {
-  /** Callback to execute when student ID entry is complete */
-  readonly onComplete: (studentId: string) => void
+  /** Callback to execute when access code entry is complete */
+  readonly onComplete: (accessCode: string) => void
 }
 
 // ============================================================================
@@ -65,68 +69,69 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
 
   // Computed: Check if entry is complete
   const isComplete$ = computed(() => {
-    const value = value$.value
-    return value.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(value)
+    const value = value$.value.toUpperCase()
+    return value.length === ACCESS_CODE_LENGTH && ALPHANUMERIC.test(value)
   })
 
-  // Computed: Pre-format digit slots for display
-  const digitSlots$ = computed((): readonly DigitSlotVM[] => {
-    return Array.from({ length: STUDENT_ID_LENGTH }).map((_, i) => ({
-      key: `digit-${i}`,
+  // Computed: Pre-format character slots for display
+  const charSlots$ = computed((): readonly CharSlotVM[] => {
+    return Array.from({ length: ACCESS_CODE_LENGTH }).map((_, i) => ({
+      key: `char-${i}`,
       index: i,
     }))
   })
 
   // Action: Handle completion
   const handleComplete = (): void => {
-    const currentValue = value$.value
+    const currentValue = value$.value.toUpperCase()
 
-    if (currentValue.length !== STUDENT_ID_LENGTH) {
-      errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
+    if (currentValue.length !== ACCESS_CODE_LENGTH) {
+      errorMessage$.value = Option.some(`Access code must be exactly ${ACCESS_CODE_LENGTH} characters`)
       return
     }
 
-    if (!DIGITS_ONLY.test(currentValue)) {
-      errorMessage$.value = Option.some("Only digits (0-9) are allowed")
+    if (!ALPHANUMERIC.test(currentValue)) {
+      errorMessage$.value = Option.some("Only letters and numbers are allowed")
       return
     }
 
     errorMessage$.value = Option.none()
 
-    // Save to localStorage
+    // Save to localStorage (uppercase normalized)
     localStorage.setItem("studentId", currentValue)
 
     // Execute callback
     onComplete(currentValue)
   }
 
-  // Action: Set value with digit-only validation
+  // Action: Set value with alphanumeric validation
   const setValue = (newValue: string): void => {
-    const digits = newValue.replace(/\D/g, "")
+    // Remove non-alphanumeric characters and convert to uppercase
+    const cleaned = newValue.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
 
-    if (digits.length > STUDENT_ID_LENGTH) {
+    if (cleaned.length > ACCESS_CODE_LENGTH) {
       batch(() => {
-        errorMessage$.value = Option.some(`Student ID must be exactly ${STUDENT_ID_LENGTH} digits`)
-        value$.value = digits.slice(0, STUDENT_ID_LENGTH)
+        errorMessage$.value = Option.some(`Access code must be exactly ${ACCESS_CODE_LENGTH} characters`)
+        value$.value = cleaned.slice(0, ACCESS_CODE_LENGTH)
       })
     } else {
       batch(() => {
         errorMessage$.value = Option.none()
-        value$.value = digits
+        value$.value = cleaned
       })
     }
 
     // Auto-complete when valid
-    if (digits.length === STUDENT_ID_LENGTH && DIGITS_ONLY.test(digits)) {
+    if (cleaned.length === ACCESS_CODE_LENGTH && ALPHANUMERIC.test(cleaned)) {
       handleComplete()
     }
   }
 
-  // Action: Handle digit input
-  const handleDigitInput = (newValue: string): void => {
-    // Validate that input contains only digits
-    if (newValue && !DIGITS_ONLY.test(newValue)) {
-      errorMessage$.value = Option.some("Only digits (0-9) are allowed")
+  // Action: Handle character input
+  const handleCharInput = (newValue: string): void => {
+    // Validate that input contains only alphanumeric characters
+    if (newValue && !ALPHANUMERIC.test(newValue)) {
+      errorMessage$.value = Option.some("Only letters and numbers are allowed")
       return
     }
 
@@ -147,11 +152,14 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
   return {
     value$,
     isComplete$,
-    digitSlots$,
+    charSlots$,
     errorMessage$,
     setValue,
-    handleDigitInput,
+    handleCharInput,
     handleBackspace,
     handleComplete,
+    // Legacy aliases
+    digitSlots$: charSlots$,
+    handleDigitInput: handleCharInput,
   }
 }

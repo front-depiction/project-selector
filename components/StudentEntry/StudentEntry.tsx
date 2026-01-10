@@ -86,16 +86,16 @@ export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 export const Header: React.FC = () => (
   <div className="space-y-2">
     <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
-      Enter Your Student ID
+      Enter Your Access Code
     </h1>
     <p className="text-sm sm:text-base text-muted-foreground">
-      Type your 7-digit ID to continue to topic selection
+      Type your 6-character code to access your assigned topic
     </p>
   </div>
 )
 
 export const HelpText: React.FC = () => (
-  <p className="text-xs text-muted-foreground">Digits only • 7 characters</p>
+  <p className="text-xs text-muted-foreground">Letters & numbers • 6 characters</p>
 )
 
 // ============================================================================
@@ -108,15 +108,16 @@ export const StudentIdInput: React.FC = () => {
 
   return (
     <InputOTP
-      maxLength={7}
+      maxLength={6}
       value={value}
       onChange={setValue}
       containerClassName="justify-center"
       className="text-2xl sm:text-3xl"
+      pattern="[A-Za-z0-9]*"
     >
       <InputOTPGroup>
-        {Array.from({ length: 7 }).map((_, i) => (
-          <InputOTPSlot key={i} index={i} />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <InputOTPSlot key={i} index={i} className="uppercase" />
         ))}
       </InputOTPGroup>
     </InputOTP>

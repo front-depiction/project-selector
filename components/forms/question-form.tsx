@@ -1,4 +1,5 @@
 "use client"
+import * as React from "react"
 import { toast } from "sonner"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -21,28 +22,54 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
     question: z.string().min(3, "Question must be at least 3 characters"),
     kind: z.enum(["boolean", "0to10"]),
+    category: z.string().optional(),
 })
 
 export type QuestionFormValues = z.infer<typeof formSchema>
 
 export default function QuestionForm({
     initialValues,
+    existingCategories = [],
     onSubmit,
 }: {
     initialValues?: Partial<QuestionFormValues>
+    existingCategories?: string[]
     onSubmit: (values: QuestionFormValues) => void | Promise<void>
 }) {
+    const [categoryOpen, setCategoryOpen] = React.useState(false)
+
     const form = useForm<QuestionFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             question: initialValues?.question ?? "",
             kind: initialValues?.kind ?? "boolean",
+            category: initialValues?.category ?? "",
         },
     })
+
+    // Sort categories alphabetically
+    const sortedCategories = React.useMemo(() => {
+        return [...existingCategories].sort()
+    }, [existingCategories])
 
     async function handleSubmit(values: QuestionFormValues) {
         try {
@@ -92,6 +119,91 @@ export default function QuestionForm({
                                 </SelectContent>
                             </Select>
                             <FormDescription>Boolean for yes/no, 0-10 for rating scale.</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                            <FormLabel>Category (Optional)</FormLabel>
+                            <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={categoryOpen}
+                                            className={cn(
+                                                "w-full justify-between",
+                                                !field.value && "text-muted-foreground"
+                                            )}
+                                        >
+                                            {field.value || "Select category"}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-full p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder="Search categories..." />
+                                        <CommandList>
+                                            <CommandEmpty>
+                                                <div className="p-4 text-center">
+                                                    <p className="text-sm text-muted-foreground">
+                                                        No categories found.
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Create a category in the Categories section below.
+                                                    </p>
+                                                </div>
+                                            </CommandEmpty>
+                                            <CommandGroup>
+                                                {/* Clear option */}
+                                                <CommandItem
+                                                    value=""
+                                                    onSelect={() => {
+                                                        form.setValue("category", "")
+                                                        setCategoryOpen(false)
+                                                    }}
+                                                >
+                                                    <Check
+                                                        className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            !field.value ? "opacity-100" : "opacity-0"
+                                                        )}
+                                                    />
+                                                    <span className="text-muted-foreground italic">No category</span>
+                                                </CommandItem>
+                                                {sortedCategories.map((category) => (
+                                                    <CommandItem
+                                                        key={category}
+                                                        value={category}
+                                                        onSelect={() => {
+                                                            form.setValue("category", category)
+                                                            setCategoryOpen(false)
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                field.value === category ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        {category}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+                            <FormDescription>
+                                Select a category from the Categories section. Create categories first before assigning them to questions.
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Card,
   CardContent,
@@ -28,15 +27,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { toast } from "sonner"
 import { 
-  Plus, 
+  Wand2, 
   Trash2, 
-  Upload, 
+  Download, 
   X, 
   Users, 
   Loader2,
-  FileSpreadsheet 
+  Copy,
+  Key,
+  ShieldCheck
 } from "lucide-react"
 
 interface StudentAllowListManagerProps {
@@ -48,138 +50,88 @@ export function StudentAllowListManager({
   topicId, 
   topicTitle 
 }: StudentAllowListManagerProps) {
-  const [newStudentId, setNewStudentId] = useState("")
-  const [bulkInput, setBulkInput] = useState("")
-  const [note, setNote] = useState("")
-  const [isUploading, setIsUploading] = useState(false)
-  const [showBulkInput, setShowBulkInput] = useState(false)
+  const [studentCount, setStudentCount] = useState(10)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generatedCodes, setGeneratedCodes] = useState<string[]>([])
 
   const allowList = useQuery(api.topicStudentAllowList.getTopicStudentAllowList, { topicId })
-  const addStudent = useMutation(api.topicStudentAllowList.addStudentId)
-  const bulkAdd = useMutation(api.topicStudentAllowList.bulkAddStudentIds)
+  const generateCodes = useMutation(api.studentAccessCodes.generateStudentAccessCodes)
   const removeStudent = useMutation(api.topicStudentAllowList.removeStudentId)
   const clearAll = useMutation(api.topicStudentAllowList.clearAllStudentIds)
 
-  const handleAddStudent = useCallback(async () => {
-    const trimmed = newStudentId.trim()
-    if (!trimmed) return
-
-    try {
-      await addStudent({ topicId, studentId: trimmed, note: note || undefined })
-      setNewStudentId("")
-      setNote("")
-      toast.success(`Added student ${trimmed}`)
-    } catch (error) {
-      toast.error("Failed to add student")
-    }
-  }, [topicId, newStudentId, note, addStudent])
-
-  const handleBulkAdd = useCallback(async () => {
-    const studentIds = bulkInput
-      .split(/[\n,;]+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-
-    if (studentIds.length === 0) {
-      toast.error("No valid student IDs found")
+  const handleGenerateCodes = useCallback(async () => {
+    if (studentCount < 1 || studentCount > 500) {
+      toast.error("Please enter a number between 1 and 500")
       return
     }
 
+    setIsGenerating(true)
     try {
-      const result = await bulkAdd({ topicId, studentIds, note: note || undefined })
-      setBulkInput("")
-      setNote("")
-      setShowBulkInput(false)
-      toast.success(`Added ${result.added} students, updated ${result.updated}, skipped ${result.skipped}`)
+      const result = await generateCodes({ topicId, count: studentCount })
+      setGeneratedCodes(result.codes)
+      toast.success(`Generated ${result.total} access codes`)
     } catch (error) {
-      toast.error("Failed to add students")
-    }
-  }, [topicId, bulkInput, note, bulkAdd])
-
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setIsUploading(true)
-
-    try {
-      const studentIds: string[] = []
-
-      if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
-        const content = await file.text()
-        const lines = content.split(/[\r\n]+/)
-        for (const line of lines) {
-          const parts = line.split(/[,;\t]+/)
-          for (const part of parts) {
-            const trimmed = part.trim()
-            if (trimmed && /^[a-zA-Z0-9]+$/.test(trimmed)) {
-              studentIds.push(trimmed)
-            }
-          }
-        }
-      } else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
-        // Excel file handling
-        const XLSX = await import("xlsx")
-        const arrayBuffer = await file.arrayBuffer()
-        const workbook = XLSX.read(arrayBuffer, { type: "array" })
-        const sheetName = workbook.SheetNames[0]
-        const sheet = workbook.Sheets[sheetName]
-        const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
-        
-        for (const row of data) {
-          if (Array.isArray(row)) {
-            for (const cell of row) {
-              if (typeof cell === "string" || typeof cell === "number") {
-                const trimmed = String(cell).trim()
-                if (trimmed && /^[a-zA-Z0-9]+$/.test(trimmed)) {
-                  studentIds.push(trimmed)
-                }
-              }
-            }
-          }
-        }
-      } else {
-        toast.error("Unsupported file type. Please use CSV, TXT, or Excel (.xlsx, .xls)")
-        setIsUploading(false)
-        event.target.value = ""
-        return
-      }
-
-      if (studentIds.length === 0) {
-        toast.error("No valid student IDs found in file")
-        return
-      }
-
-      const result = await bulkAdd({ 
-        topicId, 
-        studentIds: [...new Set(studentIds)], 
-        note: `Imported from ${file.name}` 
-      })
-      toast.success(`Imported ${result.added} students from ${file.name}`)
-    } catch (error) {
-      console.error("File upload error:", error)
-      toast.error("Failed to process file")
+      console.error("Failed to generate codes:", error)
+      toast.error("Failed to generate codes")
     } finally {
-      setIsUploading(false)
-      event.target.value = ""
+      setIsGenerating(false)
     }
-  }, [topicId, bulkAdd])
+  }, [topicId, studentCount, generateCodes])
+
+  const handleDownloadCSV = useCallback(() => {
+    if (!allowList || allowList.length === 0) {
+      toast.error("No codes to download")
+      return
+    }
+
+    // Create CSV content with headers
+    const headers = ["Access Code", "Student Name", "Email (optional)", "Notes"]
+    const rows = allowList.map(entry => [entry.studentId, "", "", ""])
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n")
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute("download", `student_codes_${topicTitle?.replace(/\s+/g, "_") || topicId}.csv`)
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    toast.success("Downloaded CSV template")
+  }, [allowList, topicId, topicTitle])
+
+  const handleCopyAllCodes = useCallback(() => {
+    if (!allowList || allowList.length === 0) return
+    
+    const codes = allowList.map(e => e.studentId).join("\n")
+    navigator.clipboard.writeText(codes)
+    toast.success("Copied all codes to clipboard")
+  }, [allowList])
 
   const handleRemove = useCallback(async (studentId: string) => {
     try {
       await removeStudent({ topicId, studentId })
-      toast.success(`Removed student ${studentId}`)
+      toast.success(`Removed code ${studentId}`)
     } catch (error) {
-      toast.error("Failed to remove student")
+      toast.error("Failed to remove code")
     }
   }, [topicId, removeStudent])
 
   const handleClearAll = useCallback(async () => {
     try {
       const result = await clearAll({ topicId })
-      toast.success(`Removed ${result.deleted} students`)
+      setGeneratedCodes([])
+      toast.success(`Removed ${result.deleted} codes`)
     } catch (error) {
-      toast.error("Failed to clear students")
+      toast.error("Failed to clear codes")
     }
   }, [topicId, clearAll])
 
@@ -187,62 +139,78 @@ export function StudentAllowListManager({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Student Allow List
+          <Key className="h-5 w-5" />
+          Student Access Codes
         </CardTitle>
         <CardDescription>
-          {topicTitle ? `Manage which students can access "${topicTitle}"` : "Manage student access"}
+          Generate anonymous access codes for students. Map codes to names locally for GDPR compliance.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Add single student */}
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <Input
-              placeholder="Enter student ID"
-              value={newStudentId}
-              onChange={(e) => setNewStudentId(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddStudent()}
-            />
+        {/* GDPR Notice */}
+        <Alert>
+          <ShieldCheck className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            <strong>GDPR Compliant:</strong> Only anonymous codes are stored. 
+            Download the CSV and add student names locally on your machine.
+          </AlertDescription>
+        </Alert>
+
+        {/* Generate codes section */}
+        <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+          <Label className="text-sm font-medium">Generate New Access Codes</Label>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Label className="text-xs text-muted-foreground">Number of Students</Label>
+              <Input
+                type="number"
+                min={1}
+                max={500}
+                value={studentCount}
+                onChange={(e) => setStudentCount(Number(e.target.value) || 0)}
+                placeholder="10"
+              />
+            </div>
+            <Button 
+              onClick={handleGenerateCodes} 
+              disabled={isGenerating || studentCount < 1}
+              className="min-w-[140px]"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-2" />
+              )}
+              {isGenerating ? "Generating..." : "Generate Codes"}
+            </Button>
           </div>
-          <Button onClick={handleAddStudent} disabled={!newStudentId.trim()}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Codes are 6 characters (letters & numbers), easy for students to type.
+          </p>
         </div>
 
-        {/* Bulk actions */}
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowBulkInput(!showBulkInput)}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Bulk Add
-          </Button>
-          
-          <Label className="cursor-pointer">
-            <Button variant="outline" size="sm" asChild disabled={isUploading}>
-              <span>
-                {isUploading ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <FileSpreadsheet className="h-4 w-4 mr-1" />
-                )}
-                Import Excel/CSV
-              </span>
-            </Button>
-            <input
-              type="file"
-              accept=".csv,.txt,.xlsx,.xls"
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={isUploading}
-            />
-          </Label>
+        {/* Recently generated codes notification */}
+        {generatedCodes.length > 0 && (
+          <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
+            <AlertDescription className="text-sm">
+              ✓ Generated {generatedCodes.length} new codes! Download the CSV to map them to student names.
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {allowList && allowList.length > 0 && (
+        {/* Actions */}
+        {allowList && allowList.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={handleDownloadCSV}>
+              <Download className="h-4 w-4 mr-1" />
+              Download CSV Template
+            </Button>
+            
+            <Button variant="outline" size="sm" onClick={handleCopyAllCodes}>
+              <Copy className="h-4 w-4 mr-1" />
+              Copy All Codes
+            </Button>
+
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm" className="text-destructive">
@@ -252,9 +220,10 @@ export function StudentAllowListManager({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Clear all students?</AlertDialogTitle>
+                  <AlertDialogTitle>Clear all access codes?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will remove all {allowList.length} students from the allow list.
+                    This will remove all {allowList.length} access codes. 
+                    Students using these codes will lose access to this topic.
                     This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -266,43 +235,16 @@ export function StudentAllowListManager({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          )}
-        </div>
-
-        {/* Bulk input area */}
-        {showBulkInput && (
-          <div className="space-y-2 p-3 border rounded-lg bg-muted/50">
-            <Label>Paste student IDs (one per line or comma-separated)</Label>
-            <Textarea
-              placeholder="STU001&#10;STU002&#10;STU003"
-              value={bulkInput}
-              onChange={(e) => setBulkInput(e.target.value)}
-              rows={4}
-            />
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handleBulkAdd} disabled={!bulkInput.trim()}>
-                Add Students
-              </Button>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  setShowBulkInput(false)
-                  setBulkInput("")
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
           </div>
         )}
 
-        {/* Student list */}
+        {/* Codes list */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Current Students</Label>
+            <Label>Active Access Codes</Label>
             <Badge variant="secondary">
-              {allowList?.length ?? 0} students
+              <Users className="h-3 w-3 mr-1" />
+              {allowList?.length ?? 0} codes
             </Badge>
           </div>
           
@@ -311,19 +253,19 @@ export function StudentAllowListManager({
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : allowList.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <FileSpreadsheet className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No students added yet</p>
-              <p className="text-xs">Add student IDs to restrict access to this topic</p>
+            <div className="text-center py-8 text-muted-foreground border rounded-lg bg-muted/20">
+              <Key className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">No access codes yet</p>
+              <p className="text-xs mt-1">Generate codes above for your students</p>
             </div>
           ) : (
-            <ScrollArea className="h-[200px] border rounded-md p-2">
+            <ScrollArea className="h-[200px] border rounded-md p-3">
               <div className="flex flex-wrap gap-2">
                 {allowList.map((entry) => (
                   <Badge 
                     key={entry._id} 
                     variant="outline"
-                    className="flex items-center gap-1 pr-1"
+                    className="flex items-center gap-1 pr-1 font-mono text-sm"
                   >
                     {entry.studentId}
                     <Button
