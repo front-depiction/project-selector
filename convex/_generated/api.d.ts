@@ -28,6 +28,9 @@ import type * as schemas_StudentAnswer from "../schemas/StudentAnswer.js";
 import type * as schemas_Subtopic from "../schemas/Subtopic.js";
 import type * as schemas_TemplateQuestion from "../schemas/TemplateQuestion.js";
 import type * as schemas_Topic from "../schemas/Topic.js";
+import type * as schemas_TopicStudentAllowList from "../schemas/TopicStudentAllowList.js";
+import type * as schemas_TopicTeacherAllowList from "../schemas/TopicTeacherAllowList.js";
+import type * as schemas_User from "../schemas/User.js";
 import type * as selectionPeriods from "../selectionPeriods.js";
 import type * as selectionQuestions from "../selectionQuestions.js";
 import type * as share_admin_helpers from "../share/admin_helpers.js";
@@ -38,7 +41,10 @@ import type * as studentAnswers from "../studentAnswers.js";
 import type * as subtopics from "../subtopics.js";
 import type * as templateQuestions from "../templateQuestions.js";
 import type * as topicAnalytics from "../topicAnalytics.js";
+import type * as topicStudentAllowList from "../topicStudentAllowList.js";
+import type * as topicTeacherAllowList from "../topicTeacherAllowList.js";
 import type * as topics from "../topics.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -67,6 +73,9 @@ declare const fullApi: ApiFromModules<{
   "schemas/Subtopic": typeof schemas_Subtopic;
   "schemas/TemplateQuestion": typeof schemas_TemplateQuestion;
   "schemas/Topic": typeof schemas_Topic;
+  "schemas/TopicStudentAllowList": typeof schemas_TopicStudentAllowList;
+  "schemas/TopicTeacherAllowList": typeof schemas_TopicTeacherAllowList;
+  "schemas/User": typeof schemas_User;
   selectionPeriods: typeof selectionPeriods;
   selectionQuestions: typeof selectionQuestions;
   "share/admin_helpers": typeof share_admin_helpers;
@@ -77,7 +86,10 @@ declare const fullApi: ApiFromModules<{
   subtopics: typeof subtopics;
   templateQuestions: typeof templateQuestions;
   topicAnalytics: typeof topicAnalytics;
+  topicStudentAllowList: typeof topicStudentAllowList;
+  topicTeacherAllowList: typeof topicTeacherAllowList;
   topics: typeof topics;
+  users: typeof users;
 }>;
 
 /**
