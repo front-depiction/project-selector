@@ -11,6 +11,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@auth0/auth0-react": "^2.11.0",
     "@convex-dev/aggregate": "^0.1.23",
     "@hookform/resolvers": "^5.2.2",
     "@preact/signals-react": "^3.6.1",
@@ -67,6 +68,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.13"
   },
   "devDependencies": {
