@@ -40,6 +40,16 @@ export function Providers({ children }: { children: ReactNode }) {
       }}
       useRefreshTokens={true}
       cacheLocation="localstorage"
+      onRedirectCallback={(appState) => {
+        // After login, redirect to admin dashboard
+        // The appState.returnTo is set by LoginButton
+        if (typeof window !== "undefined" && appState?.returnTo) {
+          window.location.href = appState.returnTo
+        } else if (typeof window !== "undefined") {
+          // Default to admin if no returnTo specified
+          window.location.href = "/admin"
+        }
+      }}
     >
       <ConvexProviderWithAuth0 client={convex}>
         <ConvexQueryCacheProvider>

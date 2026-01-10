@@ -8,18 +8,28 @@ interface LoginButtonProps {
   className?: string
   variant?: "default" | "outline" | "ghost" | "secondary" | "destructive" | "link"
   size?: "default" | "sm" | "lg" | "icon"
+  returnTo?: string
 }
 
 export function LoginButton({ 
   className, 
   variant = "default",
-  size = "default" 
+  size = "default",
+  returnTo = "/admin"
 }: LoginButtonProps) {
   const { loginWithRedirect, isLoading } = useAuth0()
 
+  const handleLogin = () => {
+    loginWithRedirect({
+      appState: {
+        returnTo: returnTo || "/admin"
+      }
+    })
+  }
+
   return (
     <Button 
-      onClick={() => loginWithRedirect()} 
+      onClick={handleLogin} 
       disabled={isLoading} 
       className={className}
       variant={variant}
