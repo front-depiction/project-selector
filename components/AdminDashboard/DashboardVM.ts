@@ -215,6 +215,8 @@ export function useDashboardVM(): DashboardVM {
       ? { selectionPeriodId: editingPeriod$.value.value._id }
       : "skip"
   )
+  const categoriesData = useQuery(api.categories.getAllCategories, {})
+  const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
 
   // ============================================================================
   // CONVEX MUTATIONS - Root VM owns all mutations
@@ -239,6 +241,8 @@ export function useDashboardVM(): DashboardVM {
   const createTemplateMutation = useMutation(api.questionTemplates.createTemplate)
   const deleteTemplateMutation = useMutation(api.questionTemplates.deleteTemplate)
   const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
+  const createCategoryMutation = useMutation(api.categories.createCategory)
+  const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
 
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
@@ -257,6 +261,8 @@ export function useDashboardVM(): DashboardVM {
     questionsData$: signal<typeof questionsData>(undefined),
     templatesData$: signal<typeof templatesData>(undefined),
     existingQuestionsData$: signal<typeof existingQuestionsData>(undefined),
+    categoriesData$: signal<typeof categoriesData>(undefined),
+    categoryNamesData$: signal<typeof categoryNamesData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
   }).current
@@ -273,10 +279,12 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.questionsData$.value = questionsData
       dataSignals.templatesData$.value = templatesData
       dataSignals.existingQuestionsData$.value = existingQuestionsData
+      dataSignals.categoriesData$.value = categoriesData
+      dataSignals.categoryNamesData$.value = categoryNamesData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, statsData, topicAnalyticsData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, statsData, topicAnalyticsData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -650,11 +658,15 @@ export function useDashboardVM(): DashboardVM {
     const questionnairesView = createQuestionnairesViewVM({
       questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to10" vs "numeric" mismatch
       templates$: dataSignals.templatesData$,
+      categories$: dataSignals.categoriesData$,
+      existingCategories$: dataSignals.categoryNamesData$,
       createQuestion: createQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
       createTemplate: createTemplateMutation,
       deleteTemplate: deleteTemplateMutation,
       addQuestionToTemplate: addQuestionToTemplateMutation,
+      createCategory: createCategoryMutation,
+      deleteCategory: deleteCategoryMutation,
     })
 
     const settingsView = createSettingsViewVM({

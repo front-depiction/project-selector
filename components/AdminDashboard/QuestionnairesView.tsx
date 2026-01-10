@@ -9,6 +9,7 @@ import { Plus, Trash2 } from "lucide-react"
 import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
 import TemplateForm from "@/components/forms/template-form"
+import CategoryForm from "@/components/forms/category-form"
 
 export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm }) => {
   useSignals()
@@ -31,6 +32,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
               <TableHeader>
                 <TableRow>
                   <TableHead>Question</TableHead>
+                  <TableHead>Category</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -39,6 +41,13 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                 {vm.questions$.value.map((q) => (
                   <TableRow key={q.key}>
                     <TableCell>{q.questionText}</TableCell>
+                    <TableCell>
+                      {q.category ? (
+                        <Badge variant="outline">{q.category}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={q.kindVariant}>{q.kindDisplay}</Badge>
                     </TableCell>
@@ -97,7 +106,59 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
       <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
         <DialogContent>
           <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
-          <QuestionForm onSubmit={vm.onQuestionSubmit} />
+          <QuestionForm 
+            onSubmit={vm.onQuestionSubmit}
+            existingCategories={[...vm.existingCategories$.value]}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Categories Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Categories</CardTitle>
+          <Button size="sm" onClick={vm.categoryDialog.open}>
+            <Plus className="h-4 w-4 mr-2" />Add Category
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {vm.categories$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No categories yet. Add one to get started.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vm.categories$.value.map((c) => (
+                  <TableRow key={c.key}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={c.remove}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Question Dialog */}
+      <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
+          <QuestionForm 
+            onSubmit={vm.onQuestionSubmit}
+            existingCategories={[...vm.existingCategories$.value]}
+          />
         </DialogContent>
       </Dialog>
 
@@ -109,6 +170,14 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             questions={vm.availableQuestions$.value}
             onSubmit={vm.onTemplateSubmit}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Dialog */}
+      <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Category</DialogTitle></DialogHeader>
+          <CategoryForm onSubmit={vm.onCategorySubmit} />
         </DialogContent>
       </Dialog>
     </div>

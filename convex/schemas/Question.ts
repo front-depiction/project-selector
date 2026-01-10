@@ -7,6 +7,7 @@ import type { Infer } from "convex/values"
 export const BooleanQuestion = v.object({
   question: v.string(),
   kind: v.literal("boolean"),
+  category: v.optional(v.string()), // e.g., "Technical Skills", "Soft Skills", "Interests"
   semesterId: v.string(),
   createdAt: v.number(),
 })
@@ -17,6 +18,7 @@ export const BooleanQuestion = v.object({
 export const ZeroToTenQuestion = v.object({
   question: v.string(),
   kind: v.literal("0to10"),
+  category: v.optional(v.string()), // e.g., "Technical Skills", "Soft Skills", "Interests"
   semesterId: v.string(),
   createdAt: v.number(),
 })
@@ -59,11 +61,13 @@ export type ZeroToTenQuestion = Readonly<Infer<typeof ZeroToTenQuestion>>
 export const make = (params: {
   readonly question: string
   readonly kind: "boolean" | "0to10"
+  readonly category?: string
   readonly semesterId: string
   readonly createdAt?: number
 }): Question => ({
   question: params.question,
   kind: params.kind,
+  category: params.category,
   semesterId: params.semesterId,
   createdAt: params.createdAt ?? Date.now()
 } as const)

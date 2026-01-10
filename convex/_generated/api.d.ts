@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as assignments from "../assignments.js";
+import type * as categories from "../categories.js";
 import type * as lib_congestion from "../lib/congestion.js";
 import type * as lib_utils from "../lib/utils.js";
 import type * as preferences from "../preferences.js";
@@ -18,6 +19,7 @@ import type * as questionTemplates from "../questionTemplates.js";
 import type * as questions from "../questions.js";
 import type * as rankings from "../rankings.js";
 import type * as schemas_Assignment from "../schemas/Assignment.js";
+import type * as schemas_Category from "../schemas/Category.js";
 import type * as schemas_Preference from "../schemas/Preference.js";
 import type * as schemas_Question from "../schemas/Question.js";
 import type * as schemas_QuestionTemplate from "../schemas/QuestionTemplate.js";
@@ -37,6 +39,7 @@ import type * as share_admin_helpers from "../share/admin_helpers.js";
 import type * as share_rankings from "../share/rankings.js";
 import type * as share_selection_periods from "../share/selection_periods.js";
 import type * as stats from "../stats.js";
+import type * as studentAccessCodes from "../studentAccessCodes.js";
 import type * as studentAnswers from "../studentAnswers.js";
 import type * as subtopics from "../subtopics.js";
 import type * as templateQuestions from "../templateQuestions.js";
@@ -56,6 +59,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
   assignments: typeof assignments;
+  categories: typeof categories;
   "lib/congestion": typeof lib_congestion;
   "lib/utils": typeof lib_utils;
   preferences: typeof preferences;
@@ -63,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   questions: typeof questions;
   rankings: typeof rankings;
   "schemas/Assignment": typeof schemas_Assignment;
+  "schemas/Category": typeof schemas_Category;
   "schemas/Preference": typeof schemas_Preference;
   "schemas/Question": typeof schemas_Question;
   "schemas/QuestionTemplate": typeof schemas_QuestionTemplate;
@@ -82,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   "share/rankings": typeof share_rankings;
   "share/selection_periods": typeof share_selection_periods;
   stats: typeof stats;
+  studentAccessCodes: typeof studentAccessCodes;
   studentAnswers: typeof studentAnswers;
   subtopics: typeof subtopics;
   templateQuestions: typeof templateQuestions;
