@@ -52,16 +52,20 @@ export const createTopic = mutation({
     title: v.string(),
     description: v.string(),
     semesterId: v.string(),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    requiresAllowList: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("topics", Topic.make({
-      title: args.title,
-      description: args.description,
-      semesterId: args.semesterId,
-      isActive: true,
-      subtopicIds: args.subtopicIds?.map(id => id as string)
-    }))
+    const id = await ctx.db.insert("topics", {
+      ...Topic.make({
+        title: args.title,
+        description: args.description,
+        semesterId: args.semesterId,
+        isActive: true,
+        subtopicIds: args.subtopicIds?.map(id => id as string)
+      }),
+      requiresAllowList: args.requiresAllowList ?? false
+    })
     return id
   }
 })
@@ -78,7 +82,8 @@ export const updateTopic = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
+    subtopicIds: v.optional(v.array(v.id("subtopics"))),
+    requiresAllowList: v.optional(v.boolean())
   },
   handler: async (ctx, args) => {
     await ctx.db.get(args.id).then(maybeTopic =>
@@ -90,6 +95,7 @@ export const updateTopic = mutation({
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
     if (args.subtopicIds !== undefined) updates.subtopicIds = args.subtopicIds
+    if (args.requiresAllowList !== undefined) updates.requiresAllowList = args.requiresAllowList
 
     await ctx.db.patch(args.id, updates)
   }
@@ -228,6 +234,8 @@ export const clearAllData = mutation({
       deleteAllFromTable(ctx, "rankingEvents"),
       deleteAllFromTable(ctx, "selectionPeriods"),
       deleteAllFromTable(ctx, "assignments"),
+      deleteAllFromTable(ctx, "topicStudentAllowList"),
+      deleteAllFromTable(ctx, "topicTeacherAllowList"),
       cancelAllScheduled(ctx),
     ])
       .then(() => "All data cleared")
