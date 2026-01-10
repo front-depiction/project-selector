@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Edit, Trash2 as Trash, Power, MoreVertical } from "lucide-react"
+import { TopicAllowListPanel } from "@/components/admin"
 
 // ============================================================================
 // TOPICS VIEW - Clean table-based layout with View Model pattern
@@ -46,6 +47,9 @@ interface TopicsViewProps {
 
 export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   useSignals()
+  
+  // Explicitly track the created topic ID to ensure reactivity
+  const createdTopicId = vm.createdTopicId$.value
 
   return (
     <div className="space-y-6">
@@ -167,14 +171,30 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
 
       {/* Create Topic Dialog */}
       <Dialog open={vm.createTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createTopicDialog.close()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Topic</DialogTitle>
             <DialogDescription>
-              Add a new topic that students can select.
+              {Option.isSome(createdTopicId)
+                ? "Manage student IDs and teacher access for this topic."
+                : "Add a new topic that students can select."}
             </DialogDescription>
           </DialogHeader>
-          <TopicForm periods={[...vm.periodOptions$.value]} onSubmit={vm.onTopicSubmit} />
+          {Option.isSome(createdTopicId) ? (
+            <div className="space-y-4">
+              <TopicAllowListPanel 
+                topicId={createdTopicId.value} 
+                defaultTab="students"
+              />
+              <div className="flex justify-end pt-4 border-t">
+                <Button onClick={vm.finishTopicCreation}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <TopicForm periods={[...vm.periodOptions$.value]} onSubmit={vm.onTopicSubmit} />
+          )}
         </DialogContent>
       </Dialog>
 

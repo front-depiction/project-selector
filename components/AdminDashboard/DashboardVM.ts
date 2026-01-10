@@ -98,6 +98,7 @@ export interface EditTopicDialogVM {
 export interface PeriodOption {
   readonly value: string
   readonly label: string
+  readonly id?: string // Optional unique ID for React keys
 }
 
 export interface DashboardVM {
@@ -472,12 +473,25 @@ export function useDashboardVM(): DashboardVM {
   )
 
   // Computed: period options for forms
-  const periodOptions$ = computed((): readonly PeriodOption[] =>
-    (periodsData ?? []).map(p => ({
+  // Deduplicate by semesterId - keep the most recent period for each semester
+  const periodOptions$ = computed((): readonly PeriodOption[] => {
+    const periods = periodsData ?? []
+    
+    // Group by semesterId and keep the most recent one (already sorted by closeDate desc)
+    const seenSemesters = new Map<string, typeof periods[0]>()
+    for (const period of periods) {
+      if (!seenSemesters.has(period.semesterId)) {
+        seenSemesters.set(period.semesterId, period)
+      }
+    }
+    
+    // Convert to options with unique keys
+    return Array.from(seenSemesters.values()).map(p => ({
       value: p.semesterId,
-      label: p.title
+      label: p.title,
+      id: p._id // Use period ID as unique key for React
     }))
-  )
+  })
 
   // Actions
   const setActiveView = (view: ViewType): void => {
