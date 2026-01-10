@@ -10,6 +10,9 @@ import * as QuestionTemplate from "./schemas/QuestionTemplate"
 import * as TemplateQuestion from "./schemas/TemplateQuestion"
 import * as SelectionQuestion from "./schemas/SelectionQuestion"
 import * as StudentAnswer from "./schemas/StudentAnswer"
+import * as User from "./schemas/User"
+import * as TopicStudentAllowList from "./schemas/TopicStudentAllowList"
+import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -53,5 +56,24 @@ export default defineSchema({
 
   studentAnswers: defineTable(StudentAnswer.StudentAnswer)
     .index("by_student_period", ["studentId", "selectionPeriodId"])
-    .index("by_question_period", ["questionId", "selectionPeriodId"])
+    .index("by_question_period", ["questionId", "selectionPeriodId"]),
+
+  // === AUTH TABLES ===
+
+  // Authenticated teachers/admins
+  users: defineTable(User.User)
+    .index("by_authId", ["authId"])
+    .index("by_email", ["email"]),
+
+  // Per-topic STUDENT allow-list (by student ID)
+  topicStudentAllowList: defineTable(TopicStudentAllowList.TopicStudentAllowList)
+    .index("by_topic", ["topicId"])
+    .index("by_topic_studentId", ["topicId", "studentId"])
+    .index("by_studentId", ["studentId"]),
+
+  // Per-topic TEACHER allow-list (by email) for collaboration
+  topicTeacherAllowList: defineTable(TopicTeacherAllowList.TopicTeacherAllowList)
+    .index("by_topic", ["topicId"])
+    .index("by_topic_email", ["topicId", "email"])
+    .index("by_email", ["email"]),
 })
