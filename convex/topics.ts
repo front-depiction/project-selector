@@ -8,6 +8,7 @@ import { api } from "./_generated/api"
 import { DirectAggregate } from "@convex-dev/aggregate"
 import { components } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
+import { isStudentAllowedForTopic } from "./topicStudentAllowList"
 
 // Access the rankings aggregate
 const rankingsAggregate = new DirectAggregate<{
@@ -174,5 +175,135 @@ export const getTopic = query({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id)
+  }
+})
+
+/**
+ * Gets active topics filtered by student allow-list.
+ * Only returns topics the student has been granted access to.
+ * 
+ * @category Queries
+ * @since 0.2.0
+ */
+export const getActiveTopicsForStudent = query({
+  args: { studentId: v.string() },
+  handler: async (ctx, args) => {
+    const studentId = args.studentId.trim()
+    if (!studentId) return []
+
+    // Get active selection period
+    const activePeriod = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_kind", q => q.eq("kind", "open"))
+      .first()
+
+    if (!activePeriod || !SelectionPeriod.isOpen(activePeriod)) return []
+
+    // Get all active topics for this semester
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+
+    // Filter topics by student allow-list
+    const accessibleTopics = []
+    for (const topic of topics) {
+      // Check if topic requires allow-list filtering
+      if (topic.requiresAllowList) {
+        const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
+        if (isAllowed) {
+          accessibleTopics.push(topic)
+        }
+      } else {
+        // Topic doesn't require allow-list, include it
+        accessibleTopics.push(topic)
+      }
+    }
+
+    return accessibleTopics
+  }
+})
+
+/**
+ * Gets active topics with metrics, filtered by student allow-list.
+ * 
+ * @category Queries
+ * @since 0.2.0
+ */
+export const getActiveTopicsWithMetricsForStudent = query({
+  args: { studentId: v.string() },
+  handler: async (ctx, args) => {
+    const studentId = args.studentId.trim()
+    if (!studentId) return []
+
+    // Get active selection period
+    const activePeriod = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_kind", q => q.eq("kind", "open"))
+      .first()
+
+    if (!activePeriod) return []
+    if (!SelectionPeriod.isOpen(activePeriod)) return []
+
+    // Get all active topics for this semester
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+
+    // Filter topics by student allow-list
+    const accessibleTopics = []
+    for (const topic of topics) {
+      if (topic.requiresAllowList) {
+        const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
+        if (isAllowed) {
+          accessibleTopics.push(topic)
+        }
+      } else {
+        accessibleTopics.push(topic)
+      }
+    }
+
+    // Get metrics for each accessible topic
+    const topicsWithMetrics = await Promise.all(
+      accessibleTopics.map(async (topic) => {
+        const [count, sum] = await Promise.all([
+          rankingsAggregate.count(ctx, { namespace: topic._id }),
+          rankingsAggregate.sum(ctx, { namespace: topic._id })
+        ])
+
+        const averagePosition = count > 0 ? sum / count : null
+        const likelihoodCategory = count === 0
+          ? "low"
+          : averagePosition === null
+            ? "unknown"
+            : averagePosition <= 2
+              ? "very-high"
+              : averagePosition <= 3.5
+                ? "high"
+                : averagePosition <= 5
+                  ? "moderate"
+                  : "low"
+
+        return {
+          _id: topic._id,
+          title: topic.title,
+          description: topic.description,
+          isActive: topic.isActive,
+          semesterId: topic.semesterId,
+          studentCount: count,
+          averagePosition,
+          likelihoodCategory
+        }
+      })
+    )
+
+    return topicsWithMetrics.sort((a, b) => {
+      if (a.averagePosition === null) return 1
+      if (b.averagePosition === null) return -1
+      return a.averagePosition - b.averagePosition
+    })
   }
 })
