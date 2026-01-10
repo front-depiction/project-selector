@@ -1,4 +1,5 @@
 "use client"
+import * as React from "react"
 import {
     toast
 } from "sonner"
@@ -39,28 +40,31 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select"
-import {
-    Switch
-} from "@/components/ui/switch"
 
 const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
     selection_period_id: z.string(),
-    requiresAllowList: z.boolean().optional()
 });
 
 export type TopicFormValues = z.infer<typeof formSchema>
+
+export interface PeriodOption {
+    value: string
+    label: string
+    id?: string // Optional unique ID for React key
+}
 
 export default function TopicForm({
     periods,
     initialValues,
     onSubmit,
 }: {
-    periods: { value: string; label: string }[]
+    periods: PeriodOption[]
     initialValues?: Partial<TopicFormValues>
-    onSubmit: (values: TopicFormValues) => void
+    onSubmit: (values: TopicFormValues) => void | Promise<void>
 }) {
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -68,16 +72,20 @@ export default function TopicForm({
             title: initialValues?.title ?? "",
             description: initialValues?.description ?? "",
             selection_period_id: initialValues?.selection_period_id ?? "",
-            requiresAllowList: initialValues?.requiresAllowList ?? false,
         }
     })
 
-    const handleSubmit = (values: z.infer<typeof formSchema>) => {
+    const handleSubmit = async (values: z.infer<typeof formSchema>) => {
+        if (isSubmitting) return
+        
         try {
-            onSubmit(values)
+            setIsSubmitting(true)
+            await onSubmit(values)
         } catch (error) {
             console.error("Form submission error", error);
             toast.error("Failed to submit the form. Please try again.");
+        } finally {
+            setIsSubmitting(false)
         }
     }
 
@@ -136,9 +144,15 @@ export default function TopicForm({
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {periods.map(p => (
-                                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                                    ))}
+                                    {periods.map((p, index) => {
+                                        // Use period ID as key if available, otherwise fallback to index-based key
+                                        const uniqueKey = p.id ? `period-${p.id}` : `period-${p.value}-${index}`
+                                        return (
+                                            <SelectItem key={uniqueKey} value={p.value}>
+                                                {p.label}
+                                            </SelectItem>
+                                        )
+                                    })}
                                 </SelectContent>
                             </Select>
                             <FormDescription>The selection period Id to associate this topic to</FormDescription>
@@ -147,29 +161,9 @@ export default function TopicForm({
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="requiresAllowList"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                                <FormLabel className="text-base">
-                                    Restrict to Allow List
-                                </FormLabel>
-                                <FormDescription>
-                                    Only students on the allow list can see and select this topic
-                                </FormDescription>
-                            </div>
-                            <FormControl>
-                                <Switch
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                        </FormItem>
-                    )}
-                />
-                <Button type="submit">Submit</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating..." : "Submit"}
+                </Button>
             </form>
         </Form>
     )

@@ -21,8 +21,11 @@ function useStudentSelectionPageVM() {
     typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : ""
   )
 
-  // Convex queries
-  const topics = useQuery(api.topics.getActiveTopicsWithMetrics)
+  // Convex queries - filter topics by student allow-list
+  const topics = useQuery(
+    api.topics.getActiveTopicsWithMetricsForStudent,
+    initialStudentId ? { studentId: initialStudentId } : "skip"
+  )
   const preferences = useQuery(
     api.preferences.getPreferences,
     initialStudentId ? { studentId: initialStudentId } : "skip"

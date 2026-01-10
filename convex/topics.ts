@@ -181,6 +181,7 @@ export const getTopic = query({
 /**
  * Gets active topics filtered by student allow-list.
  * Only returns topics the student has been granted access to.
+ * Student allow-list is always enforced - topics without any students in the allow-list are not visible to anyone.
  * 
  * @category Queries
  * @since 0.2.0
@@ -206,17 +207,11 @@ export const getActiveTopicsForStudent = query({
       .filter(q => q.eq(q.field("isActive"), true))
       .collect()
 
-    // Filter topics by student allow-list
+    // Filter topics by student allow-list - always enforced
     const accessibleTopics = []
     for (const topic of topics) {
-      // Check if topic requires allow-list filtering
-      if (topic.requiresAllowList) {
-        const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
-        if (isAllowed) {
-          accessibleTopics.push(topic)
-        }
-      } else {
-        // Topic doesn't require allow-list, include it
+      const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
+      if (isAllowed) {
         accessibleTopics.push(topic)
       }
     }
@@ -227,6 +222,7 @@ export const getActiveTopicsForStudent = query({
 
 /**
  * Gets active topics with metrics, filtered by student allow-list.
+ * Student allow-list is always enforced.
  * 
  * @category Queries
  * @since 0.2.0
@@ -253,15 +249,11 @@ export const getActiveTopicsWithMetricsForStudent = query({
       .filter(q => q.eq(q.field("isActive"), true))
       .collect()
 
-    // Filter topics by student allow-list
+    // Filter topics by student allow-list - always enforced
     const accessibleTopics = []
     for (const topic of topics) {
-      if (topic.requiresAllowList) {
-        const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
-        if (isAllowed) {
-          accessibleTopics.push(topic)
-        }
-      } else {
+      const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
+      if (isAllowed) {
         accessibleTopics.push(topic)
       }
     }

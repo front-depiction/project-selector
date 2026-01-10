@@ -103,10 +103,10 @@ export function StudentAllowListManager({
     setIsUploading(true)
 
     try {
-      const content = await file.text()
       const studentIds: string[] = []
 
       if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
+        const content = await file.text()
         const lines = content.split(/[\r\n]+/)
         for (const line of lines) {
           const parts = line.split(/[,;\t]+/)
@@ -117,6 +117,32 @@ export function StudentAllowListManager({
             }
           }
         }
+      } else if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        // Excel file handling
+        const XLSX = await import("xlsx")
+        const arrayBuffer = await file.arrayBuffer()
+        const workbook = XLSX.read(arrayBuffer, { type: "array" })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" })
+        
+        for (const row of data) {
+          if (Array.isArray(row)) {
+            for (const cell of row) {
+              if (typeof cell === "string" || typeof cell === "number") {
+                const trimmed = String(cell).trim()
+                if (trimmed && /^[a-zA-Z0-9]+$/.test(trimmed)) {
+                  studentIds.push(trimmed)
+                }
+              }
+            }
+          }
+        }
+      } else {
+        toast.error("Unsupported file type. Please use CSV, TXT, or Excel (.xlsx, .xls)")
+        setIsUploading(false)
+        event.target.value = ""
+        return
       }
 
       if (studentIds.length === 0) {
@@ -131,6 +157,7 @@ export function StudentAllowListManager({
       })
       toast.success(`Imported ${result.added} students from ${file.name}`)
     } catch (error) {
+      console.error("File upload error:", error)
       toast.error("Failed to process file")
     } finally {
       setIsUploading(false)
@@ -201,14 +228,14 @@ export function StudentAllowListManager({
                 {isUploading ? (
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                 ) : (
-                  <Upload className="h-4 w-4 mr-1" />
+                  <FileSpreadsheet className="h-4 w-4 mr-1" />
                 )}
-                Import CSV
+                Import Excel/CSV
               </span>
             </Button>
             <input
               type="file"
-              accept=".csv,.txt"
+              accept=".csv,.txt,.xlsx,.xls"
               className="hidden"
               onChange={handleFileUpload}
               disabled={isUploading}

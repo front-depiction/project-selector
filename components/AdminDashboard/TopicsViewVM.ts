@@ -60,13 +60,15 @@ export interface TopicsViewVM {
   readonly createTopicDialog: DialogVM
   readonly createSubtopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
-  readonly onTopicSubmit: (values: TopicFormValues) => void
+  readonly createdTopicId$: ReadonlySignal<Option.Option<Id<"topics">>>
+  readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
   readonly onSubtopicSubmit: (values: { title: string; description: string }) => void
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
   readonly setSubtopicTitle: (title: string) => void
   readonly setSubtopicDescription: (description: string) => void
   readonly resetSubtopicForm: () => void
   readonly createSubtopic: () => void
+  readonly finishTopicCreation: () => void
 }
 
 // ============================================================================
@@ -117,6 +119,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const createTopicDialogOpen$ = signal(false)
   const createSubtopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
+  const createdTopicId$ = signal<Option.Option<Id<"topics">>>(Option.none())
   const editingTopic$ = signal<Option.Option<{
     id: Id<"topics">
     title: string
@@ -186,11 +189,21 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const createTopicDialog: DialogVM = {
     isOpen$: createTopicDialogOpen$,
     open: () => {
-      createTopicDialogOpen$.value = true
+      batch(() => {
+        createTopicDialogOpen$.value = true
+        createdTopicId$.value = Option.none() // Reset when opening
+      })
     },
     close: () => {
-      createTopicDialogOpen$.value = false
+      batch(() => {
+        createTopicDialogOpen$.value = false
+        createdTopicId$.value = Option.none() // Reset when closing
+      })
     },
+  }
+
+  const finishTopicCreation = (): void => {
+    createTopicDialog.close()
   }
 
   // Create subtopic dialog
@@ -220,16 +233,26 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   }
 
   // Form submission handlers
-  const onTopicSubmit = (values: TopicFormValues): void => {
-    createTopic({
-      title: values.title,
-      description: values.description,
-      semesterId: values.selection_period_id,
-    })
-      .then(() => {
-        createTopicDialog.close()
+  const onTopicSubmit = async (values: TopicFormValues): Promise<void> => {
+    try {
+      const topicId = await createTopic({
+        title: values.title,
+        description: values.description,
+        semesterId: values.selection_period_id,
       })
-      .catch(console.error)
+      
+      // Store the created topic ID to show allow-list UI
+      if (topicId) {
+        console.log("Topic created with ID:", topicId)
+        createdTopicId$.value = Option.some(topicId as Id<"topics">)
+        console.log("Signal updated, createdTopicId$:", createdTopicId$.value)
+      } else {
+        console.warn("Topic created but no ID returned")
+      }
+    } catch (error) {
+      console.error("Failed to create topic:", error)
+      throw error // Re-throw so form can handle it
+    }
   }
 
   const onSubtopicSubmit = (values: { title: string; description: string }): void => {
@@ -290,6 +313,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     createTopicDialog,
     createSubtopicDialog,
     editTopicDialog,
+    createdTopicId$,
     onTopicSubmit,
     onSubtopicSubmit,
     onEditTopicSubmit,
@@ -297,5 +321,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     setSubtopicDescription,
     resetSubtopicForm,
     createSubtopic: createSubtopicAction,
+    finishTopicCreation,
   }
 }
