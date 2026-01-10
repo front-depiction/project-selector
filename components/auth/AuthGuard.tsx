@@ -1,6 +1,7 @@
 "use client"
 
 import { ReactNode, useEffect } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { useConvexAuth } from "convex/react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"

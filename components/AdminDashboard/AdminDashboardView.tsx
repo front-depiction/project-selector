@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/sidebar"
 import { AdminSidebar } from "./AdminSidebar"
 import { Separator } from "@/components/ui/separator"
+import { UserMenu } from "@/components/auth"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import TopicForm from "@/components/forms/topic-form"
 import { PeriodsView } from "./PeriodsView"
@@ -182,10 +183,13 @@ export const AdminDashboardView: React.FC = () => {
               <h1 className="text-xl font-bold tracking-tight">Admin Dashboard</h1>
               <p className="text-sm text-muted-foreground">Manage topics, periods, and student assignments</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Home
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => router.push("/")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+              <UserMenu />
+            </div>
           </div>
         </header>
         <div className="flex flex-1 flex-col gap-4 p-4">

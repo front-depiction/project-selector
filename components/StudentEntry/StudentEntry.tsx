@@ -76,7 +76,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
 // ============================================================================
 
 export const Frame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="min-h-screen flex items-center justify-center px-4">
+  <div className="min-h-screen flex items-center justify-center px-4 relative">
     <div className="w-full max-w-3xl flex flex-col items-center text-center gap-6">
       {children}
     </div>
