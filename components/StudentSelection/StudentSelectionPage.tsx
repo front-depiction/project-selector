@@ -320,7 +320,7 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
       <div className="container mx-auto py-6 px-4 max-w-6xl">
         {/* Header Navigation */}
         <div className="mb-6">
-          <Link href="/student">
+          <Link href="/">
             <Button
               variant="ghost"
               size="sm"
