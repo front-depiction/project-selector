@@ -8,7 +8,7 @@ import { api } from "./_generated/api"
 import { DirectAggregate } from "@convex-dev/aggregate"
 import { components } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
-import { isStudentAllowedForTopic } from "./topicStudentAllowList"
+import { isStudentAllowedForTopic } from "./periodStudentAccessCodes"
 
 // Access the rankings aggregate
 const rankingsAggregate = new DirectAggregate<{

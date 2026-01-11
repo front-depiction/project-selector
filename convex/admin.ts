@@ -326,7 +326,6 @@ export const clearAllData = mutation({
       deleteAllFromTable(ctx, "selectionPeriods"),
       deleteAllFromTable(ctx, "assignments"),
       // Access lists
-      deleteAllFromTable(ctx, "topicStudentAllowList"),
       deleteAllFromTable(ctx, "topicTeacherAllowList"),
       deleteAllFromTable(ctx, "periodStudentAllowList"),
       // Questions & answers
