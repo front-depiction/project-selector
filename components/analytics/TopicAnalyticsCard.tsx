@@ -11,7 +11,6 @@ import {
   Trophy,
   Target,
   Percent,
-  Layers,
   ChevronRight
 } from "lucide-react"
 
@@ -20,10 +19,6 @@ interface TopicAnalyticsCardProps {
     id: string
     title: string
     description: string
-    subtopics: readonly {
-      title: string
-      description: string
-    }[]
     isActive: boolean
     metrics: {
       totalSelections: number
@@ -146,32 +141,6 @@ export default function TopicAnalyticsCard({ topic }: TopicAnalyticsCardProps) {
             <Progress value={parseFloat(topic.metrics.retentionRateDisplay)} className="h-2" />
           </div>
         </div>
-
-        {/* Subtopics */}
-        {topic.subtopics && topic.subtopics.length > 0 && (
-          <div className="pt-3 border-t">
-            <div className="flex items-center gap-2 mb-2">
-              <Layers className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Subtopics ({topic.subtopics.length})</span>
-            </div>
-            <div className="space-y-2">
-              {topic.subtopics.slice(0, 3).map((subtopic, idx) => (
-                <div key={idx} className="flex items-start gap-2 text-sm">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{subtopic.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{subtopic.description}</p>
-                  </div>
-                </div>
-              ))}
-              {topic.subtopics.length > 3 && (
-                <p className="text-xs text-muted-foreground pl-3.5">
-                  +{topic.subtopics.length - 3} more subtopics
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Action Button */}
         <Link href={`/admin/analytics/${topic.id}`} className="block">

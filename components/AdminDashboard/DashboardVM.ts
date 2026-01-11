@@ -49,7 +49,6 @@ export interface TopicItemVM {
   readonly description: string
   readonly statusDisplay: string
   readonly statusVariant: "default" | "secondary"
-  readonly subtopicCount: number
   readonly selectionCount: number
   readonly toggleActive: () => void
   readonly edit: () => void
@@ -145,7 +144,6 @@ export interface DashboardVM {
   readonly clearAllData: () => void
 
   // Raw data for child components that need full objects
-  readonly subtopics: readonly Doc<"subtopics">[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
 }
 
@@ -176,7 +174,6 @@ export interface TopicFormData {
   readonly title: string
   readonly description: string
   readonly semesterId: string
-  readonly subtopicIds?: readonly Id<"subtopics">[]
 }
 
 // ============================================================================
@@ -199,7 +196,6 @@ export function useDashboardVM(): DashboardVM {
 
   const periodsData = useQuery(api.selectionPeriods.getAllPeriodsWithStats)
   const topicsData = useQuery(api.topics.getAllTopics, {})
-  const subtopicsData = useQuery(api.subtopics.getAllSubtopics, {})
   const currentPeriodData = useQuery(api.admin.getCurrentPeriod)
   const statsData = useQuery(api.stats.getLandingStats)
   const topicAnalyticsData = useQuery(api.topicAnalytics.getTopicPerformanceAnalytics, {})
@@ -239,8 +235,6 @@ export function useDashboardVM(): DashboardVM {
   const updateTopicMutation = useMutation(api.admin.updateTopic)
   const deleteTopicMutation = useMutation(api.admin.deleteTopic)
   const toggleTopicActiveMutation = useMutation(api.admin.toggleTopicActive)
-  const createSubtopicMutation = useMutation(api.subtopics.createSubtopic)
-  const deleteSubtopicMutation = useMutation(api.subtopics.deleteSubtopic)
 
   const createQuestionMutation = useMutation(api.questions.createQuestion)
   const deleteQuestionMutation = useMutation(api.questions.deleteQuestion)
@@ -263,7 +257,6 @@ export function useDashboardVM(): DashboardVM {
     currentPeriodData$: signal<typeof currentPeriodData>(undefined),
     assignmentsData$: signal<typeof assignmentsData>(undefined),
     topicsData$: signal<typeof topicsData>(undefined),
-    subtopicsData$: signal<typeof subtopicsData>(undefined),
     periodsForTopics$: signal<typeof periodsData>(undefined),
     questionsData$: signal<typeof questionsData>(undefined),
     templatesData$: signal<typeof templatesData>(undefined),
@@ -282,7 +275,6 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.currentPeriodData$.value = currentPeriodData
       dataSignals.assignmentsData$.value = assignmentsData
       dataSignals.topicsData$.value = topicsData
-      dataSignals.subtopicsData$.value = subtopicsData
       dataSignals.periodsForTopics$.value = periodsData
       dataSignals.questionsData$.value = questionsData
       dataSignals.templatesData$.value = templatesData
@@ -293,7 +285,7 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -413,7 +405,6 @@ export function useDashboardVM(): DashboardVM {
       description: t.description,
       statusDisplay: t.isActive ? "Active" : "Inactive",
       statusVariant: t.isActive ? "default" : "secondary",
-      subtopicCount: t.subtopicIds?.length ?? 0,
       selectionCount: 0, // TODO: Add real selection count when available
       toggleActive: () => {
         toggleTopicActiveMutation({ id: t._id }).catch(console.error)
@@ -549,7 +540,6 @@ export function useDashboardVM(): DashboardVM {
       title: data.title,
       description: data.description,
       semesterId: data.semesterId,
-      subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined
     }).catch(console.error)
   }
 
@@ -558,7 +548,6 @@ export function useDashboardVM(): DashboardVM {
       id,
       title: updates.title,
       description: updates.description,
-      subtopicIds: updates.subtopicIds ? [...updates.subtopicIds] : undefined
     }).catch(console.error)
   }
 
@@ -654,14 +643,11 @@ export function useDashboardVM(): DashboardVM {
 
     const topicsView = createTopicsViewVM({
       topics$: dataSignals.topicsData$,
-      subtopics$: dataSignals.subtopicsData$,
       periods$: dataSignals.periodsData$,
       createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
       toggleTopicActive: toggleTopicActiveMutation,
       deleteTopic: deleteTopicMutation,
-      createSubtopic: createSubtopicMutation,
-      deleteSubtopic: deleteSubtopicMutation,
     })
 
     const questionnairesView = createQuestionnairesViewVM({
@@ -762,7 +748,6 @@ export function useDashboardVM(): DashboardVM {
         title: data.title,
         description: data.description,
         semesterId: data.semesterId,
-        subtopicIds: data.subtopicIds ? [...data.subtopicIds] : undefined
       }).catch(console.error)
     }
 
@@ -771,7 +756,6 @@ export function useDashboardVM(): DashboardVM {
         id,
         title: updates.title,
         description: updates.description,
-        subtopicIds: updates.subtopicIds ? [...updates.subtopicIds] : undefined
       }).catch(console.error)
     }
 
@@ -874,7 +858,6 @@ export function useDashboardVM(): DashboardVM {
       clearAllData,
 
       // Raw data
-      subtopics: subtopicsData,
       topicAnalytics: topicAnalyticsData,
     }
   }

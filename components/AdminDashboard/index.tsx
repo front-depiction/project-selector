@@ -73,7 +73,6 @@ export interface DashboardState {
   readonly activeView: ViewType
   readonly periods: readonly SelectionPeriodWithStats[] | undefined
   readonly topics: readonly Doc<"topics">[] | undefined
-  readonly subtopics: readonly Doc<"subtopics">[] | undefined
   readonly currentPeriod: Doc<"selectionPeriods"> | null | undefined
   readonly assignments: readonly Assignment[] | undefined
   readonly topicAnalytics: readonly unknown[] | undefined
@@ -160,7 +159,6 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     activeView: vm.activeView$.value,
     periods: undefined,
     topics: undefined,
-    subtopics: vm.subtopics,
     currentPeriod: Option.getOrNull(vm.currentPeriod$.value),
     assignments: legacyAssignments,
     topicAnalytics: vm.topicAnalytics,
@@ -369,7 +367,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
             <TableHead>Title</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Subtopics</TableHead>
             <TableHead>Selections</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
@@ -384,7 +381,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
                   {topic.isActive ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
-              <TableCell>{topic.subtopicIds?.length || 0}</TableCell>
               <TableCell>0</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>

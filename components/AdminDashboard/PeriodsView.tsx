@@ -28,9 +28,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Power, Trash2, MoreVertical } from "lucide-react"
+import { Plus, Edit, Power, Trash2, MoreVertical, Key } from "lucide-react"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
+import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
 import type { PeriodsViewVM } from "./PeriodsViewVM"
+import type { Id } from "@/convex/_generated/dataModel"
 import { useSignals } from "@preact/signals-react/runtime"
 
 // ============================================================================
@@ -39,6 +41,18 @@ import { useSignals } from "@preact/signals-react/runtime"
 
 export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
   useSignals()
+  
+  // Local state for managing access codes dialog
+  const [accessCodesDialogOpen, setAccessCodesDialogOpen] = React.useState(false)
+  const [selectedPeriodForCodes, setSelectedPeriodForCodes] = React.useState<{
+    id: Id<"selectionPeriods">
+    title: string
+  } | null>(null)
+
+  const handleManageAccessCodes = (periodId: Id<"selectionPeriods">, periodTitle: string) => {
+    setSelectedPeriodForCodes({ id: periodId, title: periodTitle })
+    setAccessCodesDialogOpen(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -112,21 +126,21 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Selection Periods</h2>
-          <p className="text-muted-foreground mt-1">Manage when students can select topics</p>
+          <h2 className="text-2xl font-bold">Project Assignments</h2>
+          <p className="text-muted-foreground mt-1">Manage project assignment periods for student topic selection</p>
         </div>
         <Button onClick={vm.createDialog.open} size="lg">
           <Plus className="mr-2 h-5 w-5" />
-          Create Period
+          Create Project Assignment
         </Button>
       </div>
 
-      {/* Selection Periods Table - Clean table format */}
+      {/* Project Assignments Table - Clean table format */}
       {vm.periods$.value.length === 0 ? (
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle>No Selection Periods</CardTitle>
-            <CardDescription>Create your first selection period to get started.</CardDescription>
+            <CardTitle>No Project Assignments</CardTitle>
+            <CardDescription>Create your first project assignment to get started.</CardDescription>
           </CardHeader>
         </Card>
       ) : (
@@ -166,6 +180,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                           <Edit className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
+                          <Key className="mr-2 h-4 w-4" />
+                          Manage Access Codes
+                        </DropdownMenuItem>
                         {period.canSetActive && (
                           <DropdownMenuItem onClick={period.onSetActive}>
                             <Power className="mr-2 h-4 w-4" />
@@ -194,9 +212,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
       <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Create Selection Period</DialogTitle>
+            <DialogTitle>Create Project Assignment</DialogTitle>
             <DialogDescription>
-              Create a new selection period for students to choose topics.
+              Create a new project assignment period for students to choose topics.
             </DialogDescription>
           </DialogHeader>
           <SelectionPeriodForm
@@ -211,9 +229,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
       <Dialog open={vm.editDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Selection Period</DialogTitle>
+            <DialogTitle>Edit Project Assignment</DialogTitle>
             <DialogDescription>
-              Update the details of this selection period.
+              Update the details of this project assignment.
             </DialogDescription>
           </DialogHeader>
           {Option.isSome(vm.editDialog.editingPeriod$.value) && (
@@ -229,6 +247,29 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                 questionIds: [...vm.existingQuestionIds$.value],
               }}
               onSubmit={vm.onEditSubmit}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Access Codes Dialog */}
+      <Dialog open={accessCodesDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setAccessCodesDialogOpen(false)
+          setSelectedPeriodForCodes(null)
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Student Access Codes</DialogTitle>
+            <DialogDescription>
+              Generate and manage access codes for {selectedPeriodForCodes?.title || "this project assignment"}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPeriodForCodes && (
+            <PeriodStudentAllowListManager
+              selectionPeriodId={selectedPeriodForCodes.id}
+              periodTitle={selectedPeriodForCodes.title}
             />
           )}
         </DialogContent>

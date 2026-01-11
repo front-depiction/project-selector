@@ -44,7 +44,7 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
             <div>
               <h4 className="font-medium">Seed Test Data</h4>
               <p className="text-sm text-muted-foreground mt-1">
-                Generate sample topics and periods for testing
+                Generate sample topics and project assignments for testing
               </p>
             </div>
             <Button onClick={vm.seedTestData} variant="outline" disabled={vm.isSeedingData$.value}>
@@ -57,7 +57,7 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
             <div>
               <h4 className="font-medium">Assign Now</h4>
               <p className="text-sm text-muted-foreground mt-1">
-                Manually trigger assignment for the current period
+                Manually trigger assignment for the current project assignment
               </p>
             </div>
             {SelectionPeriod.matchOptional(currentPeriod)({
@@ -65,17 +65,17 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
               assigned: (p) => <AssignNowButton periodId={p._id} status="assigned" />,
               inactive: () => (
                 <Button disabled variant="outline">
-                  No Active Period
+                  No Active Assignment
                 </Button>
               ),
               closed: () => (
                 <Button disabled variant="outline">
-                  Period Closed
+                  Assignment Closed
                 </Button>
               ),
               none: () => (
                 <Button disabled variant="outline">
-                  No Active Period
+                  No Active Assignment
                 </Button>
               )
             })}
@@ -85,7 +85,7 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
             <div>
               <h4 className="font-medium text-red-900 dark:text-red-400">Clear All Data</h4>
               <p className="text-sm text-red-700 dark:text-red-500 mt-1">
-                Remove all topics, periods, and selections. This cannot be undone.
+                Remove all topics, project assignments, and selections. This cannot be undone.
               </p>
             </div>
             <Button
@@ -128,10 +128,11 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
               <div>
                 <p>This action will permanently delete all data including:</p>
                 <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>All topics and subtopics</li>
-                  <li>All selection periods</li>
-                  <li>All student preferences</li>
-                  <li>All assignments</li>
+                  <li>All topics</li>
+                  <li>All project assignments</li>
+                  <li>All student preferences and answers</li>
+                  <li>All questions and categories</li>
+                  <li>All access codes and assignments</li>
                 </ul>
                 <p className="font-semibold text-red-600 mt-2">This action cannot be undone.</p>
               </div>

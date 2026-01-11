@@ -70,7 +70,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
         <Card>
           <CardContent className="py-8">
             <p className="text-center text-muted-foreground">
-              No active period found. Please create or activate a selection period first.
+              No active project assignment found. Please create or activate one first.
             </p>
           </CardContent>
         </Card>
@@ -97,7 +97,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
         <CardContent>
           {students.length === 0 ? (
             <p className="text-center py-8 text-muted-foreground">
-              No students found for the current period. Generate access codes for topics to add students.
+              No students found. Generate access codes for students to join this project assignment.
             </p>
           ) : (
             <Table>

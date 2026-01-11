@@ -176,21 +176,49 @@ export const getStudentAllowedTopics = query({
 })
 
 /**
- * Check if a student ID is allowed for a topic
+ * Check if a student ID is allowed for a topic.
+ * Checks both topic-level AND period-level allow lists.
+ * Student is allowed if they have access via EITHER list.
  */
 export async function isStudentAllowedForTopic(
   ctx: QueryCtx,
   topicId: Id<"topics">,
   studentId: string
 ): Promise<boolean> {
-  const normalized = studentId.trim()
-  const entry = await ctx.db
+  const normalized = studentId.trim().toUpperCase()
+  
+  // Check topic-level allow list first (legacy)
+  const topicEntry = await ctx.db
     .query("topicStudentAllowList")
     .withIndex("by_topic_studentId", (q) =>
       q.eq("topicId", topicId).eq("studentId", normalized)
     )
     .first()
-  return entry !== null
+  if (topicEntry !== null) return true
+  
+  // Check period-level allow list
+  // First, get the topic to find its semester
+  const topic = await ctx.db.get(topicId)
+  if (!topic) return false
+  
+  // Find the active selection period for this semester
+  const activePeriod = await ctx.db
+    .query("selectionPeriods")
+    .withIndex("by_semester", (q) => q.eq("semesterId", topic.semesterId))
+    .filter((q) => q.eq(q.field("kind"), "open"))
+    .first()
+  
+  if (!activePeriod) return false
+  
+  // Check if student has access via period-level allow list
+  const periodEntry = await ctx.db
+    .query("periodStudentAllowList")
+    .withIndex("by_period_studentId", (q) =>
+      q.eq("selectionPeriodId", activePeriod._id).eq("studentId", normalized)
+    )
+    .first()
+  
+  return periodEntry !== null
 }
 
 /**
