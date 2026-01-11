@@ -15,6 +15,7 @@ import { createTopicsViewVM } from "./TopicsViewVM"
 import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
 import { createAnalyticsViewVM } from "./AnalyticsViewVM"
+import { createStudentsViewVM } from "./StudentsViewVM"
 // ============================================================================
 // View Model Types
 // ============================================================================
@@ -116,6 +117,7 @@ export interface DashboardVM {
   readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
   readonly settingsView: import("./SettingsViewVM").SettingsViewVM
   readonly analyticsView: import("./AnalyticsViewVM").AnalyticsViewVM
+  readonly studentsView: import("./StudentsViewVM").StudentsViewVM
 
   // Legacy support - for backward compatibility with existing overview components
   readonly periods$: ReadonlySignal<Loadable.Loadable<readonly PeriodItemVM[]>>
@@ -217,6 +219,10 @@ export function useDashboardVM(): DashboardVM {
   )
   const categoriesData = useQuery(api.categories.getAllCategories, {})
   const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
+  const studentsData = useQuery(
+    api.studentAnswers.getAllStudentsWithCompletionStatus,
+    currentPeriodData?._id ? { selectionPeriodId: currentPeriodData._id } : "skip"
+  )
 
   // ============================================================================
   // CONVEX MUTATIONS - Root VM owns all mutations
@@ -243,6 +249,7 @@ export function useDashboardVM(): DashboardVM {
   const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
   const createCategoryMutation = useMutation(api.categories.createCategory)
   const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
+  const saveAnswersAsTeacherMutation = useMutation(api.studentAnswers.saveAnswersAsTeacher)
 
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
@@ -263,6 +270,7 @@ export function useDashboardVM(): DashboardVM {
     existingQuestionsData$: signal<typeof existingQuestionsData>(undefined),
     categoriesData$: signal<typeof categoriesData>(undefined),
     categoryNamesData$: signal<typeof categoryNamesData>(undefined),
+    studentsData$: signal<typeof studentsData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
   }).current
@@ -281,10 +289,11 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.existingQuestionsData$.value = existingQuestionsData
       dataSignals.categoriesData$.value = categoriesData
       dataSignals.categoryNamesData$.value = categoryNamesData
+      dataSignals.studentsData$.value = studentsData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, statsData, topicAnalyticsData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, subtopicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -680,6 +689,12 @@ export function useDashboardVM(): DashboardVM {
       topicAnalyticsData$: dataSignals.topicAnalyticsData$,
     })
 
+    const studentsView = createStudentsViewVM({
+      studentsData$: dataSignals.studentsData$,
+      currentPeriod$: dataSignals.currentPeriodData$,
+      saveAnswersAsTeacher: saveAnswersAsTeacherMutation,
+    })
+
     // Legacy dialog VMs for overview compatibility
     const editPeriodDialog: EditPeriodDialogVM = {
       isOpen$: editPeriodDialogOpen$,
@@ -833,6 +848,7 @@ export function useDashboardVM(): DashboardVM {
       questionnairesView,
       settingsView,
       analyticsView,
+      studentsView,
 
       // Legacy support for overview
       periods$,

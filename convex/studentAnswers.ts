@@ -185,6 +185,94 @@ export const getIncompleteStudents = query({
 })
 
 /**
+ * Get all students with their completion status for a selection period.
+ * Returns all students from topics in the period's semester, with completion info.
+ */
+export const getAllStudentsWithCompletionStatus = query({
+  args: {
+    selectionPeriodId: v.id("selectionPeriods")
+  },
+  handler: async (ctx, args) => {
+    // Get the period to access semesterId
+    const period = await ctx.db.get(args.selectionPeriodId)
+    if (!period) return []
+
+    // Get all questions for this period
+    const periodQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
+      .collect()
+
+    const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+    const requiredCount = questionIds.size
+
+    // Get all topics for this semester
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+
+    // Get all unique student IDs from topicStudentAllowList for these topics
+    const topicIds = new Set(topics.map(t => t._id))
+    const allAllowListEntries = await ctx.db
+      .query("topicStudentAllowList")
+      .collect()
+
+    const studentIds = new Set<string>()
+    for (const entry of allAllowListEntries) {
+      if (topicIds.has(entry.topicId)) {
+        studentIds.add(entry.studentId)
+      }
+    }
+
+    // If no questions, all students are "complete"
+    if (periodQuestions.length === 0) {
+      return Array.from(studentIds).map(studentId => ({
+        studentId,
+        isCompleted: true,
+        answeredCount: 0,
+        totalCount: 0
+      }))
+    }
+
+    // Get all answers for this period
+    const allAnswers = await ctx.db.query("studentAnswers")
+      .filter(q => q.eq(q.field("selectionPeriodId"), args.selectionPeriodId))
+      .collect()
+
+    // Group answers by student
+    const studentAnswerCounts = new Map<string, Set<string>>()
+    for (const answer of allAnswers) {
+      if (!studentAnswerCounts.has(answer.studentId)) {
+        studentAnswerCounts.set(answer.studentId, new Set())
+      }
+      if (questionIds.has(answer.questionId)) {
+        studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+      }
+    }
+
+    // Build result array with all students
+    const result: Array<{ studentId: string; isCompleted: boolean; answeredCount: number; totalCount: number }> = []
+    
+    for (const studentId of studentIds) {
+      const answeredQuestions = studentAnswerCounts.get(studentId) || new Set()
+      const answeredCount = answeredQuestions.size
+      const isCompleted = answeredCount >= requiredCount
+
+      result.push({
+        studentId,
+        isCompleted,
+        answeredCount,
+        totalCount: requiredCount
+      })
+    }
+
+    // Sort by studentId for consistent ordering
+    return result.sort((a, b) => a.studentId.localeCompare(b.studentId))
+  }
+})
+
+/**
  * Get all answers for a specific student (for teacher to review/edit)
  */
 export const getStudentAnswersForTeacher = query({

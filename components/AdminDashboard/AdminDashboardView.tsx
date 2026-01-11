@@ -149,7 +149,7 @@ const MainContent: React.FC = () => {
     case "topics":
       return <TopicsView vm={vm.topicsView} />
     case "students":
-      return <StudentsView />
+      return <StudentsView vm={vm.studentsView} />
     case "questionnaires":
       return <QuestionnairesView vm={vm.questionnairesView} />
     case "analytics":
