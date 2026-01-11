@@ -1,6 +1,5 @@
 import { defineSchema, defineTable } from "convex/server"
 import * as Topic from "./schemas/Topic"
-import * as Subtopic from "./schemas/Subtopic"
 import * as Preference from "./schemas/Preference"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import * as RankingEvent from "./schemas/RankingEvent"
@@ -13,14 +12,13 @@ import * as StudentAnswer from "./schemas/StudentAnswer"
 import * as User from "./schemas/User"
 import * as TopicStudentAllowList from "./schemas/TopicStudentAllowList"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
+import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Category from "./schemas/Category"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
     .index("by_semester", ["semesterId"])
     .index("by_active", ["isActive"]),
-
-  subtopics: defineTable(Subtopic.Subtopic),
 
   preferences: defineTable(Preference.Preference)
     .index("by_student", ["studentId", "semesterId"])
@@ -82,4 +80,10 @@ export default defineSchema({
     .index("by_topic", ["topicId"])
     .index("by_topic_email", ["topicId", "email"])
     .index("by_email", ["email"]),
+
+  // Per-period STUDENT allow-list (by access code) - students can access all topics in period
+  periodStudentAllowList: defineTable(PeriodStudentAllowList.PeriodStudentAllowList)
+    .index("by_period", ["selectionPeriodId"])
+    .index("by_period_studentId", ["selectionPeriodId", "studentId"])
+    .index("by_studentId", ["studentId"]),
 })

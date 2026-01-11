@@ -61,8 +61,8 @@ const OverviewView: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <CardTitle>Selection Periods</CardTitle>
-            <CardDescription>Manage when students can select topics</CardDescription>
+            <CardTitle>Project Assignments</CardTitle>
+            <CardDescription>Manage project assignment periods</CardDescription>
           </CardHeader>
           <CardContent>
             <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} />
@@ -84,9 +84,9 @@ const OverviewView: React.FC = () => {
       <Dialog open={vm.editPeriodDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editPeriodDialog.close()}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Selection Period</DialogTitle>
+            <DialogTitle>Edit Project Assignment</DialogTitle>
             <DialogDescription>
-              Update the details of this selection period.
+              Update the details of this project assignment.
             </DialogDescription>
           </DialogHeader>
           {Option.isSome(vm.editPeriodDialog.editingPeriod$.value) && (
@@ -181,7 +181,7 @@ export const AdminDashboardView: React.FC = () => {
           <div className="flex items-center justify-between flex-1">
             <div>
               <h1 className="text-xl font-bold tracking-tight">Admin Dashboard</h1>
-              <p className="text-sm text-muted-foreground">Manage topics, periods, and student assignments</p>
+              <p className="text-sm text-muted-foreground">Manage topics, project assignments, and students</p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => router.push("/")}>

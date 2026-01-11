@@ -416,28 +416,6 @@ const RankingDistribution: React.FC = () => {
   )
 }
 
-const SubtopicsBreakdown: React.FC = () => {
-  const { topic } = useTopicDetails()
-
-  if (!topic.subtopicIds || topic.subtopicIds.length === 0) {
-    return null
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Subtopics ({topic.subtopicIds.length})</CardTitle>
-        <CardDescription>This topic has {topic.subtopicIds.length} subtopics</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          Subtopic details available in topic management
-        </p>
-      </CardContent>
-    </Card>
-  )
-}
-
 const Loading: React.FC = () => (
   <div className="space-y-6">
     <Card>
@@ -486,7 +464,6 @@ export const TopicDetails = {
   StudentRankings,
   TrendsChart,
   RankingDistribution,
-  SubtopicsBreakdown,
   Loading,
   NotFound,
 } as const

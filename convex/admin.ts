@@ -16,6 +16,7 @@ import {
 
 /**
  * Seeds test data for development.
+ * Creates topics, categories, questions, students and preferences.
  * 
  * @category Mutations
  * @since 0.1.0
@@ -27,17 +28,82 @@ export const seedTestData = mutation({
     const now = Date.now()
     const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
-    const [, topicIds] = await Promise.all([
+    // Create selection period and topics
+    const [periodId, topicIds] = await Promise.all([
       createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
       createTestTopics(ctx, semesterId)
     ])
 
+    // Create 5 categories
+    const categoryNames = [
+      { name: "Technical Skills", description: "Programming and technical abilities" },
+      { name: "Soft Skills", description: "Communication and teamwork abilities" },
+      { name: "Academic Background", description: "Prior coursework and knowledge" },
+      { name: "Interests", description: "Personal interests and motivation" },
+      { name: "Availability", description: "Time commitment and schedule flexibility" },
+    ]
+    
+    const categoryIds = await Promise.all(
+      categoryNames.map(cat => 
+        ctx.db.insert("categories", {
+          name: cat.name,
+          description: cat.description,
+          semesterId,
+          createdAt: now,
+        })
+      )
+    )
+
+    // Create 10 questions across categories
+    const questionsData = [
+      // Technical Skills (2 questions)
+      { question: "How comfortable are you with programming?", kind: "0to10" as const, category: categoryNames[0].name },
+      { question: "Do you have experience with machine learning?", kind: "boolean" as const, category: categoryNames[0].name },
+      // Soft Skills (2 questions)
+      { question: "How do you rate your teamwork abilities?", kind: "0to10" as const, category: categoryNames[1].name },
+      { question: "Are you comfortable presenting to groups?", kind: "boolean" as const, category: categoryNames[1].name },
+      // Academic Background (2 questions)
+      { question: "How familiar are you with the course prerequisites?", kind: "0to10" as const, category: categoryNames[2].name },
+      { question: "Have you completed a similar project before?", kind: "boolean" as const, category: categoryNames[2].name },
+      // Interests (2 questions)
+      { question: "How interested are you in this topic area?", kind: "0to10" as const, category: categoryNames[3].name },
+      { question: "Would you consider this topic for future career paths?", kind: "boolean" as const, category: categoryNames[3].name },
+      // Availability (2 questions)
+      { question: "How many hours per week can you dedicate to this project?", kind: "0to10" as const, category: categoryNames[4].name },
+      { question: "Can you attend weekly team meetings?", kind: "boolean" as const, category: categoryNames[4].name },
+    ]
+
+    const questionIds = await Promise.all(
+      questionsData.map(q =>
+        ctx.db.insert("questions", {
+          question: q.question,
+          kind: q.kind,
+          category: q.category,
+          semesterId,
+          createdAt: now,
+        })
+      )
+    )
+
+    // Link first 7 questions to the selection period
+    await Promise.all(
+      questionIds.slice(0, 7).map((questionId, index) =>
+        ctx.db.insert("selectionQuestions", {
+          selectionPeriodId: periodId,
+          questionId,
+          order: index,
+        })
+      )
+    )
+
+    // Create students and preferences
     const students = generateTestStudents(topicIds, 60)
     const [preferenceIds] = await Promise.all([
       insertTestPreferences(ctx, students, semesterId),
       createTestRankings(ctx, students, semesterId)
     ])
-    return preferenceIds
+    
+    return { preferenceIds, categoryCount: categoryIds.length, questionCount: questionIds.length }
   }
 })
 
@@ -52,7 +118,6 @@ export const createTopic = mutation({
     title: v.string(),
     description: v.string(),
     semesterId: v.string(),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
   },
   handler: async (ctx, args) => {
     const id = await ctx.db.insert("topics", Topic.make({
@@ -60,7 +125,6 @@ export const createTopic = mutation({
       description: args.description,
       semesterId: args.semesterId,
       isActive: true,
-      subtopicIds: args.subtopicIds?.map(id => id as string)
     }))
     return id
   }
@@ -78,7 +142,6 @@ export const updateTopic = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
-    subtopicIds: v.optional(v.array(v.id("subtopics")))
   },
   handler: async (ctx, args) => {
     await ctx.db.get(args.id).then(maybeTopic =>
@@ -89,8 +152,6 @@ export const updateTopic = mutation({
     if (args.title !== undefined) updates.title = args.title
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
-    if (args.subtopicIds !== undefined) updates.subtopicIds = args.subtopicIds
-    // requiresAllowList is always true - no need to update it
 
     await ctx.db.patch(args.id, updates)
   }
@@ -215,6 +276,7 @@ export const getAllPeriods = query({
 
 /**
  * Clears all data (for development).
+ * Deletes everything from all tables for a complete reset.
  *
  * @category Mutations
  * @since 0.1.0
@@ -223,14 +285,26 @@ export const clearAllData = mutation({
   args: {},
   handler: (ctx) =>
     Promise.all([
+      // Core data
       deleteAllFromTable(ctx, "topics"),
-      deleteAllFromTable(ctx, "subtopics"),
       deleteAllFromTable(ctx, "preferences"),
       deleteAllFromTable(ctx, "rankingEvents"),
       deleteAllFromTable(ctx, "selectionPeriods"),
       deleteAllFromTable(ctx, "assignments"),
+      // Access lists
       deleteAllFromTable(ctx, "topicStudentAllowList"),
       deleteAllFromTable(ctx, "topicTeacherAllowList"),
+      deleteAllFromTable(ctx, "periodStudentAllowList"),
+      // Questions & answers
+      deleteAllFromTable(ctx, "questions"),
+      deleteAllFromTable(ctx, "questionTemplates"),
+      deleteAllFromTable(ctx, "templateQuestions"),
+      deleteAllFromTable(ctx, "selectionQuestions"),
+      deleteAllFromTable(ctx, "studentAnswers"),
+      deleteAllFromTable(ctx, "categories"),
+      // Users (auth)
+      deleteAllFromTable(ctx, "users"),
+      // Scheduled functions
       cancelAllScheduled(ctx),
     ])
       .then(() => "All data cleared")

@@ -13,18 +13,10 @@ export interface TopicItemVM {
   readonly description: string
   readonly statusDisplay: string
   readonly statusVariant: "default" | "secondary"
-  readonly subtopicsCount: number
   readonly selectionsCount: number
   readonly toggleActive: () => void
   readonly remove: () => void
   readonly edit: () => void
-}
-
-export interface SubtopicItemVM {
-  readonly key: string
-  readonly title: string
-  readonly description: string
-  readonly remove: () => void
 }
 
 export interface PeriodOptionVM {
@@ -47,27 +39,14 @@ export interface EditTopicDialogVM extends DialogVM {
   }>>
 }
 
-export interface SubtopicFormVM {
-  readonly title: string
-  readonly description: string
-}
-
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
-  readonly subtopics$: ReadonlySignal<readonly SubtopicItemVM[]>
   readonly periodOptions$: ReadonlySignal<readonly PeriodOptionVM[]>
-  readonly subtopicForm$: ReadonlySignal<SubtopicFormVM>
   readonly createTopicDialog: DialogVM
-  readonly createSubtopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
   readonly createdTopicId$: ReadonlySignal<Option.Option<Id<"topics">>>
   readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
-  readonly onSubtopicSubmit: (values: { title: string; description: string }) => void
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
-  readonly setSubtopicTitle: (title: string) => void
-  readonly setSubtopicDescription: (description: string) => void
-  readonly resetSubtopicForm: () => void
-  readonly createSubtopic: () => void
   readonly finishTopicCreation: () => void
 }
 
@@ -77,7 +56,6 @@ export interface TopicsViewVM {
 
 export interface TopicsViewVMDeps {
   readonly topics$: ReadonlySignal<readonly any[] | undefined>
-  readonly subtopics$: ReadonlySignal<readonly any[] | undefined>
   readonly periods$: ReadonlySignal<readonly any[] | undefined>
   readonly createTopic: (args: {
     title: string
@@ -91,11 +69,6 @@ export interface TopicsViewVMDeps {
   }) => Promise<any>
   readonly toggleTopicActive: (args: { id: Id<"topics"> }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
-  readonly createSubtopic: (args: {
-    title: string
-    description: string
-  }) => Promise<any>
-  readonly deleteSubtopic: (args: { id: Id<"subtopics"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -105,19 +78,15 @@ export interface TopicsViewVMDeps {
 export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const {
     topics$,
-    subtopics$,
     periods$,
     createTopic,
     updateTopic,
     toggleTopicActive,
     deleteTopic,
-    createSubtopic,
-    deleteSubtopic,
   } = deps
 
   // Signals created once
   const createTopicDialogOpen$ = signal(false)
-  const createSubtopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
   const createdTopicId$ = signal<Option.Option<Id<"topics">>>(Option.none())
   const editingTopic$ = signal<Option.Option<{
@@ -126,7 +95,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     description: string
     semesterId: string
   }>>(Option.none())
-  const subtopicForm$ = signal<SubtopicFormVM>({ title: "", description: "" })
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
@@ -151,7 +119,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       description: topic.description,
       statusDisplay: topic.isActive ? "Active" : "Inactive",
       statusVariant: topic.isActive ? "default" : "secondary",
-      subtopicsCount: topic.subtopicIds?.length || 0,
       selectionsCount: 0, // TODO: Add when available
       toggleActive: () => {
         toggleTopicActive({ id: topic._id }).catch(console.error)
@@ -161,18 +128,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       },
       edit: () => {
         openEditDialog(topic._id)
-      },
-    }))
-  )
-
-  // Computed: subtopics list for grid
-  const subtopicItems$ = computed((): readonly SubtopicItemVM[] =>
-    (subtopics$.value ?? []).map((subtopic): SubtopicItemVM => ({
-      key: subtopic._id,
-      title: subtopic.title,
-      description: subtopic.description,
-      remove: () => {
-        deleteSubtopic({ id: subtopic._id }).catch(console.error)
       },
     }))
   )
@@ -204,17 +159,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   const finishTopicCreation = (): void => {
     createTopicDialog.close()
-  }
-
-  // Create subtopic dialog
-  const createSubtopicDialog: DialogVM = {
-    isOpen$: createSubtopicDialogOpen$,
-    open: () => {
-      createSubtopicDialogOpen$.value = true
-    },
-    close: () => {
-      createSubtopicDialogOpen$.value = false
-    },
   }
 
   // Edit topic dialog - extends DialogVM with editingTopic$
@@ -255,30 +199,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     }
   }
 
-  const onSubtopicSubmit = (values: { title: string; description: string }): void => {
-    createSubtopic({
-      title: values.title,
-      description: values.description,
-    })
-      .then(() => {
-        createSubtopicDialog.close()
-        resetSubtopicForm()
-      })
-      .catch(console.error)
-  }
-
-  const setSubtopicTitle = (title: string): void => {
-    subtopicForm$.value = { ...subtopicForm$.value, title }
-  }
-
-  const setSubtopicDescription = (description: string): void => {
-    subtopicForm$.value = { ...subtopicForm$.value, description }
-  }
-
-  const resetSubtopicForm = (): void => {
-    subtopicForm$.value = { title: "", description: "" }
-  }
-
   const onEditTopicSubmit = (values: TopicFormValues): void => {
     Option.match(editingTopic$.value, {
       onNone: () => {},
@@ -296,31 +216,14 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     })
   }
 
-  const createSubtopicAction = (): void => {
-    const form = subtopicForm$.value
-    if (!form.title || !form.description) return
-    onSubtopicSubmit({
-      title: form.title,
-      description: form.description,
-    })
-  }
-
   return {
     topics$: topicItems$,
-    subtopics$: subtopicItems$,
     periodOptions$,
-    subtopicForm$,
     createTopicDialog,
-    createSubtopicDialog,
     editTopicDialog,
     createdTopicId$,
     onTopicSubmit,
-    onSubtopicSubmit,
     onEditTopicSubmit,
-    setSubtopicTitle,
-    setSubtopicDescription,
-    resetSubtopicForm,
-    createSubtopic: createSubtopicAction,
     finishTopicCreation,
   }
 }

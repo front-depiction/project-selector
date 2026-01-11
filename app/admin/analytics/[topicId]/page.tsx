@@ -64,7 +64,6 @@ export default function TopicAnalyticsPage({ params }: PageProps) {
             <TopicDetails.RankingDistribution />
           </div>
           <TopicDetails.StudentRankings />
-          <TopicDetails.SubtopicsBreakdown />
         </TopicDetails.Provider>
       </div>
     </div>

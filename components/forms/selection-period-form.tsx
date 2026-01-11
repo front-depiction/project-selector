@@ -138,15 +138,15 @@ export default function SelectionPeriodForm({
                             name="selection_period_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Selection Period Id</FormLabel>
+                                    <FormLabel>Semester ID</FormLabel>
                                     <FormControl>
                                         <Input
-                                            placeholder="period1"
+                                            placeholder="2024-spring"
 
                                             type=""
                                             {...field} />
                                     </FormControl>
-                                    <FormDescription>This is the identifier used when linking topics</FormDescription>
+                                    <FormDescription>Identifier used to link topics to this assignment</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -201,8 +201,8 @@ export default function SelectionPeriodForm({
                     render={({ field }) => (
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                             <div className="space-y-0.5">
-                                <FormLabel>Mark this period as active</FormLabel>
-                                <FormDescription>If you mark this period as active, it will be immediately available to people</FormDescription>
+                                <FormLabel>Mark as active</FormLabel>
+                                <FormDescription>If active, students can immediately start selecting topics</FormDescription>
                             </div>
                             <FormControl>
                                 <Switch
@@ -220,7 +220,7 @@ export default function SelectionPeriodForm({
                         <div>
                             <Label className="text-base">Questions</Label>
                             <p className="text-sm text-muted-foreground">
-                                Select questions students will answer during this period.
+                                Select questions students will answer during this project assignment.
                                 {questionIds.length > 0 && (
                                     <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
                                 )}

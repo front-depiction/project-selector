@@ -136,11 +136,11 @@ export default function TopicForm({
                     name="selection_period_id"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Select Period</FormLabel>
+                            <FormLabel>Project Assignment</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                     <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select a period to link" />
+                                        <SelectValue placeholder="Select a project assignment" />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
@@ -155,7 +155,7 @@ export default function TopicForm({
                                     })}
                                 </SelectContent>
                             </Select>
-                            <FormDescription>The selection period Id to associate this topic to</FormDescription>
+                            <FormDescription>The project assignment to associate this topic with</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

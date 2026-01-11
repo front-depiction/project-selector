@@ -73,17 +73,10 @@ export const getTopicPerformanceAnalytics = query({
         (retentionRate * 0.1)
       )
 
-      // Get subtopics for this topic
-      const subtopics = topic.subtopicIds ?
-        await Promise.all(
-          topic.subtopicIds.map(id => ctx.db.get(id))
-        ) : []
-
       return {
         id: topic._id,
         title: topic.title,
         description: topic.description,
-        subtopics: subtopics.filter(s => s !== null),
         isActive: topic.isActive,
         metrics: {
           totalSelections,
@@ -114,7 +107,7 @@ export const getTopicPerformanceAnalytics = query({
 })
 
 /**
- * Get detailed analytics for a single topic including subtopic breakdown.
+ * Get detailed analytics for a single topic.
  * 
  * @category Queries
  * @since 0.3.0
@@ -159,18 +152,11 @@ export const getTopicDetailedAnalytics = query({
         direction: (e.previousPosition || 0) > e.position ? "up" : "down"
       }))
 
-    // Get subtopics for this topic
-    const subtopics = topic.subtopicIds ?
-      await Promise.all(
-        topic.subtopicIds.map(id => ctx.db.get(id))
-      ) : []
-
     return {
       topic: {
         id: topic._id,
         title: topic.title,
         description: topic.description,
-        subtopics: subtopics.filter(s => s !== null),
         isActive: topic.isActive
       },
       students: selectedByStudents,

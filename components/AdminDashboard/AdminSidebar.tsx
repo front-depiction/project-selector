@@ -47,9 +47,9 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
     },
     {
       id: "periods" as AD.ViewType,
-      title: "Periods",
+      title: "Project Assignments",
       icon: Calendar,
-      tooltip: "Manage selection periods",
+      tooltip: "Manage project assignment periods",
     },
     {
       id: "analytics" as AD.ViewType,
