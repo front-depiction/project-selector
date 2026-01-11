@@ -28,7 +28,7 @@ export const updateQuestion = mutation({
   args: {
     id: v.id("questions"),
     question: v.optional(v.string()),
-    kind: v.optional(v.union(v.literal("boolean"), v.literal("0to10"))),
+    kind: v.optional(v.union(v.literal("boolean"), v.literal("0to6"))),
     category: v.optional(v.string())
   },
   handler: async (ctx, args) => {

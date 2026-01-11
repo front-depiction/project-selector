@@ -16,7 +16,7 @@ async function createTestQuestion(
   t: ReturnType<typeof convexTest>,
   params: {
     question: string
-    kind: "boolean" | "0to10"
+    kind: "boolean" | "0to6"
     semesterId: string
   }
 ): Promise<Id<"questions">> {
@@ -39,7 +39,7 @@ test("getAllQuestions: returns all questions when no semesterId filter", async (
 
   await createTestQuestion(t, {
     question: "Rate your interest in AI",
-    kind: "0to10",
+    kind: "0to6",
     semesterId: semesterId2
   })
 
@@ -79,7 +79,7 @@ test("getAllQuestions: filters by semesterId when provided", async () => {
 
   await createTestQuestion(t, {
     question: "Rate your interest in AI",
-    kind: "0to10",
+    kind: "0to6",
     semesterId: semesterId2
   })
 
@@ -168,7 +168,7 @@ test("createQuestion: creates boolean question with correct structure", async ()
   vi.useRealTimers()
 })
 
-test("createQuestion: creates 0to10 question with correct structure", async () => {
+test("createQuestion: creates 0to6 question with correct structure", async () => {
   vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))
 
@@ -178,7 +178,7 @@ test("createQuestion: creates 0to10 question with correct structure", async () =
   // Create 0to10 question
   const questionId = await createTestQuestion(t, {
     question: questionText,
-    kind: "0to10",
+    kind: "0to6",
     semesterId
   })
 
@@ -192,7 +192,7 @@ test("createQuestion: creates 0to10 question with correct structure", async () =
   const question = questions[0]
   expect(question._id).toBe(questionId)
   expect(question.question).toBe(questionText)
-  expect(question.kind).toBe("0to10")
+  expect(question.kind).toBe("0to6")
   expect(question.semesterId).toBe(semesterId)
   expect(question.createdAt).toBeDefined()
   expect(typeof question.createdAt).toBe("number")
@@ -215,7 +215,7 @@ test("createQuestion: creates multiple questions with different kinds", async ()
 
   const ratingId = await createTestQuestion(t, {
     question: "Rate your interest in AI",
-    kind: "0to10",
+    kind: "0to6",
     semesterId
   })
 
@@ -236,7 +236,7 @@ test("createQuestion: creates multiple questions with different kinds", async ()
 
   // Verify both types are present
   const booleanQuestions = questions.filter(q => q.kind === "boolean")
-  const ratingQuestions = questions.filter(q => q.kind === "0to10")
+  const ratingQuestions = questions.filter(q => q.kind === "0to6")
 
   expect(booleanQuestions.length).toBe(2)
   expect(ratingQuestions.length).toBe(1)
@@ -292,10 +292,10 @@ test("updateQuestion: updates question kind only", async () => {
     semesterId
   })
 
-  // Update to 0to10 kind
+  // Update to 0to6 kind
   await t.mutation(api.questions.updateQuestion, {
     id: questionId,
-    kind: "0to10"
+    kind: "0to6"
   })
 
   // Verify the update
@@ -305,7 +305,7 @@ test("updateQuestion: updates question kind only", async () => {
 
   const question = questions[0]
   expect(question.question).toBe(questionText) // Text should remain unchanged
-  expect(question.kind).toBe("0to10") // Kind should be updated
+  expect(question.kind).toBe("0to6") // Kind should be updated
 
   vi.useRealTimers()
 })
@@ -327,7 +327,7 @@ test("updateQuestion: updates both question text and kind", async () => {
   await t.mutation(api.questions.updateQuestion, {
     id: questionId,
     question: "Rate your interest in programming",
-    kind: "0to10"
+    kind: "0to6"
   })
 
   // Verify the update
@@ -337,7 +337,7 @@ test("updateQuestion: updates both question text and kind", async () => {
 
   const question = questions[0]
   expect(question.question).toBe("Rate your interest in programming")
-  expect(question.kind).toBe("0to10")
+  expect(question.kind).toBe("0to6")
   expect(question.semesterId).toBe(semesterId)
 
   vi.useRealTimers()
@@ -416,7 +416,7 @@ test("deleteQuestion: deletes only the specified question", async () => {
 
   const questionId2 = await createTestQuestion(t, {
     question: "Rate your interest in AI",
-    kind: "0to10",
+    kind: "0to6",
     semesterId
   })
 
@@ -460,7 +460,7 @@ test("questions: integration test covering full CRUD lifecycle", async () => {
 
   const ratingQuestionId = await createTestQuestion(t, {
     question: "Rate your interest in databases",
-    kind: "0to10",
+    kind: "0to6",
     semesterId
   })
 
@@ -506,7 +506,7 @@ test("questions: handles questions across multiple semesters independently", asy
 
   const springQ2 = await createTestQuestion(t, {
     question: "Spring question 2",
-    kind: "0to10",
+    kind: "0to6",
     semesterId: spring2024
   })
 

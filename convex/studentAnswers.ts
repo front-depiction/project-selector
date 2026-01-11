@@ -110,7 +110,7 @@ export const saveAnswersAsTeacher = mutation({
 
       const baseData = answer.kind === "boolean"
         ? StudentAnswer.makeBoolean({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as boolean })
-        : StudentAnswer.makeZeroToTen({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as number })
+        : StudentAnswer.makeZeroToSix({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as number })
 
       // Note: We're storing proxy info in the answer itself
       // The answeredAt timestamp is set by the make functions
