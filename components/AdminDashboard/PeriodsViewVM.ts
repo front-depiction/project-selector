@@ -88,11 +88,17 @@ export interface PeriodsViewVM {
   /** Questions already linked to editing period */
   readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 
+  /** ID and title of newly created period (for showing access codes) */
+  readonly createdPeriod$: ReadonlySignal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>
+
   /** Handle create period submission */
   readonly onCreateSubmit: (values: SelectionPeriodFormValues) => void
 
   /** Handle edit period submission */
   readonly onEditSubmit: (values: SelectionPeriodFormValues) => void
+
+  /** Finish creation flow and close dialog */
+  readonly finishCreation: () => void
 }
 
 // ============================================================================
@@ -165,6 +171,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const createDialogOpen$ = signal(false)
   const editDialogOpen$ = signal(false)
   const editingPeriod$ = signal<Option.Option<SelectionPeriodWithStats>>(Option.none())
+  const createdPeriod$ = signal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>(Option.none())
 
   // Computed: current period (may be open or assigned)
   const currentPeriod$ = computed((): Option.Option<SelectionPeriodWithStats> => {
@@ -295,11 +302,22 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const createDialog: DialogVM = {
     isOpen$: createDialogOpen$,
     open: () => {
-      createDialogOpen$.value = true
+      batch(() => {
+        createDialogOpen$.value = true
+        createdPeriod$.value = Option.none()
+      })
     },
     close: () => {
-      createDialogOpen$.value = false
+      batch(() => {
+        createDialogOpen$.value = false
+        createdPeriod$.value = Option.none()
+      })
     },
+  }
+
+  // Finish creation flow
+  const finishCreation = (): void => {
+    createDialog.close()
   }
 
   // Edit dialog
@@ -325,6 +343,9 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
   // Form submission handlers
   const onCreateSubmit = (values: SelectionPeriodFormValues): void => {
+    let createdPeriodId: Id<"selectionPeriods">
+    const periodTitle = values.title
+
     deps.createPeriod({
       title: values.title,
       description: values.title,
@@ -334,13 +355,13 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       setAsActive: values.isActive,
     })
       .then((result) => {
-        const periodId = result.periodId
+        createdPeriodId = result.periodId
 
         // Add selected questions to the period
         if (values.questionIds.length > 0) {
           const promises = values.questionIds.map(questionId =>
             deps.addQuestion({
-              selectionPeriodId: periodId,
+              selectionPeriodId: createdPeriodId,
               questionId: questionId as Id<"questions">,
             })
           )
@@ -348,7 +369,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         }
       })
       .then(() => {
-        createDialog.close()
+        // Show access codes panel instead of closing
+        createdPeriod$.value = Option.some({ id: createdPeriodId, title: periodTitle })
       })
       .catch(console.error)
   }
@@ -409,8 +431,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     questions$,
     templates$,
     existingQuestionIds$,
+    createdPeriod$,
     onCreateSubmit,
     onEditSubmit,
+    finishCreation,
   }
 }
 

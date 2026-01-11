@@ -177,8 +177,8 @@ export const getStudentAllowedTopics = query({
 
 /**
  * Check if a student ID is allowed for a topic.
- * Checks both topic-level AND period-level allow lists.
- * Student is allowed if they have access via EITHER list.
+ * Students get access via period-level allow lists only.
+ * A student with a code for a period can access ALL topics in that period's semester.
  */
 export async function isStudentAllowedForTopic(
   ctx: QueryCtx,
@@ -187,38 +187,31 @@ export async function isStudentAllowedForTopic(
 ): Promise<boolean> {
   const normalized = studentId.trim().toUpperCase()
   
-  // Check topic-level allow list first (legacy)
-  const topicEntry = await ctx.db
-    .query("topicStudentAllowList")
-    .withIndex("by_topic_studentId", (q) =>
-      q.eq("topicId", topicId).eq("studentId", normalized)
-    )
-    .first()
-  if (topicEntry !== null) return true
-  
-  // Check period-level allow list
-  // First, get the topic to find its semester
+  // Get the topic to find its semester
   const topic = await ctx.db.get(topicId)
   if (!topic) return false
   
-  // Find the active selection period for this semester
-  const activePeriod = await ctx.db
+  // Find all periods for this semester (not just active ones, to support closed periods too)
+  const periods = await ctx.db
     .query("selectionPeriods")
     .withIndex("by_semester", (q) => q.eq("semesterId", topic.semesterId))
-    .filter((q) => q.eq(q.field("kind"), "open"))
-    .first()
+    .collect()
   
-  if (!activePeriod) return false
+  if (periods.length === 0) return false
   
-  // Check if student has access via period-level allow list
-  const periodEntry = await ctx.db
-    .query("periodStudentAllowList")
-    .withIndex("by_period_studentId", (q) =>
-      q.eq("selectionPeriodId", activePeriod._id).eq("studentId", normalized)
-    )
-    .first()
+  // Check if student has access via any period-level allow list for this semester
+  for (const period of periods) {
+    const periodEntry = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period_studentId", (q) =>
+        q.eq("selectionPeriodId", period._id).eq("studentId", normalized)
+      )
+      .first()
+    
+    if (periodEntry !== null) return true
+  }
   
-  return periodEntry !== null
+  return false
 }
 
 /**

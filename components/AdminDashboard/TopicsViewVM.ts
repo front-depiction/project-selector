@@ -44,10 +44,8 @@ export interface TopicsViewVM {
   readonly periodOptions$: ReadonlySignal<readonly PeriodOptionVM[]>
   readonly createTopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
-  readonly createdTopicId$: ReadonlySignal<Option.Option<Id<"topics">>>
   readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
-  readonly finishTopicCreation: () => void
 }
 
 // ============================================================================
@@ -88,7 +86,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   // Signals created once
   const createTopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
-  const createdTopicId$ = signal<Option.Option<Id<"topics">>>(Option.none())
   const editingTopic$ = signal<Option.Option<{
     id: Id<"topics">
     title: string
@@ -98,7 +95,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
-    // Find the full topic from the raw data
     const fullTopic = topics$.value?.find(t => t._id === topicId)
     if (!fullTopic) return
 
@@ -119,7 +115,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       description: topic.description,
       statusDisplay: topic.isActive ? "Active" : "Inactive",
       statusVariant: topic.isActive ? "default" : "secondary",
-      selectionsCount: 0, // TODO: Add when available
+      selectionsCount: 0,
       toggleActive: () => {
         toggleTopicActive({ id: topic._id }).catch(console.error)
       },
@@ -144,24 +140,14 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const createTopicDialog: DialogVM = {
     isOpen$: createTopicDialogOpen$,
     open: () => {
-      batch(() => {
-        createTopicDialogOpen$.value = true
-        createdTopicId$.value = Option.none() // Reset when opening
-      })
+      createTopicDialogOpen$.value = true
     },
     close: () => {
-      batch(() => {
-        createTopicDialogOpen$.value = false
-        createdTopicId$.value = Option.none() // Reset when closing
-      })
+      createTopicDialogOpen$.value = false
     },
   }
 
-  const finishTopicCreation = (): void => {
-    createTopicDialog.close()
-  }
-
-  // Edit topic dialog - extends DialogVM with editingTopic$
+  // Edit topic dialog
   const editTopicDialog: EditTopicDialogVM = {
     isOpen$: editTopicDialogOpen$,
     editingTopic$,
@@ -179,23 +165,15 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   // Form submission handlers
   const onTopicSubmit = async (values: TopicFormValues): Promise<void> => {
     try {
-      const topicId = await createTopic({
+      await createTopic({
         title: values.title,
         description: values.description,
         semesterId: values.selection_period_id,
       })
-      
-      // Store the created topic ID to show allow-list UI
-      if (topicId) {
-        console.log("Topic created with ID:", topicId)
-        createdTopicId$.value = Option.some(topicId as Id<"topics">)
-        console.log("Signal updated, createdTopicId$:", createdTopicId$.value)
-      } else {
-        console.warn("Topic created but no ID returned")
-      }
+      createTopicDialog.close()
     } catch (error) {
       console.error("Failed to create topic:", error)
-      throw error // Re-throw so form can handle it
+      throw error
     }
   }
 
@@ -221,9 +199,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     periodOptions$,
     createTopicDialog,
     editTopicDialog,
-    createdTopicId$,
     onTopicSubmit,
     onEditTopicSubmit,
-    finishTopicCreation,
   }
 }

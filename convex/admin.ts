@@ -96,6 +96,34 @@ export const seedTestData = mutation({
       )
     )
 
+    // Generate 20 student access codes for the period
+    const CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    const generateAccessCode = () => {
+      let code = ""
+      for (let i = 0; i < 6; i++) {
+        code += CHARSET[Math.floor(Math.random() * CHARSET.length)]
+      }
+      return code
+    }
+
+    const accessCodes: string[] = []
+    const existingCodes = new Set<string>()
+    for (let i = 0; i < 20; i++) {
+      let code: string
+      do {
+        code = generateAccessCode()
+      } while (existingCodes.has(code))
+      existingCodes.add(code)
+      accessCodes.push(code)
+
+      await ctx.db.insert("periodStudentAllowList", {
+        selectionPeriodId: periodId,
+        studentId: code,
+        addedAt: now,
+        addedBy: "system",
+      })
+    }
+
     // Create students and preferences
     const students = generateTestStudents(topicIds, 60)
     const [preferenceIds] = await Promise.all([
@@ -103,7 +131,13 @@ export const seedTestData = mutation({
       createTestRankings(ctx, students, semesterId)
     ])
     
-    return { preferenceIds, categoryCount: categoryIds.length, questionCount: questionIds.length }
+    return { 
+      preferenceIds, 
+      categoryCount: categoryIds.length, 
+      questionCount: questionIds.length,
+      accessCodeCount: accessCodes.length,
+      sampleAccessCodes: accessCodes.slice(0, 5) // Return first 5 codes for testing
+    }
   }
 })
 

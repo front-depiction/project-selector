@@ -206,23 +206,15 @@ export const getAllStudentsWithCompletionStatus = query({
     const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
     const requiredCount = questionIds.size
 
-    // Get all topics for this semester
-    const topics = await ctx.db
-      .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
-      .collect()
-
-    // Get all unique student IDs from topicStudentAllowList for these topics
-    const topicIds = new Set(topics.map(t => t._id))
-    const allAllowListEntries = await ctx.db
-      .query("topicStudentAllowList")
+    // Get all unique student IDs from periodStudentAllowList for this period
+    const periodAllowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
       .collect()
 
     const studentIds = new Set<string>()
-    for (const entry of allAllowListEntries) {
-      if (topicIds.has(entry.topicId)) {
-        studentIds.add(entry.studentId)
-      }
+    for (const entry of periodAllowListEntries) {
+      studentIds.add(entry.studentId)
     }
 
     // If no questions, all students are "complete"

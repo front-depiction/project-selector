@@ -210,18 +210,34 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
       {/* Create Dialog */}
       <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createDialog.close()}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Project Assignment</DialogTitle>
             <DialogDescription>
-              Create a new project assignment period for students to choose topics.
+              {Option.isSome(vm.createdPeriod$.value)
+                ? "Generate access codes for students to participate in this project assignment."
+                : "Create a new project assignment period for students to choose topics."}
             </DialogDescription>
           </DialogHeader>
-          <SelectionPeriodForm
-            questions={vm.questions$.value}
-            templates={vm.templates$.value}
-            onSubmit={vm.onCreateSubmit}
-          />
+          {Option.isSome(vm.createdPeriod$.value) ? (
+            <div className="space-y-4">
+              <PeriodStudentAllowListManager
+                selectionPeriodId={vm.createdPeriod$.value.value.id}
+                periodTitle={vm.createdPeriod$.value.value.title}
+              />
+              <div className="flex justify-end pt-4 border-t">
+                <Button onClick={vm.finishCreation}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <SelectionPeriodForm
+              questions={vm.questions$.value}
+              templates={vm.templates$.value}
+              onSubmit={vm.onCreateSubmit}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
