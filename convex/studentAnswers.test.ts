@@ -29,7 +29,7 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
     const question2Id = await ctx.db.insert("questions", {
       semesterId,
       question: "Rate your interest in this topic",
-      kind: "0to10" as const,
+      kind: "0to6" as const,
       createdAt: Date.now()
     })
 
@@ -185,7 +185,7 @@ test("studentAnswers: saveAnswers creates new boolean answer with false (normali
   vi.useRealTimers()
 })
 
-test("studentAnswers: saveAnswers creates new 0to10 answer with normalization", async () => {
+test("studentAnswers: saveAnswers creates new 0to6 answer with normalization", async () => {
   vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))
 
@@ -193,15 +193,15 @@ test("studentAnswers: saveAnswers creates new 0to10 answer with normalization", 
 
   const studentId = "student-3"
 
-  // Save 0to10 answer (7 should normalize to 0.7)
+  // Save 0to6 answer (5 should normalize to 5/6)
   await t.mutation(api.studentAnswers.saveAnswers, {
     studentId,
     selectionPeriodId: periodId,
     answers: [
       {
         questionId: question2Id,
-        kind: "0to10",
-        value: 7
+        kind: "0to6",
+        value: 5
       }
     ]
   })
@@ -215,13 +215,13 @@ test("studentAnswers: saveAnswers creates new 0to10 answer with normalization", 
   expect(answers).toHaveLength(1)
   expect(answers[0].studentId).toBe(studentId)
   expect(answers[0].questionId).toBe(question2Id)
-  expect(answers[0].rawAnswer).toEqual({ kind: "0to10", value: 7 })
+  expect(answers[0].rawAnswer).toEqual({ kind: "0to6", value: 7 })
   expect(answers[0].normalizedAnswer).toBe(0.7)
 
   vi.useRealTimers()
 })
 
-test("studentAnswers: saveAnswers with 0to10 edge cases", async () => {
+test("studentAnswers: saveAnswers with 0to6 edge cases", async () => {
   vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))
 
@@ -235,7 +235,7 @@ test("studentAnswers: saveAnswers with 0to10 edge cases", async () => {
     answers: [
       {
         questionId: question2Id,
-        kind: "0to10",
+        kind: "0to6",
         value: 0
       }
     ]
@@ -255,8 +255,8 @@ test("studentAnswers: saveAnswers with 0to10 edge cases", async () => {
     answers: [
       {
         questionId: question2Id,
-        kind: "0to10",
-        value: 10
+        kind: "0to6",
+        value: 6
       }
     ]
   })
@@ -345,8 +345,8 @@ test("studentAnswers: saveAnswers handles multiple answers at once", async () =>
       },
       {
         questionId: question2Id,
-        kind: "0to10",
-        value: 8
+        kind: "0to6",
+        value: 5
       },
       {
         questionId: question3Id,
@@ -370,8 +370,8 @@ test("studentAnswers: saveAnswers handles multiple answers at once", async () =>
   expect(answer1?.rawAnswer).toEqual({ kind: "boolean", value: true })
 
   const answer2 = answers.find(a => a.questionId === question2Id)
-  expect(answer2?.normalizedAnswer).toBe(0.8)
-  expect(answer2?.rawAnswer).toEqual({ kind: "0to10", value: 8 })
+  expect(answer2?.normalizedAnswer).toBeCloseTo(5 / 6, 5)
+  expect(answer2?.rawAnswer).toEqual({ kind: "0to6", value: 5 })
 
   const answer3 = answers.find(a => a.questionId === question3Id)
   expect(answer3?.normalizedAnswer).toBe(0)
@@ -413,8 +413,8 @@ test("studentAnswers: saveAnswers updates some and creates other answers", async
       },
       {
         questionId: question2Id,
-        kind: "0to10",
-        value: 5  // Create new
+        kind: "0to6",
+        value: 3  // Create new
       }
     ]
   })
@@ -558,7 +558,7 @@ test("studentAnswers: normalizedAnswer matches StudentAnswer.normalize", async (
     selectionPeriodId: periodId,
     answers: [
       { questionId: question1Id, kind: "boolean", value: true },
-      { questionId: question2Id, kind: "0to10", value: 3 }
+      { questionId: question2Id, kind: "0to6", value: 3 }
     ]
   })
 
