@@ -30,7 +30,7 @@ export interface StudentsViewVM {
   readonly currentPeriod$: ReadonlySignal<FunctionReturnType<typeof api.admin.getCurrentPeriod> | undefined>
   readonly questionnaireDialog: DialogVM
   readonly isLoading$: ReadonlySignal<boolean>
-  readonly saveAnswers: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to10"; value: boolean | number }>) => Promise<void>
+  readonly saveAnswers: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>) => Promise<void>
 }
 
 // ============================================================================
@@ -43,7 +43,7 @@ export interface StudentsViewDeps {
   readonly saveAnswersAsTeacher: (args: {
     studentId: string
     selectionPeriodId: Id<"selectionPeriods">
-    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to10"; value: boolean | number }>
+    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>
   }) => Promise<any>
 }
 
@@ -106,7 +106,7 @@ export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
 
   // Save answers action
   const saveAnswers = async (
-    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to10"; value: boolean | number }>
+    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>
   ): Promise<void> => {
     const studentId = selectedStudentId$.value
     const period = currentPeriodData$.value
