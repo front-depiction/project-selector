@@ -10,7 +10,6 @@ import * as TemplateQuestion from "./schemas/TemplateQuestion"
 import * as SelectionQuestion from "./schemas/SelectionQuestion"
 import * as StudentAnswer from "./schemas/StudentAnswer"
 import * as User from "./schemas/User"
-import * as TopicStudentAllowList from "./schemas/TopicStudentAllowList"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Category from "./schemas/Category"
@@ -68,12 +67,6 @@ export default defineSchema({
   users: defineTable(User.User)
     .index("by_authId", ["authId"])
     .index("by_email", ["email"]),
-
-  // Per-topic STUDENT allow-list (by student ID)
-  topicStudentAllowList: defineTable(TopicStudentAllowList.TopicStudentAllowList)
-    .index("by_topic", ["topicId"])
-    .index("by_topic_studentId", ["topicId", "studentId"])
-    .index("by_studentId", ["studentId"]),
 
   // Per-topic TEACHER allow-list (by email) for collaboration
   topicTeacherAllowList: defineTable(TopicTeacherAllowList.TopicTeacherAllowList)

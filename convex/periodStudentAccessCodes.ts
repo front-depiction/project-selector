@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server"
+import { mutation, query, QueryCtx } from "./_generated/server"
 import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
 
 /**
  * Character set for generating access codes.
@@ -213,5 +214,57 @@ export const getAccessCodeCount = query({
       .collect()
 
     return entries.length
+  },
+})
+
+/**
+ * Check if a student ID is allowed for a topic.
+ * Students get access via period-level allow lists only.
+ * A student with a code for a period can access ALL topics in that period's semester.
+ */
+export async function isStudentAllowedForTopic(
+  ctx: QueryCtx,
+  topicId: Id<"topics">,
+  studentId: string
+): Promise<boolean> {
+  const normalized = studentId.trim().toUpperCase()
+  
+  // Get the topic to find its semester
+  const topic = await ctx.db.get(topicId)
+  if (!topic) return false
+  
+  // Find all periods for this semester (not just active ones, to support closed periods too)
+  const periods = await ctx.db
+    .query("selectionPeriods")
+    .withIndex("by_semester", (q) => q.eq("semesterId", topic.semesterId))
+    .collect()
+  
+  if (periods.length === 0) return false
+  
+  // Check if student has access via any period-level allow list for this semester
+  for (const period of periods) {
+    const periodEntry = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period_studentId", (q) =>
+        q.eq("selectionPeriodId", period._id).eq("studentId", normalized)
+      )
+      .first()
+    
+    if (periodEntry !== null) return true
+  }
+  
+  return false
+}
+
+/**
+ * Query version of isStudentAllowedForTopic
+ */
+export const checkStudentAccess = query({
+  args: {
+    topicId: v.id("topics"),
+    studentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await isStudentAllowedForTopic(ctx, args.topicId, args.studentId)
   },
 })
