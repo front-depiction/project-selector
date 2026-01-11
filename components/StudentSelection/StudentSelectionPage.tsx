@@ -445,18 +445,29 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
           >
             <Card className="border-blue-500/10 bg-gradient-to-br from-blue-500/5 to-transparent">
               <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Time Remaining</p>
-                    <p className="text-lg font-bold">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm text-muted-foreground">Time Remaining</p>
+                      <p className="text-lg font-bold">
+                        {Option.match(vm.currentPeriod$.value, {
+                          onNone: () => "--",
+                          onSome: (period) => period.daysRemaining
+                        })}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
+                      <Clock className="h-6 w-6 text-blue-500" />
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground">Deadline</p>
+                    <p className="text-sm font-medium">
                       {Option.match(vm.currentPeriod$.value, {
                         onNone: () => "--",
-                        onSome: (period) => period.daysRemaining
+                        onSome: (period) => period.closeDateDisplay
                       })}
                     </p>
-                  </div>
-                  <div className="h-12 w-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Clock className="h-6 w-6 text-blue-500" />
                   </div>
                 </div>
               </CardContent>

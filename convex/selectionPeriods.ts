@@ -28,18 +28,8 @@ export const createPeriod = mutation({
 
     const now = Date.now()
     
-    // Deactivate other periods if this should be active
-    if (args.setAsActive) {
-      const allPeriods = await ctx.db.query("selectionPeriods").collect()
-      await Promise.all(
-        allPeriods.map(async period => {
-          // Close any open periods
-          if (SelectionPeriod.isOpen(period)) {
-            await ctx.db.replace(period._id, SelectionPeriod.close(period))
-          }
-        })
-      )
-    }
+    // Note: Periods remain active based on their dates, not manually closed
+    // Multiple periods can be open simultaneously if their dates are valid
 
     // Create the period as inactive first
     const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeInactive({
@@ -220,7 +210,8 @@ export const deletePeriod = mutation({
 })
 
 /**
- * Sets a period as active, deactivating all others.
+ * Sets a period as active/open.
+ * Multiple periods can be open simultaneously - they remain active until their close date.
  * 
  * @category Mutations
  * @since 0.1.0
@@ -239,14 +230,6 @@ export const setActivePeriod = mutation({
     if (SelectionPeriod.isAssigned(period)) {
       throw new Error("Cannot activate an already assigned period")
     }
-
-    // Close all other open periods first
-    const allPeriods = await ctx.db.query("selectionPeriods").collect()
-    await Promise.all(
-      allPeriods
-        .filter(p => p._id !== args.periodId && SelectionPeriod.isOpen(p))
-        .map(p => ctx.db.replace(p._id, SelectionPeriod.toClosed(p as SelectionPeriod.OpenPeriod)))
-    )
 
     // If already open, nothing more to do
     if (SelectionPeriod.isOpen(period)) {
