@@ -15,7 +15,7 @@ export const getAllQuestions = query({
 export const createQuestion = mutation({
   args: {
     question: v.string(),
-    kind: v.union(v.literal("boolean"), v.literal("0to10")),
+    kind: v.union(v.literal("boolean"), v.literal("0to6")),
     category: v.optional(v.string()),
     semesterId: v.string()
   },

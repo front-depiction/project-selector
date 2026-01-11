@@ -103,7 +103,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     (deps.questions$.value ?? []).map((q): QuestionItemVM => ({
       key: q._id,
       questionText: q.question,
-      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
+      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
       category: q.category,
       remove: () => {
@@ -144,7 +144,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     (deps.questions$.value ?? []).map((q): QuestionOption => ({
       id: q._id,
       questionText: q.question,
-      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
+      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
     }))
   )

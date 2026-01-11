@@ -651,7 +651,7 @@ export function useDashboardVM(): DashboardVM {
     })
 
     const questionnairesView = createQuestionnairesViewVM({
-      questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to10" vs "numeric" mismatch
+      questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to6" vs "numeric" mismatch
       templates$: dataSignals.templatesData$,
       categories$: dataSignals.categoriesData$,
       existingCategories$: dataSignals.categoryNamesData$,

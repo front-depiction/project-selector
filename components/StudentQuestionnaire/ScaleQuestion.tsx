@@ -13,18 +13,18 @@ export const ScaleQuestion: React.FC<ScaleQuestionProps> = ({ value, onChange })
     <div className="space-y-6">
       <div className="flex justify-between text-sm text-muted-foreground">
         <span>0 - Not at all</span>
-        <span>10 - Extremely</span>
+        <span>6 - Extremely</span>
       </div>
       <Slider
-        value={[value ?? 5]}
+        value={[value ?? 3]}
         onValueChange={([v]) => onChange(v)}
         min={0}
-        max={10}
+        max={6}
         step={1}
         className="w-full"
       />
       <div className="text-center text-4xl font-bold">
-        {value ?? 5}
+        {value ?? 3}
       </div>
     </div>
   )

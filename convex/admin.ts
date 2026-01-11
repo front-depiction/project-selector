@@ -57,19 +57,19 @@ export const seedTestData = mutation({
     // Create 10 questions across categories
     const questionsData = [
       // Technical Skills (2 questions)
-      { question: "How comfortable are you with programming?", kind: "0to10" as const, category: categoryNames[0].name },
+      { question: "How comfortable are you with programming?", kind: "0to6" as const, category: categoryNames[0].name },
       { question: "Do you have experience with machine learning?", kind: "boolean" as const, category: categoryNames[0].name },
       // Soft Skills (2 questions)
-      { question: "How do you rate your teamwork abilities?", kind: "0to10" as const, category: categoryNames[1].name },
+      { question: "How do you rate your teamwork abilities?", kind: "0to6" as const, category: categoryNames[1].name },
       { question: "Are you comfortable presenting to groups?", kind: "boolean" as const, category: categoryNames[1].name },
       // Academic Background (2 questions)
-      { question: "How familiar are you with the course prerequisites?", kind: "0to10" as const, category: categoryNames[2].name },
+      { question: "How familiar are you with the course prerequisites?", kind: "0to6" as const, category: categoryNames[2].name },
       { question: "Have you completed a similar project before?", kind: "boolean" as const, category: categoryNames[2].name },
       // Interests (2 questions)
-      { question: "How interested are you in this topic area?", kind: "0to10" as const, category: categoryNames[3].name },
+      { question: "How interested are you in this topic area?", kind: "0to6" as const, category: categoryNames[3].name },
       { question: "Would you consider this topic for future career paths?", kind: "boolean" as const, category: categoryNames[3].name },
       // Availability (2 questions)
-      { question: "How many hours per week can you dedicate to this project?", kind: "0to10" as const, category: categoryNames[4].name },
+      { question: "How many hours per week can you dedicate to this project?", kind: "0to6" as const, category: categoryNames[4].name },
       { question: "Can you attend weekly team meetings?", kind: "boolean" as const, category: categoryNames[4].name },
     ]
 
