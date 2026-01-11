@@ -58,7 +58,7 @@ export interface QuestionnairesViewVM {
 export interface Question {
   readonly _id: string
   readonly question: string
-  readonly kind: "boolean" | "0to10"
+  readonly kind: "boolean" | "0to6"
   readonly category?: string
 }
 
@@ -79,7 +79,7 @@ export interface QuestionnairesViewDeps {
   readonly templates$: Signal<Template[] | undefined>
   readonly categories$: Signal<Category[] | undefined>
   readonly existingCategories$: Signal<string[] | undefined>
-  readonly createQuestion: (args: { question: string; kind: "boolean" | "0to10"; category?: string; semesterId: string }) => Promise<any>
+  readonly createQuestion: (args: { question: string; kind: "boolean" | "0to6"; category?: string; semesterId: string }) => Promise<any>
   readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
   readonly createTemplate: (args: { title: string; description?: string; semesterId: string }) => Promise<any>
   readonly deleteTemplate: (args: { id: Id<"questionTemplates"> }) => Promise<any>

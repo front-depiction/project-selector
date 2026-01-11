@@ -10,7 +10,7 @@ import type { api } from "@/convex/_generated/api"
 interface QuestionVM {
   readonly questionId: Id<"questions">
   readonly text: string
-  readonly kind: "boolean" | "0to10"
+  readonly kind: "boolean" | "0to6"
   readonly order: number
 }
 
@@ -75,7 +75,7 @@ export interface StudentQuestionPresentationVMDeps {
     selectionPeriodId: Id<"selectionPeriods">
     answers: Array<{
       questionId: Id<"questions">
-      kind: "boolean" | "0to10"
+      kind: "boolean" | "0to6"
       value: boolean | number
     }>
   }) => Promise<void>
@@ -115,7 +115,7 @@ export function createStudentQuestionPresentationVM(
       .map(sq => ({
         questionId: sq.questionId,
         text: sq.question!.question,
-        kind: sq.question!.kind as "boolean" | "0to10",
+        kind: sq.question!.kind as "boolean" | "0to6",
         order: sq.order
       }))
   })

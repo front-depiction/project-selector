@@ -41,7 +41,7 @@ export type TeacherQuestionnaireFormValues = z.infer<ReturnType<typeof createFor
 
 export interface TeacherQuestionnaireFormProps {
   questions: readonly StudentAnswerData[]
-  onSubmit: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to10"; value: boolean | number }>) => Promise<void>
+  onSubmit: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>) => Promise<void>
   onCancel?: () => void
   isSubmitting?: boolean
 }
@@ -62,7 +62,7 @@ export default function TeacherQuestionnaireForm({
         if (q.kind === "boolean") {
           values[q.questionId] = q.answer.rawAnswer.kind === "boolean" ? q.answer.rawAnswer.value : undefined
         } else {
-          values[q.questionId] = q.answer.rawAnswer.kind === "0to10" ? q.answer.rawAnswer.value : undefined
+          values[q.questionId] = q.answer.rawAnswer.kind === "0to6" ? q.answer.rawAnswer.value : undefined
         }
       }
     }
@@ -75,7 +75,7 @@ export default function TeacherQuestionnaireForm({
   })
 
   async function handleSubmit(values: TeacherQuestionnaireFormValues) {
-    const answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to10"; value: boolean | number }> = []
+    const answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }> = []
     
     for (const q of questions) {
       const answerValue = values[q.questionId as string]

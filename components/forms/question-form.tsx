@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
     question: z.string().min(3, "Question must be at least 3 characters"),
-    kind: z.enum(["boolean", "0to10"]),
+    kind: z.enum(["boolean", "0to6"]),
     category: z.string().optional(),
 })
 

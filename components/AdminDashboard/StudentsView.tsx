@@ -31,7 +31,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const handleSaveAnswers = async (
-    answers: Array<{ questionId: any; kind: "boolean" | "0to10"; value: boolean | number }>
+    answers: Array<{ questionId: any; kind: "boolean" | "0to6"; value: boolean | number }>
   ) => {
     setIsSubmitting(true)
     try {
