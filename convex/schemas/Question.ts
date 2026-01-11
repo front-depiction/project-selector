@@ -13,11 +13,11 @@ export const BooleanQuestion = v.object({
 })
 
 /**
- * 0-to-10 rating question variant
+ * 0-to-6 rating question variant
  */
-export const ZeroToTenQuestion = v.object({
+export const ZeroToSixQuestion = v.object({
   question: v.string(),
-  kind: v.literal("0to10"),
+  kind: v.literal("0to6"),
   category: v.optional(v.string()), // e.g., "Technical Skills", "Soft Skills", "Interests"
   semesterId: v.string(),
   createdAt: v.number(),
@@ -31,7 +31,7 @@ export const ZeroToTenQuestion = v.object({
  */
 export const Question = v.union(
   BooleanQuestion,
-  ZeroToTenQuestion
+  ZeroToSixQuestion
 )
 
 /**
@@ -42,7 +42,7 @@ export const Question = v.union(
  */
 export type Question = Readonly<Infer<typeof Question>>
 export type BooleanQuestion = Readonly<Infer<typeof BooleanQuestion>>
-export type ZeroToTenQuestion = Readonly<Infer<typeof ZeroToTenQuestion>>
+export type ZeroToSixQuestion = Readonly<Infer<typeof ZeroToSixQuestion>>
 
 /**
  * Creates a new Question.
@@ -60,7 +60,7 @@ export type ZeroToTenQuestion = Readonly<Infer<typeof ZeroToTenQuestion>>
  */
 export const make = (params: {
   readonly question: string
-  readonly kind: "boolean" | "0to10"
+  readonly kind: "boolean" | "0to6"
   readonly category?: string
   readonly semesterId: string
   readonly createdAt?: number
@@ -81,8 +81,8 @@ export const make = (params: {
 export const isBoolean = <Q extends Question>(question: Q): question is Extract<Q, BooleanQuestion> =>
   question.kind === "boolean"
 
-export const isZeroToTen = <Q extends Question>(question: Q): question is Extract<Q, ZeroToTenQuestion> =>
-  question.kind === "0to10"
+export const isZeroToSix = <Q extends Question>(question: Q): question is Extract<Q, ZeroToSixQuestion> =>
+  question.kind === "0to6"
 
 /**
  * Checks if a question belongs to a semester.
@@ -103,17 +103,17 @@ export const belongsToSemester = (semesterId: string) => (question: Question): b
  *
  * const result = Question.match(question)({
  *   boolean: (q) => `Yes/No: ${q.question}`,
- *   "0to10": (q) => `Rate 0-10: ${q.question}`
+ *   "0to6": (q) => `Rate 0-6: ${q.question}`
  * })
  */
 export const match = <Q extends Question>(question: Q) =>
   <R>(patterns: {
     boolean: (q: Extract<Q, BooleanQuestion>) => R
-    "0to10": (q: Extract<Q, ZeroToTenQuestion>) => R
+    "0to6": (q: Extract<Q, ZeroToSixQuestion>) => R
   }): R => {
     switch (question.kind) {
       case "boolean": return patterns.boolean(question as Extract<Q, BooleanQuestion>)
-      case "0to10": return patterns["0to10"](question as Extract<Q, ZeroToTenQuestion>)
+      case "0to6": return patterns["0to6"](question as Extract<Q, ZeroToSixQuestion>)
     }
   }
 
@@ -127,14 +127,14 @@ export const match = <Q extends Question>(question: Q) =>
  *
  * const result = Question.matchOptional(question)({
  *   boolean: (q) => `Yes/No: ${q.question}`,
- *   "0to10": (q) => `Rate 0-10: ${q.question}`,
+ *   "0to6": (q) => `Rate 0-6: ${q.question}`,
  *   none: () => "No question found"
  * })
  */
 export const matchOptional = <Q extends Question>(question: Q | undefined | null) =>
   <R>(patterns: {
     boolean: (q: Extract<Q, BooleanQuestion>) => R
-    "0to10": (q: Extract<Q, ZeroToTenQuestion>) => R
+    "0to6": (q: Extract<Q, ZeroToSixQuestion>) => R
     none: () => R
   }): R => question ? match(question)(patterns) : patterns.none()
 
@@ -146,7 +146,7 @@ export const matchOptional = <Q extends Question>(question: Q | undefined | null
  */
 export const fold = <R>(cases: {
   boolean: (q: BooleanQuestion) => R
-  "0to10": (q: ZeroToTenQuestion) => R
+  "0to6": (q: ZeroToSixQuestion) => R
 }) => (question: Question): R => match(question)(cases)
 
 /**
@@ -168,15 +168,15 @@ export const getBooleans = <Q extends Question>(questions: readonly Q[]): Extrac
   questions.filter(isBoolean)
 
 /**
- * Filters an array to only include 0-to-10 questions.
+ * Filters an array to only include 0-to-6 questions.
  *
  * @category Array Refinements
  * @since 0.1.0
  * @example
- * const ratingQuestions = getZeroToTens(allQuestions)
+ * const ratingQuestions = getZeroToSixes(allQuestions)
  */
-export const getZeroToTens = <Q extends Question>(questions: readonly Q[]): Extract<Q, ZeroToTenQuestion>[] =>
-  questions.filter(isZeroToTen)
+export const getZeroToSixes = <Q extends Question>(questions: readonly Q[]): Extract<Q, ZeroToSixQuestion>[] =>
+  questions.filter(isZeroToSix)
 
 /**
  * Filters questions by semester.

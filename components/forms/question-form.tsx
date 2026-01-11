@@ -115,10 +115,10 @@ export default function QuestionForm({
                                 </FormControl>
                                 <SelectContent>
                                     <SelectItem value="boolean">Yes / No</SelectItem>
-                                    <SelectItem value="0to10">Scale (0-10)</SelectItem>
+                                    <SelectItem value="0to6">Scale (0-6)</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <FormDescription>Boolean for yes/no, 0-10 for rating scale.</FormDescription>
+                            <FormDescription>Boolean for yes/no, 0-6 for rating scale.</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

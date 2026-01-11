@@ -277,7 +277,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     return (questionsData ?? []).map((q): QuestionOption => ({
       id: q._id,
       questionText: q.question,
-      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-10",
+      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
     }))
   })

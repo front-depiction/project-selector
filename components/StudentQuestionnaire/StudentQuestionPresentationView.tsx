@@ -178,14 +178,14 @@ interface ScaleAnswerInputProps {
 }
 
 const ScaleAnswerInput: React.FC<ScaleAnswerInputProps> = ({ value, onChange }) => {
-  const currentValue = value ?? 5
+  const currentValue = value ?? 3
 
   return (
     <div className="w-full max-w-2xl space-y-8">
       {/* Labels */}
       <div className="flex justify-between text-base sm:text-lg text-muted-foreground">
         <span>0 - Not at all</span>
-        <span>10 - Extremely</span>
+        <span>6 - Extremely</span>
       </div>
 
       {/* Number Display */}
@@ -196,8 +196,8 @@ const ScaleAnswerInput: React.FC<ScaleAnswerInputProps> = ({ value, onChange }) 
       </div>
 
       {/* Number Buttons */}
-      <div className="grid grid-cols-11 gap-2">
-        {Array.from({ length: 11 }, (_, i) => i).map((num) => (
+      <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: 7 }, (_, i) => i).map((num) => (
           <Button
             key={num}
             type="button"

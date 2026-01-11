@@ -52,7 +52,7 @@ export const saveAnswers = mutation({
     selectionPeriodId: v.id("selectionPeriods"),
     answers: v.array(v.object({
       questionId: v.id("questions"),
-      kind: v.union(v.literal("boolean"), v.literal("0to10")),
+      kind: v.union(v.literal("boolean"), v.literal("0to6")),
       value: v.union(v.boolean(), v.number())
     }))
   },
@@ -66,7 +66,7 @@ export const saveAnswers = mutation({
 
       const data = answer.kind === "boolean"
         ? StudentAnswer.makeBoolean({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as boolean })
-        : StudentAnswer.makeZeroToTen({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as number })
+        : StudentAnswer.makeZeroToSix({ studentId: args.studentId, selectionPeriodId: args.selectionPeriodId, questionId: answer.questionId, value: answer.value as number })
 
       if (existing) {
         await ctx.db.patch(existing._id, data)
@@ -87,7 +87,7 @@ export const saveAnswersAsTeacher = mutation({
     selectionPeriodId: v.id("selectionPeriods"),
     answers: v.array(v.object({
       questionId: v.id("questions"),
-      kind: v.union(v.literal("boolean"), v.literal("0to10")),
+      kind: v.union(v.literal("boolean"), v.literal("0to6")),
       value: v.union(v.boolean(), v.number())
     }))
   },

@@ -15,7 +15,7 @@ export const StudentAnswer = v.object({
   normalizedAnswer: v.number(),
   rawAnswer: v.union(
     v.object({ kind: v.literal("boolean"), value: v.boolean() }),
-    v.object({ kind: v.literal("0to10"), value: v.number() })
+    v.object({ kind: v.literal("0to6"), value: v.number() })
   ),
   answeredAt: v.number()
 })
@@ -33,12 +33,12 @@ export type StudentAnswer = Readonly<Infer<typeof StudentAnswer>>
  */
 export type RawAnswer =
   | { kind: "boolean"; value: boolean }
-  | { kind: "0to10"; value: number }
+  | { kind: "0to6"; value: number }
 
 /**
  * Normalizes a raw answer to a 0-1 range.
  * - Boolean: false -> 0, true -> 1
- * - 0to10: value -> value/10
+ * - 0to6: value -> value/6
  *
  * @category Helpers
  * @since 0.1.0
@@ -47,7 +47,7 @@ export const normalize = (rawAnswer: RawAnswer): number => {
   if (rawAnswer.kind === "boolean") {
     return rawAnswer.value ? 1 : 0
   }
-  return rawAnswer.value / 10
+  return rawAnswer.value / 6
 }
 
 /**
@@ -83,27 +83,27 @@ export const makeBoolean = (params: {
 }
 
 /**
- * Creates a new StudentAnswer with a 0-10 response.
+ * Creates a new StudentAnswer with a 0-6 response.
  *
  * @category Constructors
  * @since 0.1.0
  * @example
  * import * as StudentAnswer from "./schemas/StudentAnswer"
  *
- * const answer = StudentAnswer.makeZeroToTen({
+ * const answer = StudentAnswer.makeZeroToSix({
  *   studentId: "S123456",
  *   selectionPeriodId: periodId,
  *   questionId: qId,
- *   value: 8
+ *   value: 5
  * })
  */
-export const makeZeroToTen = (params: {
+export const makeZeroToSix = (params: {
   readonly studentId: string
   readonly selectionPeriodId: Id<"selectionPeriods">
   readonly questionId: Id<"questions">
   readonly value: number
 }): StudentAnswer => {
-  const rawAnswer: RawAnswer = { kind: "0to10", value: params.value }
+  const rawAnswer: RawAnswer = { kind: "0to6", value: params.value }
   return {
     studentId: params.studentId,
     selectionPeriodId: params.selectionPeriodId,

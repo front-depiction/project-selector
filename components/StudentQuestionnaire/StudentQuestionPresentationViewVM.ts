@@ -204,9 +204,9 @@ export function createStudentQuestionPresentationVM(
     const question = currentQuestion$.value
     if (!question) return
 
-    // Use stored answer or default (5 for scale, false for boolean)
+    // Use stored answer or default (3 for scale, false for boolean)
     const storedAnswer = answersMapSignal.value.get(question.questionId)
-    const answer = storedAnswer ?? (question.kind === "0to10" ? 5 : false)
+    const answer = storedAnswer ?? (question.kind === "0to6" ? 3 : false)
 
     // Also update local map with default if not set
     if (storedAnswer === undefined) {

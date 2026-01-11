@@ -160,19 +160,19 @@ export default function TeacherQuestionnaireForm({
                         <div className="space-y-4">
                           <div className="flex items-center justify-between px-2">
                             <span className="text-sm text-muted-foreground">0 - Not at all</span>
-                            <span className="text-2xl font-bold">{field.value ?? 5}</span>
-                            <span className="text-sm text-muted-foreground">10 - Extremely</span>
+                            <span className="text-2xl font-bold">{field.value ?? 3}</span>
+                            <span className="text-sm text-muted-foreground">6 - Extremely</span>
                           </div>
                           <Slider
-                            value={[field.value ?? 5]}
+                            value={[field.value ?? 3]}
                             onValueChange={([value]) => field.onChange(value)}
                             min={0}
-                            max={10}
+                            max={6}
                             step={1}
                             className="w-full"
                           />
-                          <div className="grid grid-cols-11 gap-1 px-2">
-                            {Array.from({ length: 11 }, (_, i) => i).map((num) => (
+                          <div className="grid grid-cols-7 gap-1 px-2">
+                            {Array.from({ length: 7 }, (_, i) => i).map((num) => (
                               <Button
                                 key={num}
                                 type="button"
