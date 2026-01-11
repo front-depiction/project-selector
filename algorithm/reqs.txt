@@ -1,0 +1,2 @@
+uses google or tools cp-sat v9.12.4544 for python (3.8 - 3.11)
+to try out just run Solver.py, it uses the dummy data found in APImock.py
