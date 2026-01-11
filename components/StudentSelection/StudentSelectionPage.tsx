@@ -304,12 +304,24 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
   if (vm.topics$.value.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No topics are available for selection at this time.
-          </AlertDescription>
-        </Alert>
+        <div className="flex flex-col items-center gap-4 max-w-md w-full">
+          <Link href="/">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4 hover:bg-primary/5 transition-colors"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Home
+            </Button>
+          </Link>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              No topics are available for selection at this time.
+            </AlertDescription>
+          </Alert>
+        </div>
       </div>
     )
   }
