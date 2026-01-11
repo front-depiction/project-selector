@@ -329,3 +329,90 @@ export const getStudentAnswersForTeacher = query({
       }))
   }
 })
+
+/**
+ * Get category-averaged scores for a student's questionnaire answers.
+ * This ensures each category contributes equally to the overall score,
+ * regardless of how many questions are in each category.
+ * 
+ * Returns a map of category name -> average normalized score (0-1 range).
+ * Questions without a category are grouped under "uncategorized".
+ */
+export const getCategoryAveragedScores = query({
+  args: {
+    studentId: v.string(),
+    selectionPeriodId: v.id("selectionPeriods")
+  },
+  handler: async (ctx, args) => {
+    // Get all questions for this period
+    const periodQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
+      .collect()
+
+    // Get full question data with categories
+    const questionsWithDetails = await Promise.all(
+      periodQuestions.map(async (pq) => {
+        const question = await ctx.db.get(pq.questionId)
+        return {
+          questionId: pq.questionId,
+          category: (question as any)?.category as string | undefined
+        }
+      })
+    )
+
+    // Get student's answers
+    const answers = await ctx.db.query("studentAnswers")
+      .withIndex("by_student_period", q =>
+        q.eq("studentId", args.studentId)
+         .eq("selectionPeriodId", args.selectionPeriodId)
+      )
+      .collect()
+
+    // Create map of questionId -> normalizedAnswer
+    const answerMap = new Map(answers.map(a => [a.questionId as string, a.normalizedAnswer]))
+
+    // Group answers by category and compute averages
+    const categoryScores = new Map<string, number[]>()
+    
+    for (const q of questionsWithDetails) {
+      const normalizedAnswer = answerMap.get(q.questionId as string)
+      if (normalizedAnswer === undefined) continue // Skip unanswered questions
+      
+      const category = q.category ?? "uncategorized"
+      const existing = categoryScores.get(category) ?? []
+      categoryScores.set(category, [...existing, normalizedAnswer])
+    }
+
+    // Compute average per category
+    const categoryAverages = new Map<string, number>()
+    for (const [category, scores] of categoryScores.entries()) {
+      const average = scores.reduce((sum, score) => sum + score, 0) / scores.length
+      categoryAverages.set(category, average)
+    }
+
+    // Convert to object for easier consumption
+    const result: Record<string, number> = {}
+    for (const [category, average] of categoryAverages.entries()) {
+      result[category] = average
+    }
+
+    return result
+  }
+})
+
+/**
+ * Helper function to compute the overall weighted average from category-averaged scores.
+ * This averages all category averages, ensuring each category contributes equally
+ * regardless of how many questions it contains.
+ * 
+ * @param categoryScores - Object mapping category names to their average scores (0-1 range)
+ * @returns The overall weighted average (0-1 range), or null if no categories
+ */
+export function computeOverallWeightedAverage(categoryScores: Record<string, number>): number | null {
+  const categories = Object.keys(categoryScores)
+  if (categories.length === 0) return null
+
+  const sum = categories.reduce((acc, category) => acc + categoryScores[category], 0)
+  return sum / categories.length
+}
