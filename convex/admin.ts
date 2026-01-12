@@ -7,9 +7,6 @@ import { getActiveSelectionPeriod } from "./share/selection_periods"
 import {
   createTestSelectionPeriod,
   createTestTopics,
-  generateTestStudents,
-  insertTestPreferences,
-  createTestRankings,
   deleteAllFromTable,
   cancelAllScheduled
 } from "./share/admin_helpers"
@@ -123,16 +120,8 @@ export const seedTestData = mutation({
         addedBy: "system",
       })
     }
-
-    // Create students and preferences
-    const students = generateTestStudents(topicIds, 60)
-    const [preferenceIds] = await Promise.all([
-      insertTestPreferences(ctx, students, semesterId),
-      createTestRankings(ctx, students, semesterId)
-    ])
     
     return { 
-      preferenceIds, 
       categoryCount: categoryIds.length, 
       questionCount: questionIds.length,
       accessCodeCount: accessCodes.length,
