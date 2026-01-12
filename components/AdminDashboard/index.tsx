@@ -255,7 +255,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) =>
         averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
         matchRate: 0, // Not in query result, would need assignments data
         topChoiceRate: 0, // Not in query result
-        currentPeriodDisplay: statsProp.title ?? "NONE",
+        currentPeriodDisplay: statsProp.isActive ? (statsProp.title ?? "NONE") : "NONE",
         currentPeriodVariant: statsProp.isActive 
           ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
           : ""
