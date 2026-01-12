@@ -4,6 +4,35 @@ import type { Id } from "./_generated/dataModel"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 
 /**
+ * Type definition for landing stats return value
+ */
+export type LandingStats = 
+  | {
+      isActive: false
+      periodStatus: "inactive"
+      title: undefined
+      totalTopics: number
+      totalStudents: number
+      averageSelectionsPerStudent: number
+      mostPopularTopics: Array<{ title: string; count: number }>
+      leastPopularTopics: Array<{ title: string; count: number }>
+      totalSelections: number
+    }
+  | {
+      isActive: true
+      periodStatus: "open" | "closed" | "assigned" | "inactive"
+      title: string
+      openDate: number
+      closeDate: number
+      totalTopics: number
+      totalStudents: number
+      totalSelections: number
+      averageSelectionsPerStudent: number
+      mostPopularTopics: Array<{ title: string; count: number }>
+      leastPopularTopics: Array<{ title: string; count: number }>
+    }
+
+/**
  * Gets statistics for the landing page.
  * If periodId is provided, stats are filtered to that period.
  * Otherwise, uses the active period or most recent assigned period.
