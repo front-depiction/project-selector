@@ -59,6 +59,7 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
     semesterId: string
+    duplicateCount?: number
   }) => Promise<any>
   readonly updateTopic: (args: {
     id: Id<"topics">
@@ -169,6 +170,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         title: values.title,
         description: values.description,
         semesterId: values.selection_period_id,
+        duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()
     } catch (error) {

@@ -45,6 +45,7 @@ const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
     selection_period_id: z.string(),
+    duplicateCount: z.coerce.number().int().min(1).max(100).default(1),
 });
 
 export type TopicFormValues = z.infer<typeof formSchema>
@@ -72,6 +73,7 @@ export default function TopicForm({
             title: initialValues?.title ?? "",
             description: initialValues?.description ?? "",
             selection_period_id: initialValues?.selection_period_id ?? "",
+            duplicateCount: initialValues?.duplicateCount ?? 1,
         }
     })
 
@@ -156,6 +158,32 @@ export default function TopicForm({
                                 </SelectContent>
                             </Select>
                             <FormDescription>The project assignment to associate this topic with</FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <FormField
+                    control={form.control}
+                    name="duplicateCount"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Number of Copies</FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    placeholder="1"
+                                    className="w-full"
+                                    {...field}
+                                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                    value={field.value || 1}
+                                />
+                            </FormControl>
+                            <FormDescription>
+                                Create multiple copies of this topic (useful when one topic should be available for multiple groups)
+                            </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

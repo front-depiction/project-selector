@@ -142,7 +142,7 @@ export const seedTestData = mutation({
 })
 
 /**
- * Creates a new topic.
+ * Creates a new topic (or multiple copies if duplicateCount > 1).
  * 
  * @category Mutations
  * @since 0.1.0
@@ -152,15 +152,24 @@ export const createTopic = mutation({
     title: v.string(),
     description: v.string(),
     semesterId: v.string(),
+    duplicateCount: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const id = await ctx.db.insert("topics", Topic.make({
+    const count = args.duplicateCount ?? 1
+    const topicData = Topic.make({
       title: args.title,
       description: args.description,
       semesterId: args.semesterId,
       isActive: true,
-    }))
-    return id
+    })
+    
+    // Create multiple copies of the topic
+    const ids = await Promise.all(
+      Array.from({ length: count }, () => ctx.db.insert("topics", topicData))
+    )
+    
+    // Return the first ID for backward compatibility
+    return ids[0]
   }
 })
 
