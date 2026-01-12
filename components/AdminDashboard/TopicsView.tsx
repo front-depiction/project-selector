@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Edit, Trash2 as Trash, Power, MoreVertical } from "lucide-react"
+import { Edit, Trash2 as Trash, Power, MoreVertical, ChevronDown, ChevronRight } from "lucide-react"
 
 // ============================================================================
 // TOPICS VIEW - Clean table-based layout with View Model pattern
@@ -43,6 +43,21 @@ interface TopicsViewProps {
 
 export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   useSignals()
+  
+  // Track which project assignments are expanded
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set())
+  
+  const toggleGroup = (semesterId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(semesterId)) {
+        next.delete(semesterId)
+      } else {
+        next.add(semesterId)
+      }
+      return next
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -58,8 +73,8 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
         </Button>
       </div>
 
-      {/* Topics Table - Clean data table format */}
-      {vm.topics$.value.length === 0 ? (
+      {/* Topics Table - Grouped by Project Assignment */}
+      {vm.groupedTopics$.value.length === 0 ? (
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>No Topics</CardTitle>
@@ -67,59 +82,92 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
           </CardHeader>
         </Card>
       ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Selections</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vm.topics$.value.map((topic) => (
-                <TableRow key={topic.key}>
-                  <TableCell className="font-medium">{topic.title}</TableCell>
-                  <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
-                  <TableCell>
-                    <Badge variant={topic.statusVariant}>
-                      {topic.statusDisplay}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{topic.selectionsCount}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={topic.edit}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={topic.toggleActive}>
-                          <Power className="mr-2 h-4 w-4" />
-                          {topic.statusDisplay === "Active" ? "Deactivate" : "Activate"}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={topic.remove}
-                        >
-                          <Trash className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="space-y-4">
+          {vm.groupedTopics$.value.map((group) => {
+            const isExpanded = expandedGroups.has(group.semesterId)
+            
+            return (
+              <div key={group.semesterId} className="border rounded-lg">
+                {/* Clickable Section Header */}
+                <button
+                  onClick={() => toggleGroup(group.semesterId)}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div>
+                      <h3 className="text-lg font-semibold">{group.periodTitle}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {group.topics.length} {group.topics.length === 1 ? "topic" : "topics"}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+                
+                {/* Collapsible Topics Table */}
+                {isExpanded && (
+                  <div className="border-t">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Selections</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.topics.map((topic) => (
+                          <TableRow key={topic.key}>
+                            <TableCell className="font-medium">{topic.title}</TableCell>
+                            <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
+                            <TableCell>
+                              <Badge variant={topic.statusVariant}>
+                                {topic.statusDisplay}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{topic.selectionsCount}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={topic.edit}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={topic.toggleActive}>
+                                    <Power className="mr-2 h-4 w-4" />
+                                    {topic.statusDisplay === "Active" ? "Deactivate" : "Activate"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-red-600"
+                                    onClick={topic.remove}
+                                  >
+                                    <Trash className="mr-2 h-4 w-4" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
