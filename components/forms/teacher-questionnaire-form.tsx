@@ -30,7 +30,7 @@ const createFormSchema = (questions: readonly StudentAnswerData[]) => {
     if (q.kind === "boolean") {
       schemaObject[q.questionId] = z.boolean().optional()
     } else {
-      schemaObject[q.questionId] = z.number().min(0).max(10).optional()
+      schemaObject[q.questionId] = z.number().min(0).max(6).optional()
     }
   }
   
@@ -160,11 +160,11 @@ export default function TeacherQuestionnaireForm({
                         <div className="space-y-4">
                           <div className="flex items-center justify-between px-2">
                             <span className="text-sm text-muted-foreground">0 - Not at all</span>
-                            <span className="text-2xl font-bold">{field.value ?? 3}</span>
+                            <span className="text-2xl font-bold">{(field.value as number | undefined) ?? 3}</span>
                             <span className="text-sm text-muted-foreground">6 - Extremely</span>
                           </div>
                           <Slider
-                            value={[field.value ?? 3]}
+                            value={[(field.value as number | undefined) ?? 3]}
                             onValueChange={([value]) => field.onChange(value)}
                             min={0}
                             max={6}

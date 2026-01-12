@@ -45,7 +45,7 @@ const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
     selection_period_id: z.string().min(1, "Project Assignment is required"),
-    duplicateCount: z.coerce.number().int().min(1).max(100).default(1),
+    duplicateCount: z.number().int().min(1).max(100),
 });
 
 export type TopicFormValues = z.infer<typeof formSchema>
@@ -67,7 +67,7 @@ export default function TopicForm({
 }) {
     const [isSubmitting, setIsSubmitting] = React.useState(false)
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const form = useForm<TopicFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             title: initialValues?.title ?? "",

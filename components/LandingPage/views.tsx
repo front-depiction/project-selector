@@ -18,7 +18,7 @@ import { createLandingPageVM } from "./LandingPageVM"
 
 function useLandingPageVM() {
   // Convex queries - already reactive!
-  const stats = useQuery(api.stats.getLandingStats)
+  const stats = useQuery(api.stats.getLandingStats, {})
   const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
   const currentPeriod = useQuery(api.admin.getCurrentPeriod)
 
