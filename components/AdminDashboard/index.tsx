@@ -54,6 +54,7 @@ import {
 } from "./DashboardVM"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import type { LandingStats } from "@/convex/stats"
 
 // Export the VM hook
 export { useDashboardVM }
@@ -237,7 +238,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 )
 
 export interface MetricsGridProps {
-  readonly stats?: Awaited<ReturnType<typeof api.stats.getLandingStats>> | null | undefined
+  readonly stats?: LandingStats | null | undefined
 }
 
 export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) => {
