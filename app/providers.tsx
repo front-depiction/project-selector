@@ -11,7 +11,9 @@ const AUTH0_DOMAIN = process.env.NEXT_PUBLIC_AUTH0_DOMAIN ?? ""
 const AUTH0_CLIENT_ID = process.env.NEXT_PUBLIC_AUTH0_CLIENT_ID ?? ""
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL ?? ""
 
-const convex = new ConvexReactClient(CONVEX_URL)
+// Always create a Convex client, even if URL is empty (for build time)
+// Use a placeholder URL if none is provided to prevent build errors
+const convex = new ConvexReactClient(CONVEX_URL || "https://placeholder.convex.cloud")
 
 export function Providers({ children }: { children: ReactNode }) {
   // If Auth0 is not configured, fall back to basic provider (for development)
