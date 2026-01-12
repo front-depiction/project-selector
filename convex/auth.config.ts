@@ -1,5 +1,3 @@
-import { AuthConfig } from "convex/server"
-
 export default {
   providers: [
     {
@@ -7,4 +5,4 @@ export default {
       applicationID: process.env.AUTH0_CLIENT_ID!,
     },
   ],
-} satisfies AuthConfig
+}
