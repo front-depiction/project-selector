@@ -44,7 +44,7 @@ import {
 const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
-    selection_period_id: z.string(),
+    selection_period_id: z.string().min(1, "Project Assignment is required"),
     duplicateCount: z.coerce.number().int().min(1).max(100).default(1),
 });
 
@@ -138,8 +138,8 @@ export default function TopicForm({
                     name="selection_period_id"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Project Assignment</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormLabel>Project Assignment *</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                                 <FormControl>
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Select a project assignment" />

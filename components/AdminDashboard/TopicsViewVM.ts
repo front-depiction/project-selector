@@ -17,6 +17,13 @@ export interface TopicItemVM {
   readonly toggleActive: () => void
   readonly remove: () => void
   readonly edit: () => void
+  readonly semesterId: string
+}
+
+export interface TopicGroupVM {
+  readonly semesterId: string
+  readonly periodTitle: string
+  readonly topics: readonly TopicItemVM[]
 }
 
 export interface PeriodOptionVM {
@@ -41,6 +48,7 @@ export interface EditTopicDialogVM extends DialogVM {
 
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
+  readonly groupedTopics$: ReadonlySignal<readonly TopicGroupVM[]>
   readonly periodOptions$: ReadonlySignal<readonly PeriodOptionVM[]>
   readonly createTopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
@@ -117,6 +125,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       statusDisplay: topic.isActive ? "Active" : "Inactive",
       statusVariant: topic.isActive ? "default" : "secondary",
       selectionsCount: 0,
+      semesterId: topic.semesterId,
       toggleActive: () => {
         toggleTopicActive({ id: topic._id }).catch(console.error)
       },
@@ -128,6 +137,42 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       },
     }))
   )
+
+  // Computed: topics grouped by project assignment (semesterId)
+  const groupedTopics$ = computed((): readonly TopicGroupVM[] => {
+    const topics = topicItems$.value
+    const periods = periods$.value ?? []
+    
+    // Create a map of semesterId -> period title
+    const periodMap = new Map<string, string>()
+    for (const period of periods) {
+      periodMap.set(period.semesterId, period.title)
+    }
+    
+    // Group topics by semesterId
+    const grouped = new Map<string, TopicItemVM[]>()
+    for (const topic of topics) {
+      const existing = grouped.get(topic.semesterId) ?? []
+      existing.push(topic)
+      grouped.set(topic.semesterId, existing)
+    }
+    
+    // Convert to array of groups, sorted by period title
+    const groups: TopicGroupVM[] = []
+    for (const [semesterId, topicList] of grouped.entries()) {
+      const periodTitle = periodMap.get(semesterId) ?? `Unknown Assignment (${semesterId})`
+      groups.push({
+        semesterId,
+        periodTitle,
+        topics: topicList,
+      })
+    }
+    
+    // Sort groups by period title
+    groups.sort((a, b) => a.periodTitle.localeCompare(b.periodTitle))
+    
+    return groups
+  })
 
   // Computed: period options for form
   const periodOptions$ = computed((): readonly PeriodOptionVM[] =>
@@ -198,6 +243,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   return {
     topics$: topicItems$,
+    groupedTopics$,
     periodOptions$,
     createTopicDialog,
     editTopicDialog,
