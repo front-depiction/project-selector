@@ -1,20 +1,40 @@
 import { query } from "./_generated/server"
+import { v } from "convex/values"
+import type { Id } from "./_generated/dataModel"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 
 /**
  * Gets statistics for the landing page.
+ * If periodId is provided, stats are filtered to that period.
+ * Otherwise, uses the active period or most recent assigned period.
  * 
  * @category Queries
  * @since 0.1.0
  */
 export const getLandingStats = query({
-  args: {},
-  handler: async (ctx) => {
-    // Get active selection period (open)
-    let activePeriod = await ctx.db
-      .query("selectionPeriods")
-      .withIndex("by_kind", q => q.eq("kind", "open"))
-      .first()
+  args: {
+    periodId: v.optional(v.id("selectionPeriods"))
+  },
+  handler: async (ctx, args) => {
+    let activePeriod = null
+
+    // If periodId is provided, use that period
+    if (args.periodId) {
+      activePeriod = await ctx.db.get(args.periodId)
+    }
+
+    // Otherwise, get active selection period (open)
+    if (!activePeriod) {
+      const openPeriods = await ctx.db
+        .query("selectionPeriods")
+        .withIndex("by_kind", q => q.eq("kind", "open"))
+        .collect()
+      
+      // If multiple open periods, get the most recent one
+      if (openPeriods.length > 0) {
+        activePeriod = openPeriods.sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))[0]
+      }
+    }
 
     // If no active period, check for recently assigned periods
     if (!activePeriod) {
@@ -30,17 +50,44 @@ export const getLandingStats = query({
       activePeriod = assignedPeriods[0]
     }
 
+    // If no active period, aggregate stats across all periods
     if (!activePeriod) {
+      // Get all topics (across all semesters)
+      const allTopics = await ctx.db
+        .query("topics")
+        .filter(q => q.eq(q.field("isActive"), true))
+        .collect()
+
+      // Get all access code entries (across all periods)
+      const allAccessCodeEntries = await ctx.db
+        .query("periodStudentAllowList")
+        .collect()
+      
+      // Count unique students (by studentId)
+      const uniqueStudents = new Set(allAccessCodeEntries.map(e => e.studentId))
+      const totalStudents = uniqueStudents.size
+
+      // Get all preferences (across all semesters)
+      const allPreferences = await ctx.db
+        .query("preferences")
+        .collect()
+
+      const totalSelections = allPreferences
+        .reduce((sum, pref) => sum + pref.topicOrder.length, 0)
+
+      const averageSelectionsPerStudent =
+        totalStudents > 0 ? totalSelections / totalStudents : 0
+
       return {
         isActive: false,
         periodStatus: "inactive" as const,
         title: undefined,
-        totalTopics: 0,
-        totalStudents: 0,
-        averageSelectionsPerStudent: 0,
+        totalTopics: allTopics.length,
+        totalStudents,
+        averageSelectionsPerStudent,
         mostPopularTopics: [],
         leastPopularTopics: [],
-        totalSelections: 0
+        totalSelections
       }
     }
 
@@ -53,7 +100,15 @@ export const getLandingStats = query({
       .filter(q => q.eq(q.field("isActive"), true))
       .collect()
 
-    // Get all preferences
+    // Get all students with access codes for this period
+    const accessCodeEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", activePeriod._id))
+      .collect()
+    
+    const totalStudents = accessCodeEntries.length
+
+    // Get all preferences (only from students who have actually submitted)
     const preferences = await ctx.db
       .query("preferences")
       .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
@@ -81,7 +136,7 @@ export const getLandingStats = query({
     const leastPopular = sortedByPopularity.slice(-3).reverse()
 
     const averageSelectionsPerStudent =
-      preferences.length > 0 ? totalSelections / preferences.length : 0
+      totalStudents > 0 ? totalSelections / totalStudents : 0
 
     return {
       isActive: true,
@@ -90,7 +145,7 @@ export const getLandingStats = query({
       openDate: activePeriod.openDate,
       closeDate: activePeriod.closeDate,
       totalTopics: topics.length,
-      totalStudents: preferences.length,
+      totalStudents,
       totalSelections,
       averageSelectionsPerStudent,
       mostPopularTopics: mostPopular.map(t => ({

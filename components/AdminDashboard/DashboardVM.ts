@@ -197,7 +197,7 @@ export function useDashboardVM(): DashboardVM {
   const periodsData = useQuery(api.selectionPeriods.getAllPeriodsWithStats)
   const topicsData = useQuery(api.topics.getAllTopics, {})
   const currentPeriodData = useQuery(api.admin.getCurrentPeriod)
-  const statsData = useQuery(api.stats.getLandingStats)
+  const statsData = useQuery(api.stats.getLandingStats, {})
   const topicAnalyticsData = useQuery(api.topicAnalytics.getTopicPerformanceAnalytics, {})
 
   // Additional queries for child VMs

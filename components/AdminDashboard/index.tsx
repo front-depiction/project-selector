@@ -44,6 +44,7 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useSignals } from "@preact/signals-react/runtime"
+import * as Loadable from "@/lib/Loadable"
 import {
   useDashboardVM,
   type ViewType,
@@ -51,6 +52,8 @@ import {
   type TopicFormData,
   type SelectionPeriodWithStats
 } from "./DashboardVM"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 
 // Export the VM hook
 export { useDashboardVM }
@@ -132,6 +135,10 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   useSignals()
   const vm = useDashboardVM()
 
+  // Get raw data from queries for legacy context
+  const periodsData = useQuery(api.selectionPeriods.getAllPeriodsWithStats)
+  const topicsData = useQuery(api.topics.getAllTopics, {})
+
   // Extract signal values for legacy context
   const stats = vm.stats$.value
   const legacyStats = {
@@ -157,8 +164,8 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   // Legacy interface compatibility - thin wrappers to convert void -> Promise
   const value: DashboardState & DashboardActions = {
     activeView: vm.activeView$.value,
-    periods: undefined,
-    topics: undefined,
+    periods: periodsData ?? undefined,
+    topics: topicsData ?? undefined,
     currentPeriod: Option.getOrNull(vm.currentPeriod$.value),
     assignments: legacyAssignments,
     topicAnalytics: vm.topicAnalytics,
@@ -229,8 +236,30 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   </Card>
 )
 
-export const MetricsGrid: React.FC = () => {
-  const { stats } = useDashboard()
+export interface MetricsGridProps {
+  readonly stats?: Awaited<ReturnType<typeof api.stats.getLandingStats>> | null | undefined
+}
+
+export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) => {
+  // Use provided stats or fall back to context stats
+  const { stats: contextStats } = useDashboard()
+  
+  // Transform query stats to legacy format if provided
+  const stats = statsProp 
+    ? {
+        totalTopics: statsProp.totalTopics,
+        activeTopics: statsProp.totalTopics, // All returned topics are active
+        totalStudents: statsProp.totalStudents,
+        totalSelections: statsProp.totalSelections,
+        averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
+        matchRate: 0, // Not in query result, would need assignments data
+        topChoiceRate: 0, // Not in query result
+        currentPeriodDisplay: statsProp.title ?? "NONE",
+        currentPeriodVariant: statsProp.isActive 
+          ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
+          : ""
+      }
+    : contextStats
 
   if (!stats) return null
 
@@ -276,10 +305,21 @@ export const MetricsGrid: React.FC = () => {
 // ATOMIC COMPONENTS - Data Tables
 // ============================================================================
 
-export const AssignmentTable: React.FC = () => {
-  const { assignments, stats } = useDashboard()
+export interface AssignmentTableProps {
+  readonly assignments?: readonly Assignment[] | null
+}
+
+export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: assignmentsProp }) => {
+  const { assignments: contextAssignments, stats } = useDashboard()
+  const assignments = assignmentsProp ?? contextAssignments
 
   if (!assignments || assignments.length === 0) return null
+
+  // Calculate match rate for provided assignments
+  const matchedAssignments = assignments.filter(a => a.isMatched).length
+  const topChoiceAssignments = assignments.filter(a => a.preferenceRank === 1).length
+  const matchRate = assignments.length > 0 ? (matchedAssignments / assignments.length) * 100 : 0
+  const topChoiceRate = assignments.length > 0 ? (topChoiceAssignments / assignments.length) * 100 : 0
 
   return (
     <div className="space-y-4">
@@ -288,10 +328,10 @@ export const AssignmentTable: React.FC = () => {
           Total Assignments: {assignments.length}
         </Badge>
         <Badge variant="outline" className="text-sm">
-          Match Rate: {stats?.matchRate.toFixed(0)}%
+          Match Rate: {matchRate.toFixed(0)}%
         </Badge>
         <Badge variant="outline" className="text-sm">
-          Top Choice: {stats?.topChoiceRate.toFixed(0)}%
+          Top Choice: {topChoiceRate.toFixed(0)}%
         </Badge>
       </div>
 
