@@ -2,6 +2,7 @@ import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { TopicFormValues } from "@/components/forms/topic-form"
 import * as Option from "effect/Option"
+import { toast } from "sonner"
 
 // ============================================================================
 // View Model Types
@@ -130,7 +131,14 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         toggleTopicActive({ id: topic._id }).catch(console.error)
       },
       remove: () => {
-        deleteTopic({ id: topic._id }).catch(console.error)
+        deleteTopic({ id: topic._id }).catch((error) => {
+          console.error("Failed to delete topic:", error)
+          toast.error(
+            error instanceof Error && error.message.includes("student selections")
+              ? "Cannot delete topic with existing student selections"
+              : "Failed to delete topic. Please try again."
+          )
+        })
       },
       edit: () => {
         openEditDialog(topic._id)

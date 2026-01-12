@@ -42,6 +42,7 @@ import { QuestionnairesView } from "./QuestionnairesView"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import type { LandingStats } from "@/convex/stats"
 
 // ============================================================================
 // OVERVIEW VIEW - Composed from atomic components
@@ -191,7 +192,7 @@ const OverviewView: React.FC = () => {
       )}
 
       {/* Metrics Grid - Clean, no nesting */}
-      <AD.MetricsGrid stats={selectedPeriodStats} />
+      <AD.MetricsGrid stats={selectedPeriodStats as LandingStats | undefined} />
 
       {/* Assignment Results when selected period is assigned */}
       {isSelectedPeriodAssigned && selectedPeriodAssignments && selectedPeriodAssignments.length > 0 && (

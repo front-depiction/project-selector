@@ -8,6 +8,7 @@ import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
 import { format } from "date-fns"
 import * as Option from "effect/Option"
+import { toast } from "sonner"
 
 import * as Loadable from "@/lib/Loadable"
 import { createPeriodsViewVM } from "./PeriodsViewVM"
@@ -414,7 +415,14 @@ export function useDashboardVM(): DashboardVM {
         editTopicDialogOpen$.value = true
       },
       remove: () => {
-        deleteTopicMutation({ id: t._id }).catch(console.error)
+        deleteTopicMutation({ id: t._id }).catch((error) => {
+          console.error("Failed to delete topic:", error)
+          toast.error(
+            error instanceof Error && error.message.includes("student selections")
+              ? "Cannot delete topic with existing student selections"
+              : "Failed to delete topic. Please try again."
+          )
+        })
       }
     }))
 
