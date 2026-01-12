@@ -192,24 +192,32 @@ export const getActiveTopicsForStudent = query({
     const studentId = args.studentId.trim()
     if (!studentId) return []
 
-    // Get active selection period
-    const activePeriod = await ctx.db
+    // Get ALL active/open selection periods (not just the first one)
+    const activePeriods = await ctx.db
       .query("selectionPeriods")
       .withIndex("by_kind", q => q.eq("kind", "open"))
-      .first()
-
-    if (!activePeriod || !SelectionPeriod.isOpen(activePeriod)) return []
-
-    // Get all active topics for this semester
-    const topics = await ctx.db
-      .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .filter(q => q.eq(q.field("isActive"), true))
       .collect()
+      .then(periods => periods.filter(SelectionPeriod.isOpen))
+
+    if (activePeriods.length === 0) return []
+
+    // Get all unique semester IDs from all open periods
+    const semesterIds = new Set(activePeriods.map(p => p.semesterId))
+
+    // Get all active topics for ALL semesters with open periods
+    const allTopics = []
+    for (const semesterId of semesterIds) {
+      const topics = await ctx.db
+        .query("topics")
+        .withIndex("by_semester", q => q.eq("semesterId", semesterId))
+        .filter(q => q.eq(q.field("isActive"), true))
+        .collect()
+      allTopics.push(...topics)
+    }
 
     // Filter topics by student allow-list - always enforced
     const accessibleTopics = []
-    for (const topic of topics) {
+    for (const topic of allTopics) {
       const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
       if (isAllowed) {
         accessibleTopics.push(topic)
@@ -233,25 +241,32 @@ export const getActiveTopicsWithMetricsForStudent = query({
     const studentId = args.studentId.trim()
     if (!studentId) return []
 
-    // Get active selection period
-    const activePeriod = await ctx.db
+    // Get ALL active/open selection periods (not just the first one)
+    const activePeriods = await ctx.db
       .query("selectionPeriods")
       .withIndex("by_kind", q => q.eq("kind", "open"))
-      .first()
-
-    if (!activePeriod) return []
-    if (!SelectionPeriod.isOpen(activePeriod)) return []
-
-    // Get all active topics for this semester
-    const topics = await ctx.db
-      .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .filter(q => q.eq(q.field("isActive"), true))
       .collect()
+      .then(periods => periods.filter(SelectionPeriod.isOpen))
+
+    if (activePeriods.length === 0) return []
+
+    // Get all unique semester IDs from all open periods
+    const semesterIds = new Set(activePeriods.map(p => p.semesterId))
+
+    // Get all active topics for ALL semesters with open periods
+    const allTopics = []
+    for (const semesterId of semesterIds) {
+      const topics = await ctx.db
+        .query("topics")
+        .withIndex("by_semester", q => q.eq("semesterId", semesterId))
+        .filter(q => q.eq(q.field("isActive"), true))
+        .collect()
+      allTopics.push(...topics)
+    }
 
     // Filter topics by student allow-list - always enforced
     const accessibleTopics = []
-    for (const topic of topics) {
+    for (const topic of allTopics) {
       const isAllowed = await isStudentAllowedForTopic(ctx, topic._id, studentId)
       if (isAllowed) {
         accessibleTopics.push(topic)

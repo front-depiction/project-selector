@@ -98,7 +98,7 @@ function useStudentSelectionPageVM() {
         const existing = answersMap.get(answer.questionId)
         const rawAnswer = answer.kind === "boolean"
           ? { kind: "boolean" as const, value: answer.value as boolean }
-          : { kind: "0to10" as const, value: answer.value as number }
+          : { kind: "0to6" as const, value: answer.value as number }
 
         answersMap.set(answer.questionId, {
           _id: existing?._id ?? crypto.randomUUID() as Id<"studentAnswers">,
@@ -107,7 +107,7 @@ function useStudentSelectionPageVM() {
           selectionPeriodId,
           questionId: answer.questionId,
           rawAnswer,
-          normalizedAnswer: answer.kind === "boolean" ? (answer.value ? 1 : 0) : (answer.value as number) / 10,
+          normalizedAnswer: answer.kind === "boolean" ? (answer.value ? 1 : 0) : (answer.value as number) / 6,
           answeredAt: Date.now()
         })
       }
