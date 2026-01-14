@@ -30,7 +30,10 @@ function useStudentSelectionPageVM() {
     api.preferences.getPreferences,
     initialStudentId ? { studentId: initialStudentId } : "skip"
   )
-  const currentPeriod = useQuery(api.admin.getCurrentPeriod, {})
+  const currentPeriod = useQuery(
+    api.periodStudentAccessCodes.getPeriodForAccessCode,
+    initialStudentId ? { code: initialStudentId } : "skip"
+  )
   const periodQuestions = useQuery(
     api.selectionQuestions.getQuestionsForPeriod,
     currentPeriod?._id ? { selectionPeriodId: currentPeriod._id } : "skip"

@@ -217,8 +217,8 @@ export function useDashboardVM(): DashboardVM {
   const categoriesData = useQuery(api.categories.getAllCategories, {})
   const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
   const studentsData = useQuery(
-    api.studentAnswers.getAllStudentsWithCompletionStatus,
-    currentPeriodData?._id ? { selectionPeriodId: currentPeriodData._id } : "skip"
+    api.studentAnswers.getAllPeriodsStudentsWithCompletionStatus,
+    {}
   )
 
   // ============================================================================
@@ -295,54 +295,54 @@ export function useDashboardVM(): DashboardVM {
     return Option.match(periodOption, {
       onNone: () => [],
       onSome: (period) => SelectionPeriodModule.match(period)({
-      assigned: () => [
-        {
-          key: "a1",
-          studentId: "#6367261",
-          topicTitle: "ML Recommendation System",
-          preferenceRank: 5,
-          isMatched: true,
-          matchDisplay: "✓ Matched",
-          matchVariant: "outline" as const,
-          matchColor: "text-green-600 border-green-600",
-          rankDisplay: "#5",
-          rankVariant: "secondary" as const,
-          statusDisplay: "assigned",
-          statusColor: "bg-purple-600 text-white"
-        },
-        {
-          key: "a2",
-          studentId: "#6367262",
-          topicTitle: "Blockchain Smart Contracts",
-          preferenceRank: 1,
-          isMatched: true,
-          matchDisplay: "✓ Matched",
-          matchVariant: "outline" as const,
-          matchColor: "text-green-600 border-green-600",
-          rankDisplay: "#1",
-          rankVariant: "default" as const,
-          statusDisplay: "assigned",
-          statusColor: "bg-purple-600 text-white"
-        },
-        {
-          key: "a3",
-          studentId: "#6367263",
-          topicTitle: "Cloud Migration Strategy",
-          preferenceRank: 2,
-          isMatched: true,
-          matchDisplay: "✓ Matched",
-          matchVariant: "outline" as const,
-          matchColor: "text-green-600 border-green-600",
-          rankDisplay: "#2",
-          rankVariant: "default" as const,
-          statusDisplay: "assigned",
-          statusColor: "bg-purple-600 text-white"
-        },
-      ],
-      open: () => [],
-      inactive: () => [],
-      closed: () => []
-    })
+        assigned: () => [
+          {
+            key: "a1",
+            studentId: "#6367261",
+            topicTitle: "ML Recommendation System",
+            preferenceRank: 5,
+            isMatched: true,
+            matchDisplay: "✓ Matched",
+            matchVariant: "outline" as const,
+            matchColor: "text-green-600 border-green-600",
+            rankDisplay: "#5",
+            rankVariant: "secondary" as const,
+            statusDisplay: "assigned",
+            statusColor: "bg-purple-600 text-white"
+          },
+          {
+            key: "a2",
+            studentId: "#6367262",
+            topicTitle: "Blockchain Smart Contracts",
+            preferenceRank: 1,
+            isMatched: true,
+            matchDisplay: "✓ Matched",
+            matchVariant: "outline" as const,
+            matchColor: "text-green-600 border-green-600",
+            rankDisplay: "#1",
+            rankVariant: "default" as const,
+            statusDisplay: "assigned",
+            statusColor: "bg-purple-600 text-white"
+          },
+          {
+            key: "a3",
+            studentId: "#6367263",
+            topicTitle: "Cloud Migration Strategy",
+            preferenceRank: 2,
+            isMatched: true,
+            matchDisplay: "✓ Matched",
+            matchVariant: "outline" as const,
+            matchColor: "text-green-600 border-green-600",
+            rankDisplay: "#2",
+            rankVariant: "default" as const,
+            statusDisplay: "assigned",
+            statusColor: "bg-purple-600 text-white"
+          },
+        ],
+        open: () => [],
+        inactive: () => [],
+        closed: () => []
+      })
     })
   })
 
@@ -492,7 +492,7 @@ export function useDashboardVM(): DashboardVM {
   // Deduplicate by semesterId - keep the most recent period for each semester
   const periodOptions$ = computed((): readonly PeriodOption[] => {
     const periods = periodsData ?? []
-    
+
     // Group by semesterId and keep the most recent one (already sorted by closeDate desc)
     const seenSemesters = new Map<string, typeof periods[0]>()
     for (const period of periods) {
@@ -500,7 +500,7 @@ export function useDashboardVM(): DashboardVM {
         seenSemesters.set(period.semesterId, period)
       }
     }
-    
+
     // Convert to options with unique keys
     return Array.from(seenSemesters.values()).map(p => ({
       value: p.semesterId,
@@ -582,7 +582,7 @@ export function useDashboardVM(): DashboardVM {
 
   const updatePeriodFromForm = (values: SelectionPeriodFormValues): void => {
     Option.match(editingPeriod$.value, {
-      onNone: () => {},
+      onNone: () => { },
       onSome: (editingPeriod) => {
         if (!editingPeriod._id) return
         updatePeriodMutation({
@@ -601,7 +601,7 @@ export function useDashboardVM(): DashboardVM {
 
   const updateTopicFromForm = (values: TopicFormValues): void => {
     Option.match(editingTopic$.value, {
-      onNone: () => {},
+      onNone: () => { },
       onSome: (editingTopic) => {
         if (!editingTopic._id) return
         updateTopicMutation({
@@ -684,8 +684,7 @@ export function useDashboardVM(): DashboardVM {
     })
 
     const studentsView = createStudentsViewVM({
-      studentsData$: dataSignals.studentsData$,
-      currentPeriod$: dataSignals.currentPeriodData$,
+      allPeriodsStudentsData$: dataSignals.studentsData$,
       saveAnswersAsTeacher: saveAnswersAsTeacherMutation,
     })
 
@@ -790,7 +789,7 @@ export function useDashboardVM(): DashboardVM {
 
     const updatePeriodFromForm = (values: SelectionPeriodFormValues): void => {
       Option.match(editingPeriod$.value, {
-        onNone: () => {},
+        onNone: () => { },
         onSome: (editingPeriod) => {
           if (!editingPeriod._id) return
           updatePeriodMutation({
@@ -809,7 +808,7 @@ export function useDashboardVM(): DashboardVM {
 
     const updateTopicFromForm = (values: TopicFormValues): void => {
       Option.match(editingTopic$.value, {
-        onNone: () => {},
+        onNone: () => { },
         onSome: (editingTopic) => {
           if (!editingTopic._id) return
           updateTopicMutation({

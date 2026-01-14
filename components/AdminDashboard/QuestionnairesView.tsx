@@ -16,6 +16,82 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
 
   return (
     <div className="space-y-8">
+      {/* Templates Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Templates</CardTitle>
+          <Button size="sm" onClick={vm.templateDialog.open}>
+            <Plus className="h-4 w-4 mr-2" />Add Template
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {vm.templates$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No templates yet. Add one to get started.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vm.templates$.value.map((t) => (
+                  <TableRow key={t.key}>
+                    <TableCell className="font-medium">{t.title}</TableCell>
+                    <TableCell>{t.description}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={t.remove}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Categories Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Categories</CardTitle>
+          <Button size="sm" onClick={vm.categoryDialog.open}>
+            <Plus className="h-4 w-4 mr-2" />Add Category
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {vm.categories$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No categories yet. Add one to get started.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vm.categories$.value.map((c) => (
+                  <TableRow key={c.key}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={c.remove}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Questions Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -64,105 +140,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
         </CardContent>
       </Card>
 
-      {/* Templates Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Templates</CardTitle>
-          <Button size="sm" onClick={vm.templateDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Template
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {vm.templates$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No templates yet. Add one to get started.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vm.templates$.value.map((t) => (
-                  <TableRow key={t.key}>
-                    <TableCell className="font-medium">{t.title}</TableCell>
-                    <TableCell>{t.description}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={t.remove}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Question Dialog */}
-      <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
-          <QuestionForm 
-            onSubmit={vm.onQuestionSubmit}
-            existingCategories={[...vm.existingCategories$.value]}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Categories Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Categories</CardTitle>
-          <Button size="sm" onClick={vm.categoryDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Category
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {vm.categories$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No categories yet. Add one to get started.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vm.categories$.value.map((c) => (
-                  <TableRow key={c.key}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.description}</TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={c.remove}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Question Dialog */}
-      <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
-          <QuestionForm 
-            onSubmit={vm.onQuestionSubmit}
-            existingCategories={[...vm.existingCategories$.value]}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Template Dialog */}
+      {/* Dialogs */}
       <Dialog open={vm.templateDialog.isOpen$.value} onOpenChange={(open) => !open && vm.templateDialog.close()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Create Template</DialogTitle></DialogHeader>
@@ -173,11 +151,20 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
         </DialogContent>
       </Dialog>
 
-      {/* Category Dialog */}
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
         <DialogContent>
           <DialogHeader><DialogTitle>Create Category</DialogTitle></DialogHeader>
           <CategoryForm onSubmit={vm.onCategorySubmit} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
+          <QuestionForm
+            onSubmit={vm.onQuestionSubmit}
+            existingCategories={[...vm.existingCategories$.value]}
+          />
         </DialogContent>
       </Dialog>
     </div>

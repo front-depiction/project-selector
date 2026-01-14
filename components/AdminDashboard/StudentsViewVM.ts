@@ -1,5 +1,5 @@
 import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type { FunctionReturnType } from "convex/server"
 import type { api } from "@/convex/_generated/api"
 import * as Option from "effect/Option"
@@ -25,12 +25,14 @@ export interface DialogVM {
 }
 
 export interface StudentsViewVM {
-  readonly students$: ReadonlySignal<readonly StudentItemVM[]>
+  readonly studentGroups$: ReadonlySignal<ReadonlyArray<{
+    period: Doc<"selectionPeriods">
+    students: readonly StudentItemVM[]
+  }>>
   readonly selectedStudentId$: ReadonlySignal<string | null>
-  readonly currentPeriod$: ReadonlySignal<FunctionReturnType<typeof api.admin.getCurrentPeriod> | undefined>
   readonly questionnaireDialog: DialogVM
   readonly isLoading$: ReadonlySignal<boolean>
-  readonly saveAnswers: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>) => Promise<void>
+  readonly saveAnswers: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>, periodId: Id<"selectionPeriods">) => Promise<void>
 }
 
 // ============================================================================
@@ -38,8 +40,7 @@ export interface StudentsViewVM {
 // ============================================================================
 
 export interface StudentsViewDeps {
-  readonly studentsData$: Signal<FunctionReturnType<typeof api.studentAnswers.getAllStudentsWithCompletionStatus> | undefined>
-  readonly currentPeriod$: Signal<FunctionReturnType<typeof api.admin.getCurrentPeriod> | undefined>
+  readonly allPeriodsStudentsData$: Signal<FunctionReturnType<typeof api.studentAnswers.getAllPeriodsStudentsWithCompletionStatus> | undefined>
   readonly saveAnswersAsTeacher: (args: {
     studentId: string
     selectionPeriodId: Id<"selectionPeriods">
@@ -53,8 +54,7 @@ export interface StudentsViewDeps {
 
 export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
   const {
-    studentsData$,
-    currentPeriod$: currentPeriodData$,
+    allPeriodsStudentsData$,
     saveAnswersAsTeacher
   } = deps
 
@@ -62,34 +62,41 @@ export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
   const dialogOpen$ = signal(false)
   const selectedStudentId$ = signal<string | null>(null)
 
+  // Track which period the selected student belongs to
+  const selectedPeriodId$ = signal<Id<"selectionPeriods"> | null>(null)
+
   // Computed: Loading state
   const isLoading$ = computed(() => {
-    return studentsData$.value === undefined || currentPeriodData$.value === undefined
+    return allPeriodsStudentsData$.value === undefined
   })
 
-  // Computed: Students list with VM items
-  const students$ = computed((): readonly StudentItemVM[] => {
-    const studentsData = studentsData$.value
-    if (!studentsData) return []
+  // Computed: Grouped students list with VM items
+  const studentGroups$ = computed(() => {
+    const data = allPeriodsStudentsData$.value
+    if (!data) return []
 
-    return studentsData.map((student): StudentItemVM => {
-      const completionPercentage = student.totalCount > 0
-        ? (student.answeredCount / student.totalCount) * 100
-        : 100
+    return data.map(group => ({
+      period: group.period,
+      students: group.students.map((student): StudentItemVM => {
+        const completionPercentage = student.totalCount > 0
+          ? (student.answeredCount / student.totalCount) * 100
+          : 100
 
-      return {
-        key: student.studentId,
-        studentId: student.studentId,
-        isCompleted: student.isCompleted,
-        answeredCount: student.answeredCount,
-        totalCount: student.totalCount,
-        completionPercentage,
-        edit: () => {
-          selectedStudentId$.value = student.studentId
-          dialogOpen$.value = true
+        return {
+          key: `${group.period._id}-${student.studentId}`,
+          studentId: student.studentId,
+          isCompleted: student.isCompleted,
+          answeredCount: student.answeredCount,
+          totalCount: student.totalCount,
+          completionPercentage,
+          edit: () => {
+            selectedStudentId$.value = student.studentId
+            selectedPeriodId$.value = group.period._id
+            dialogOpen$.value = true
+          }
         }
-      }
-    })
+      })
+    }))
   })
 
   // Dialog VM
@@ -101,35 +108,38 @@ export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
     close: () => {
       dialogOpen$.value = false
       selectedStudentId$.value = null
+      selectedPeriodId$.value = null
     }
   }
 
   // Save answers action
   const saveAnswers = async (
-    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>
+    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>,
+    // Optional explicit period ID, otherwise uses selected state
+    periodId?: Id<"selectionPeriods">
   ): Promise<void> => {
     const studentId = selectedStudentId$.value
-    const period = currentPeriodData$.value
+    const targetPeriodId = periodId ?? selectedPeriodId$.value
 
-    if (!studentId || !period) {
+    if (!studentId || !targetPeriodId) {
       throw new Error("Student ID and period are required")
     }
 
     await saveAnswersAsTeacher({
       studentId,
-      selectionPeriodId: period._id,
+      selectionPeriodId: targetPeriodId,
       answers
     })
 
     // Close dialog after successful save
     dialogOpen$.value = false
     selectedStudentId$.value = null
+    selectedPeriodId$.value = null
   }
 
   return {
-    students$,
+    studentGroups$,
     selectedStudentId$: computed(() => selectedStudentId$.value),
-    currentPeriod$: computed(() => currentPeriodData$.value),
     questionnaireDialog,
     isLoading$,
     saveAnswers
