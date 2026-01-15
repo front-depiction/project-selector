@@ -23,11 +23,30 @@ function useLandingPageVM() {
   // Convex queries - already reactive!
   const stats = useQuery(api.stats.getLandingStats, {})
   const competitionData = useQuery(api.analytics.getTopicCompetitionLevels)
-  const currentPeriod = useQuery(api.admin.getCurrentPeriod)
+  
+  // Get student ID from localStorage after mount (client-side only to avoid hydration mismatch)
+  const [studentIdFromStorage, setStudentIdFromStorage] = React.useState<string | null>(null)
+  
+  React.useEffect(() => {
+    try {
+      const storedId = localStorage.getItem("studentId")
+      if (storedId) {
+        setStudentIdFromStorage(storedId)
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [])
 
-  // Don't auto-load student ID from localStorage on landing page
-  // Student ID should only be loaded when user explicitly enters it
-  const [initialStudentId] = React.useState<string | null>(() => null)
+  // Get the period - use student-specific period if studentId is available, otherwise get current period
+  const studentPeriod = useQuery(
+    api.periodStudentAccessCodes.getPeriodForAccessCode,
+    studentIdFromStorage ? { code: studentIdFromStorage } : "skip"
+  )
+  const currentPeriodGeneral = useQuery(api.admin.getCurrentPeriod)
+  
+  // Use student's specific period if available, otherwise fall back to general current period
+  const currentPeriod = studentPeriod ?? currentPeriodGeneral
 
   // Create reactive signals for the VM dependencies
   const stats$ = React.useMemo(() => signal(stats), [])
@@ -48,8 +67,29 @@ function useLandingPageVM() {
     currentPeriod$.value = currentPeriod
   }, [currentPeriod, currentPeriod$])
 
+  // Create VM once with stable dependencies (start with null studentId to avoid hydration mismatch)
+  const vm = React.useMemo(
+    () => createLandingPageVM({
+      stats$,
+      competitionData$,
+      currentPeriod$,
+      myAssignment$,
+      initialStudentId: null // Always start with null, update from localStorage after mount
+    }),
+    [stats$, competitionData$, currentPeriod$, myAssignment$]
+  )
+
   // Query assignment only when we have a period and student ID
-  const studentIdRef = React.useRef<string | null>(initialStudentId)
+  const studentIdRef = React.useRef<string | null>(null)
+
+  // Read from localStorage after mount (client-side only to avoid hydration mismatch)
+  // This allows students who logged in via portal to see their assignments
+  React.useEffect(() => {
+    if (studentIdFromStorage) {
+      vm.setStudentId(studentIdFromStorage)
+      studentIdRef.current = studentIdFromStorage
+    }
+  }, [vm, studentIdFromStorage])
 
   const myAssignment = useQuery(
     api.assignments.getMyAssignment,
@@ -61,18 +101,6 @@ function useLandingPageVM() {
   React.useEffect(() => {
     myAssignment$.value = myAssignment
   }, [myAssignment, myAssignment$])
-
-  // Create VM once with stable dependencies
-  const vm = React.useMemo(
-    () => createLandingPageVM({
-      stats$,
-      competitionData$,
-      currentPeriod$,
-      myAssignment$,
-      initialStudentId
-    }),
-    [stats$, competitionData$, currentPeriod$, myAssignment$, initialStudentId]
-  )
 
   // Update student ID ref when VM's studentId changes
   React.useEffect(() => {

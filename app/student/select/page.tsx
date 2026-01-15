@@ -34,6 +34,21 @@ function useStudentSelectionPageVM() {
     api.periodStudentAccessCodes.getPeriodForAccessCode,
     initialStudentId ? { code: initialStudentId } : "skip"
   )
+  
+  // Get assignment data if period is assigned
+  const myAssignment = useQuery(
+    api.assignments.getMyAssignment,
+    currentPeriod && initialStudentId && currentPeriod.kind === "assigned"
+      ? { periodId: currentPeriod._id, studentId: initialStudentId }
+      : "skip"
+  )
+  
+  const allAssignments = useQuery(
+    api.assignments.getAssignments,
+    currentPeriod && currentPeriod.kind === "assigned"
+      ? { periodId: currentPeriod._id }
+      : "skip"
+  )
   const periodQuestions = useQuery(
     api.selectionQuestions.getQuestionsForPeriod,
     currentPeriod?._id ? { selectionPeriodId: currentPeriod._id } : "skip"
@@ -173,6 +188,13 @@ function useStudentSelectionPageVM() {
       router.push("/student")
     }
   }, [vm.studentId$.value, router])
+
+  // Redirect to landing page if period is assigned (to see formed groups)
+  React.useEffect(() => {
+    if (currentPeriod && currentPeriod.kind === "assigned") {
+      router.push("/")
+    }
+  }, [currentPeriod, router])
 
   return vm
 }
