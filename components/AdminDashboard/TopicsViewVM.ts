@@ -165,8 +165,10 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       grouped.set(topic.semesterId, existing)
     }
     
-    // Convert to array of groups, sorted by period title
+    // Convert to array of groups - include ALL periods, even if they have no topics
     const groups: TopicGroupVM[] = []
+    
+    // First, add groups for periods that have topics
     for (const [semesterId, topicList] of grouped.entries()) {
       const periodTitle = periodMap.get(semesterId) ?? `Unknown Assignment (${semesterId})`
       groups.push({
@@ -174,6 +176,17 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         periodTitle,
         topics: topicList,
       })
+    }
+    
+    // Then, add periods that have no topics (so they still show up in the UI)
+    for (const period of periods) {
+      if (!grouped.has(period.semesterId)) {
+        groups.push({
+          semesterId: period.semesterId,
+          periodTitle: period.title,
+          topics: [],
+        })
+      }
     }
     
     // Sort groups by period title

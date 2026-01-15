@@ -20,7 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  XCircle
 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
@@ -366,9 +367,22 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                           {period.description}
                         </CardDescription>
                       </div>
-                      <Badge className="bg-green-500/10 text-green-600 border-green-500/20 shadow-sm">
-                        <CheckCircle className="mr-1 h-3 w-3" />
-                        Open
+                      <Badge className={
+                        period.isOpen
+                          ? "bg-green-500/10 text-green-600 border-green-500/20 shadow-sm"
+                          : "bg-red-500/10 text-red-600 border-red-500/20 shadow-sm"
+                      }>
+                        {period.isOpen ? (
+                          <>
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                            Open
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="mr-1 h-3 w-3" />
+                            Closed
+                          </>
+                        )}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4 pt-4 border-t border-border/50">
@@ -513,23 +527,69 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
             })}
           </div>
 
-          <SortableList
-            items={vm.topics$.value as any}
-            setItems={vm.updateSelection}
-            onCompleteItem={() => {}}
-            renderItem={(item: any, order) => (
-              <TopicCard
-                key={item.id}
-                item={item as TopicItemVM}
-                order={order}
-                isExpanded={vm.expandedTopicIds$.value.has(item.id)}
-                onToggleExpand={() => vm.toggleTopicExpanded(item.id)}
-                onCompleteItem={() => {}}
-                onRemoveItem={() => {}}
-                handleDrag={() => {}}
-              />
-            )}
-          />
+          {Option.match(vm.currentPeriod$.value, {
+            onNone: () => null,
+            onSome: (period) => {
+              const isClosed = !period.isOpen
+              
+              if (isClosed) {
+                return (
+                  <div className="space-y-4">
+                    <Alert className="mt-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        This project assignment is closed. You can view your previous rankings but cannot make changes.
+                      </AlertDescription>
+                    </Alert>
+                    {/* Read-only topic list when closed */}
+                    <div className="space-y-3">
+                      {vm.topics$.value.map((item, index) => {
+                        const savedOrder = vm.selectedTopicIds$.value.indexOf(item._id)
+                        const displayOrder = savedOrder !== -1 ? savedOrder + 1 : null
+                        return (
+                          <Card key={item._id} className="opacity-75">
+                            <CardContent className="p-4">
+                              <div className="flex items-center gap-4">
+                                {displayOrder && (
+                                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-semibold">
+                                    {displayOrder}
+                                  </div>
+                                )}
+                                <div className="flex-1">
+                                  <h3 className="font-semibold">{item.text}</h3>
+                                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              }
+              
+              return (
+                <SortableList
+                  items={vm.topics$.value as any}
+                  setItems={vm.updateSelection}
+                  onCompleteItem={() => {}}
+                  renderItem={(item: any, order) => (
+                    <TopicCard
+                      key={item.id}
+                      item={item as TopicItemVM}
+                      order={order}
+                      isExpanded={vm.expandedTopicIds$.value.has(item.id)}
+                      onToggleExpand={() => vm.toggleTopicExpanded(item.id)}
+                      onCompleteItem={() => {}}
+                      onRemoveItem={() => {}}
+                      handleDrag={() => {}}
+                    />
+                  )}
+                />
+              )
+            }
+          })}
         </motion.div>
 
         {/* Help Section */}

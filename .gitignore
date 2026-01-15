@@ -12,10 +12,12 @@
 
 # testing
 /coverage
+*.test.ts.snap
 
 # next.js
 /.next/
 /out/
+.turbo/
 
 # production
 /build
@@ -43,6 +45,7 @@ next-env.d.ts
 
 # convex
 .convex/
+convex/_generated/
 
 # IDE
 .vscode/
@@ -55,3 +58,10 @@ next-env.d.ts
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
