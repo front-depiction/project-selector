@@ -1,7 +1,7 @@
 "use client"
 import * as React from "react"
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
-import { useQuery, useMutation } from "convex/react"
+import { useQuery, useMutation, useConvex } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
@@ -183,6 +183,7 @@ export interface TopicFormData {
 // ============================================================================
 
 export function useDashboardVM(): DashboardVM {
+  const convex = useConvex()
   // Reactive state - stable signal created once per component lifecycle
   const activeView$ = React.useMemo(() => signal<ViewType>("overview"), [])
 
@@ -239,11 +240,15 @@ export function useDashboardVM(): DashboardVM {
   const toggleTopicActiveMutation = useMutation(api.admin.toggleTopicActive)
 
   const createQuestionMutation = useMutation(api.questions.createQuestion)
+  const updateQuestionMutation = useMutation(api.questions.updateQuestion)
   const deleteQuestionMutation = useMutation(api.questions.deleteQuestion)
   const createTemplateMutation = useMutation(api.questionTemplates.createTemplate)
+  const updateTemplateMutation = useMutation(api.questionTemplates.updateTemplate)
   const deleteTemplateMutation = useMutation(api.questionTemplates.deleteTemplate)
   const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
+  const reorderTemplateQuestionsMutation = useMutation(api.templateQuestions.reorder)
   const createCategoryMutation = useMutation(api.categories.createCategory)
+  const updateCategoryMutation = useMutation(api.categories.updateCategory)
   const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
   const saveAnswersAsTeacherMutation = useMutation(api.studentAnswers.saveAnswersAsTeacher)
 
@@ -669,11 +674,16 @@ export function useDashboardVM(): DashboardVM {
       categories$: dataSignals.categoriesData$,
       existingCategories$: dataSignals.categoryNamesData$,
       createQuestion: createQuestionMutation,
+      updateQuestion: updateQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
       createTemplate: createTemplateMutation,
+      updateTemplate: updateTemplateMutation,
       deleteTemplate: deleteTemplateMutation,
+      getTemplateWithQuestions: (args) => convex.query(api.questionTemplates.getTemplateWithQuestions, args) as Promise<any>,
       addQuestionToTemplate: addQuestionToTemplateMutation,
+      reorderTemplateQuestions: reorderTemplateQuestionsMutation,
       createCategory: createCategoryMutation,
+      updateCategory: updateCategoryMutation,
       deleteCategory: deleteCategoryMutation,
     })
 

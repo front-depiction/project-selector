@@ -102,11 +102,52 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
     title: string
   } | null>(null)
 
-  // Fetch assignments for the selected period
-  const assignmentsData = useQuery(
-    api.assignments.getAssignments,
-    selectedPeriodForAssignments ? { periodId: selectedPeriodForAssignments.id } : "skip"
-  )
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Assigned Topic</TableHead>
+                      <TableHead className="text-center">Preference Match</TableHead>
+                      <TableHead className="text-center">Rank</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vm.assignments$.value.map((assignment) => (
+                      <TableRow key={assignment.key}>
+                        <TableCell className="font-medium">{assignment.studentId}</TableCell>
+                        <TableCell>{assignment.topicTitle}</TableCell>
+                        <TableCell className="text-center">
+                          {assignment.isMatched ? (
+                            <Badge variant="outline" className="text-green-600 border-green-600">
+                              ✓ Matched
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600">
+                              Alternative
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={assignment.rankBadgeVariant}>
+                            #{assignment.preferenceRank}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge className="bg-purple-600 text-white">
+                            {assignment.statusDisplay}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
   const handleViewGroups = (periodId: Id<"selectionPeriods">, periodTitle: string) => {
     setSelectedPeriodForAssignments({ id: periodId, title: periodTitle })
@@ -141,70 +182,41 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Open Date</TableHead>
-                <TableHead>Close Date</TableHead>
-                <TableHead>Students</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Open Date</TableHead>
+                <TableHead className="text-center">Close Date</TableHead>
+                <TableHead className="text-center">Students</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vm.periods$.value.map((period) => {
-                const periodId = period.key as Id<"selectionPeriods">
-                // Get the full period document to check status
-                const periodDoc = vm.periodsData$.value?.find(p => p._id === periodId)
-                const canAssign = periodDoc && SelectionPeriod.isClosed(periodDoc)
-                const isAssigned = periodDoc && SelectionPeriod.isAssigned(periodDoc)
-                
-                return (
-                  <TableRow key={period.key}>
-                    <TableCell className="font-medium">{period.title}</TableCell>
-                    <TableCell>
-                      <Badge className={period.statusColor}>
-                        {period.statusDisplay}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{period.openDateDisplay}</TableCell>
-                    <TableCell>{period.closeDateDisplay}</TableCell>
-                    <TableCell>{period.studentCountDisplay}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={period.onEdit}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleManageAccessCodes(periodId, period.title)}>
-                            <Key className="mr-2 h-4 w-4" />
-                            Manage Access Codes
-                          </DropdownMenuItem>
-                          
-                          {canAssign && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <AssignNowMenuItem periodId={periodId} status="closed" />
-                            </>
-                          )}
-                          {periodDoc && SelectionPeriod.isOpen(periodDoc) && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <AssignNowMenuItem periodId={periodId} status="open" />
-                            </>
-                          )}
-                          {isAssigned && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleViewGroups(periodId, period.title)}>
-                                <Users className="mr-2 h-4 w-4" />
-                                View Groups
-                              </DropdownMenuItem>
-                            </>
-                          )}
+              {vm.periods$.value.map((period) => (
+                <TableRow key={period.key}>
+                  <TableCell className="font-medium">{period.title}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge className={period.statusColor}>
+                      {period.statusDisplay}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">{period.openDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.closeDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.studentCountDisplay}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={period.onEdit}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
+                          <Key className="mr-2 h-4 w-4" />
+                          Manage Access Codes
+                        </DropdownMenuItem>
 
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -287,9 +299,15 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               await vm.updatePeriod({
                 periodId: editingPeriod._id,
                 title: values.title,
-                description: values.title,
+                description: values.description,
                 openDate: values.start_deadline.getTime(),
                 closeDate: values.end_deadline.getTime(),
+              })
+              console.log('[PeriodsView] Update payload:', {
+                title: values.title,
+                openDate: values.start_deadline.getTime(),
+                closeDate: values.end_deadline.getTime(),
+                now: Date.now()
               })
 
               // Sync questions using the correct existing question IDs

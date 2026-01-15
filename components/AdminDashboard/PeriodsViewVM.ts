@@ -225,10 +225,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
     return periodsData.map((period: any): PeriodRowVM => {
       const statusDisplay = SelectionPeriod.match(period)({
-        open: () => "open",
-        inactive: () => "inactive",
-        closed: () => "closed",
-        assigned: () => "assigned",
+        open: () => "Open",
+        inactive: () => "Inactive",
+        closed: () => "Closed",
+        assigned: () => "Assigned",
       })
 
       const statusColor = SelectionPeriod.match(period)({

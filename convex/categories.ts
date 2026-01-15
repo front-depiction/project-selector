@@ -64,7 +64,7 @@ export const updateCategory = mutation({
         .query("categories")
         .withIndex("by_semester", (q) => q.eq("semesterId", category.semesterId))
         .collect()
-      
+
       const existing = allCategories.find(
         (c) => c._id !== id && c.name.toLowerCase() === updates.name!.toLowerCase()
       )
@@ -91,9 +91,12 @@ export const deleteCategory = mutation({
     const allQuestions = await ctx.db.query("questions").collect()
     const questionsUsingCategory = allQuestions.filter((q) => q.category === category.name)
 
+    // Unassign the questions
     if (questionsUsingCategory.length > 0) {
-      throw new Error(
-        `Cannot delete category: ${questionsUsingCategory.length} question(s) are using it. Please remove or reassign the questions first.`
+      await Promise.all(
+        questionsUsingCategory.map((q) =>
+          ctx.db.patch(q._id, { category: undefined })
+        )
       )
     }
 
@@ -109,9 +112,9 @@ export const getCategoryNames = query({
   handler: async (ctx, args) => {
     const categories = args.semesterId
       ? await ctx.db
-          .query("categories")
-          .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId!))
-          .collect()
+        .query("categories")
+        .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId!))
+        .collect()
       : await ctx.db.query("categories").collect()
 
     return categories.map((c) => c.name).sort()

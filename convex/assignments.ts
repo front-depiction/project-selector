@@ -56,7 +56,7 @@ export const assignNow = mutation({
 async function assignPeriodInternal(
   ctx: MutationCtx,
   periodId: Id<"selectionPeriods">
-): Promise<string> {
+): Promise<string | null> {
   const period = await ctx.db.get(periodId)
 
   if (!period) {
@@ -80,15 +80,35 @@ async function assignPeriodInternal(
     .filter((q) => q.eq(q.field("isActive"), true))
     .collect()
 
-  if (topics.length === 0) {
-    throw new Error("No active topics found for assignment")
+  // If no topics or students,just close the period without assignment
+  if (topics.length === 0 || preferences.length === 0) {
+    console.log(`[assignPeriod] Insufficient data for assignment (Topics: ${topics.length}, Preferences: ${preferences.length}). Closing period without assignment.`)
+
+    await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
+      semesterId: period.semesterId,
+      title: period.title,
+      description: period.description,
+      openDate: period.openDate,
+      closeDate: period.closeDate
+    }))
+
+    return null
   }
 
   // Get unique student IDs
   const studentIds = [...new Set(preferences.map((p) => p.studentId))]
 
   if (studentIds.length === 0) {
-    throw new Error("No students to assign")
+    console.log("[assignPeriod] No unique students found. Closing period.")
+
+    await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
+      semesterId: period.semesterId,
+      title: period.title,
+      description: period.description,
+      openDate: period.openDate,
+      closeDate: period.closeDate
+    }))
+    return null
   }
 
   // Transform preferences with topicOrder into flat ranked preferences
@@ -123,12 +143,12 @@ async function assignPeriodInternal(
     SelectionPeriod.isClosed(period)
       ? period
       : SelectionPeriod.makeClosed({
-          semesterId: period.semesterId,
-          title: period.title,
-          description: period.description,
-          openDate: period.openDate,
-          closeDate: period.closeDate
-        })
+        semesterId: period.semesterId,
+        title: period.title,
+        description: period.description,
+        openDate: period.openDate,
+        closeDate: period.closeDate
+      })
   ))
 
   return batchId

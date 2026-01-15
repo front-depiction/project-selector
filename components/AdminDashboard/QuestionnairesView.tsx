@@ -5,11 +5,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2 } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Edit, MoreVertical, Trash2 as Trash, Plus } from "lucide-react"
 import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
 import TemplateForm from "@/components/forms/template-form"
 import CategoryForm from "@/components/forms/category-form"
+import * as Option from "effect/Option"
 
 export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm }) => {
   useSignals()
@@ -42,9 +50,27 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                     <TableCell className="font-medium">{t.title}</TableCell>
                     <TableCell>{t.description}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={t.remove}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={t.edit}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={t.remove}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -80,9 +106,27 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.description}</TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={c.remove}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={c.edit}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={c.remove}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -128,9 +172,27 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                       <Badge variant={q.kindVariant}>{q.kindDisplay}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={q.remove}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={q.edit}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={q.remove}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -143,27 +205,58 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
       {/* Dialogs */}
       <Dialog open={vm.templateDialog.isOpen$.value} onOpenChange={(open) => !open && vm.templateDialog.close()}>
         <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Create Template</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingTemplate$.value) ? "Edit Template" : "Create Template"}
+            </DialogTitle>
+          </DialogHeader>
           <TemplateForm
             questions={vm.availableQuestions$.value}
             onSubmit={vm.onTemplateSubmit}
+            initialValues={Option.getOrUndefined(Option.map(vm.editingTemplate$.value, t => ({
+              title: t.title,
+              description: t.description || "",
+              semester_id: "default",
+              questionIds: t.questions?.map(q => q._id) || []
+            })))}
           />
         </DialogContent>
       </Dialog>
 
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Category</DialogTitle></DialogHeader>
-          <CategoryForm onSubmit={vm.onCategorySubmit} />
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
+            </DialogTitle>
+          </DialogHeader>
+          <CategoryForm
+            onSubmit={vm.onCategorySubmit}
+            initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
+              name: c.name,
+              description: c.description || "",
+              semester_id: "default"
+            })))}
+          />
         </DialogContent>
       </Dialog>
 
       <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Create Question</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingQuestion$.value) ? "Edit Question" : "Create Question"}
+            </DialogTitle>
+          </DialogHeader>
           <QuestionForm
             onSubmit={vm.onQuestionSubmit}
             existingCategories={[...vm.existingCategories$.value]}
+            initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
+              question: q.question,
+              kind: q.kind,
+              category: q.category || "",
+              semester_id: "default"
+            })))}
           />
         </DialogContent>
       </Dialog>
