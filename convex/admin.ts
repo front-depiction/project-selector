@@ -44,6 +44,29 @@ export const seedTestData = mutation({
       createTestTopics(ctx, semesterId)
     ])
 
+    // Create an open period with all questionnaires completed
+    // Since it's already open (opened 3 days ago), create as inactive then convert to open
+    const openWithQuestionnairesOpenDate = now - (3 * 24 * 60 * 60 * 1000) // Opened 3 days ago
+    const inactivePeriod = SelectionPeriod.makeInactive({
+      semesterId,
+      title: "Open Period - All Questionnaires Complete",
+      description: "An open period where all students have completed their questionnaires",
+      openDate: openWithQuestionnairesOpenDate,
+      closeDate: thirtyDaysFromNow,
+    })
+    const openWithQuestionnairesPeriodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
+    
+    // Schedule the close function
+    const scheduledCloseId = await ctx.scheduler.runAt(
+      thirtyDaysFromNow,
+      internal.assignments.assignPeriod,
+      { periodId: openWithQuestionnairesPeriodId }
+    )
+    
+    // Convert to open with the scheduled function
+    const openPeriod = SelectionPeriod.toOpen(inactivePeriod, scheduledCloseId)
+    await ctx.db.replace(openWithQuestionnairesPeriodId, openPeriod)
+
     // Create 5 categories
     const categoryNames = [
       { name: "Technical Skills", description: "Programming and technical abilities" },
@@ -95,7 +118,7 @@ export const seedTestData = mutation({
       )
     )
 
-    // Link first 7 questions to both periods
+    // Link first 7 questions to all periods
     await Promise.all([
       // Questions for open period
       ...questionIds.slice(0, 7).map((questionId, index) =>
@@ -109,6 +132,14 @@ export const seedTestData = mutation({
       ...questionIds.slice(0, 7).map((questionId, index) =>
         ctx.db.insert("selectionQuestions", {
           selectionPeriodId: closedPeriodId,
+          questionId,
+          order: index,
+        })
+      ),
+      // Questions for open period with all questionnaires complete
+      ...questionIds.slice(0, 7).map((questionId, index) =>
+        ctx.db.insert("selectionQuestions", {
+          selectionPeriodId: openWithQuestionnairesPeriodId,
           questionId,
           order: index,
         })
@@ -158,6 +189,24 @@ export const seedTestData = mutation({
         selectionPeriodId: closedPeriodId,
         studentId: code,
         addedAt: oneWeekAgo, // Added when period was open
+        addedBy: "system",
+      })
+    }
+
+    // Generate 15 student access codes for the open period with all questionnaires complete
+    const openWithQuestionnairesAccessCodes: string[] = []
+    for (let i = 0; i < 15; i++) {
+      let code: string
+      do {
+        code = generateAccessCode()
+      } while (existingCodes.has(code))
+      existingCodes.add(code)
+      openWithQuestionnairesAccessCodes.push(code)
+
+      await ctx.db.insert("periodStudentAllowList", {
+        selectionPeriodId: openWithQuestionnairesPeriodId,
+        studentId: code,
+        addedAt: now - (3 * 24 * 60 * 60 * 1000), // Added when period opened
         addedBy: "system",
       })
     }
@@ -255,6 +304,51 @@ export const seedTestData = mutation({
       )
     )
 
+    // Create preferences for ALL open period with questionnaires students (all 15 students submitted)
+    const openWithQuestionnairesPreferenceData = openWithQuestionnairesAccessCodes.map((studentId) => {
+      // Shuffle topics and take first 5
+      const shuffledTopics = [...topicIds].sort(() => Math.random() - 0.5)
+      return {
+        studentId,
+        topicOrder: shuffledTopics.slice(0, 5),
+      }
+    })
+
+    const openWithQuestionnairesPreferences = await Promise.all(
+      openWithQuestionnairesPreferenceData.map((prefData) => {
+        const preference = Preference.make({
+          studentId: prefData.studentId,
+          semesterId,
+          topicOrder: prefData.topicOrder,
+        })
+        return ctx.db.insert("preferences", preference)
+      })
+    )
+
+    // Create answers for ALL open period with questionnaires students (all 15 students completed questionnaire)
+    const openWithQuestionnairesStudentAnswers = await Promise.all(
+      openWithQuestionnairesAccessCodes.flatMap((studentId) =>
+        periodQuestionIds.map((questionId, index) => {
+          const question = questionsData[index]
+          if (question.kind === "boolean") {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeBoolean({
+              studentId,
+              selectionPeriodId: openWithQuestionnairesPeriodId,
+              questionId,
+              value: Math.random() > 0.5, // Random true/false
+            }))
+          } else {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeZeroToSix({
+              studentId,
+              selectionPeriodId: openWithQuestionnairesPeriodId,
+              questionId,
+              value: Math.floor(Math.random() * 7), // Random 0-6
+            }))
+          }
+        })
+      )
+    )
+
     // Create assignments for the closed period (to show formed groups)
     // Convert closed period to assigned period with assignments
     const assignmentBatchId = Assignment.createBatchId(closedPeriodId)
@@ -294,15 +388,20 @@ export const seedTestData = mutation({
       questionCount: questionIds.length,
       openPeriodAccessCodeCount: accessCodes.length,
       closedPeriodAccessCodeCount: closedAccessCodes.length,
+      openWithQuestionnairesAccessCodeCount: openWithQuestionnairesAccessCodes.length,
       openPeriodPreferencesCount: openPreferences.length,
       closedPeriodPreferencesCount: closedPreferences.length,
+      openWithQuestionnairesPreferencesCount: openWithQuestionnairesPreferences.length,
       openPeriodStudentAnswersCount: openStudentAnswers.length,
       closedPeriodStudentAnswersCount: closedStudentAnswers.length,
+      openWithQuestionnairesStudentAnswersCount: openWithQuestionnairesStudentAnswers.length,
       closedPeriodAssignmentsCount: closedPeriodAssignments.length,
       sampleAccessCodes: accessCodes.slice(0, 5), // Return first 5 codes for open period
       sampleClosedAccessCodes: closedAccessCodes.slice(0, 5), // Return first 5 codes for closed period
+      sampleOpenWithQuestionnairesAccessCodes: openWithQuestionnairesAccessCodes.slice(0, 5), // Return first 5 codes for open period with questionnaires
       openPeriodId: periodId,
-      closedPeriodId: closedPeriodId
+      closedPeriodId: closedPeriodId,
+      openWithQuestionnairesPeriodId: openWithQuestionnairesPeriodId
     }
   }
 })
