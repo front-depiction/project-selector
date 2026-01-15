@@ -152,10 +152,10 @@ const OverviewView: React.FC = () => {
                   <SelectContent>
                     {sortedPeriods.map((period) => {
                       const statusLabel = SelectionPeriod.match(period)({
-                        open: () => "OPEN",
-                        inactive: () => "INACTIVE",
-                        closed: () => "CLOSED",
-                        assigned: () => "ASSIGNED"
+                        open: () => "Open",
+                        inactive: () => "Inactive",
+                        closed: () => "Closed",
+                        assigned: () => "Assigned"
                       })
                       const statusColor = SelectionPeriod.match(period)({
                         open: () => "bg-green-600",
@@ -215,7 +215,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Manage project assignment periods</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} />
+            <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} showActions={false} />
           </CardContent>
         </Card>
 
@@ -225,7 +225,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Available topics for selection</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} />
+            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} showActions={false} />
           </CardContent>
         </Card>
       </div>

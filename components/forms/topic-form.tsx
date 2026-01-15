@@ -79,7 +79,7 @@ export default function TopicForm({
 
     const handleSubmit = async (values: z.infer<typeof formSchema>) => {
         if (isSubmitting) return
-        
+
         try {
             setIsSubmitting(true)
             await onSubmit(values)
@@ -147,8 +147,11 @@ export default function TopicForm({
                                 </FormControl>
                                 <SelectContent>
                                     {periods.map((p, index) => {
-                                        // Use period ID as key if available, otherwise fallback to index-based key
-                                        const uniqueKey = p.id ? `period-${p.id}` : `period-${p.value}-${index}`
+                                        // Ensure unique key by combining id, value, and index
+                                        const uniqueKey = p.id
+                                            ? `period-${p.id}`
+                                            : `period-${p.value}-${index}`;
+
                                         return (
                                             <SelectItem key={uniqueKey} value={p.value}>
                                                 {p.label}

@@ -131,6 +131,10 @@ export const updatePeriod = mutation({
     const openDate = args.openDate ?? existing.openDate
     const closeDate = args.closeDate ?? existing.closeDate
 
+    if (openDate >= closeDate) {
+      throw new Error("Open date must be before close date")
+    }
+
     const now = Date.now()
 
     // Cancel existing scheduled functions
@@ -329,10 +333,10 @@ export const getAllPeriodsWithStats = query({
     // Get stats for each period
     const periodsWithStats = await Promise.all(
       periods.map(async (period) => {
-        // Count preferences for this period's semester
-        const preferences = await ctx.db
-          .query("preferences")
-          .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+        // Count generated student codes (allow list)
+        const allowList = await ctx.db
+          .query("periodStudentAllowList")
+          .withIndex("by_period", q => q.eq("selectionPeriodId", period._id))
           .collect()
 
         // Count assignments if assigned
@@ -347,7 +351,7 @@ export const getAllPeriodsWithStats = query({
 
         return {
           ...period,
-          studentCount: preferences.length,
+          studentCount: allowList.length,
           assignmentCount
         }
       })

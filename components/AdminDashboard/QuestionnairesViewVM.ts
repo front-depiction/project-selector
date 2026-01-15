@@ -1,4 +1,5 @@
 import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
+import * as EffectOption from "effect/Option"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { TemplateFormValues, QuestionOption } from "@/components/forms/template-form"
@@ -14,6 +15,7 @@ export interface QuestionItemVM {
   readonly kindDisplay: string
   readonly kindVariant: "secondary" | "outline"
   readonly category?: string
+  readonly edit: () => void
   readonly remove: () => void
 }
 
@@ -21,6 +23,7 @@ export interface TemplateItemVM {
   readonly key: string
   readonly title: string
   readonly description: string
+  readonly edit: () => void
   readonly remove: () => void
 }
 
@@ -28,6 +31,7 @@ export interface CategoryItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
+  readonly edit: () => void
   readonly remove: () => void
 }
 
@@ -41,6 +45,9 @@ export interface QuestionnairesViewVM {
   readonly questions$: ReadonlySignal<readonly QuestionItemVM[]>
   readonly templates$: ReadonlySignal<readonly TemplateItemVM[]>
   readonly categories$: ReadonlySignal<readonly CategoryItemVM[]>
+  readonly editingQuestion$: ReadonlySignal<EffectOption.Option<Question>>
+  readonly editingTemplate$: ReadonlySignal<EffectOption.Option<Template & { questions?: Question[] }>>
+  readonly editingCategory$: ReadonlySignal<EffectOption.Option<Category>>
   readonly questionDialog: DialogVM
   readonly templateDialog: DialogVM
   readonly categoryDialog: DialogVM
@@ -80,11 +87,16 @@ export interface QuestionnairesViewDeps {
   readonly categories$: Signal<Category[] | undefined>
   readonly existingCategories$: Signal<string[] | undefined>
   readonly createQuestion: (args: { question: string; kind: "boolean" | "0to6"; category?: string; semesterId: string }) => Promise<any>
+  readonly updateQuestion: (args: { id: Id<"questions">; question?: string; kind?: "boolean" | "0to6"; category?: string }) => Promise<any>
   readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
   readonly createTemplate: (args: { title: string; description?: string; semesterId: string }) => Promise<any>
+  readonly updateTemplate: (args: { id: Id<"questionTemplates">; title?: string; description?: string }) => Promise<any>
   readonly deleteTemplate: (args: { id: Id<"questionTemplates"> }) => Promise<any>
+  readonly getTemplateWithQuestions: (args: { id: Id<"questionTemplates"> }) => Promise<any>
   readonly addQuestionToTemplate: (args: { templateId: Id<"questionTemplates">; questionId: Id<"questions"> }) => Promise<any>
+  readonly reorderTemplateQuestions: (args: { templateId: Id<"questionTemplates">; questionIds: Id<"questions">[] }) => Promise<any>
   readonly createCategory: (args: { name: string; description?: string; semesterId: string }) => Promise<any>
+  readonly updateCategory: (args: { id: Id<"categories">; name?: string; description?: string }) => Promise<any>
   readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
@@ -98,6 +110,11 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
   const templateDialogOpen$ = signal(false)
   const categoryDialogOpen$ = signal(false)
 
+  // Edit state signals
+  const editingQuestion$ = signal<EffectOption.Option<Question>>(EffectOption.none())
+  const editingTemplate$ = signal<EffectOption.Option<Template & { questions?: Question[] }>>(EffectOption.none())
+  const editingCategory$ = signal<EffectOption.Option<Category>>(EffectOption.none())
+
   // Computed: questions list for table
   const questions$ = computed((): readonly QuestionItemVM[] =>
     (deps.questions$.value ?? []).map((q): QuestionItemVM => ({
@@ -109,6 +126,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       remove: () => {
         deps.deleteQuestion({ id: q._id as Id<"questions"> }).catch(console.error)
       },
+      edit: () => {
+        editingQuestion$.value = EffectOption.some(q)
+        questionDialogOpen$.value = true
+      }
     }))
   )
 
@@ -124,6 +145,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       remove: () => {
         deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
       },
+      edit: () => {
+        editingCategory$.value = EffectOption.some(c)
+        categoryDialogOpen$.value = true
+      }
     }))
   )
 
@@ -136,6 +161,14 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       remove: () => {
         deps.deleteTemplate({ id: t._id as Id<"questionTemplates"> }).catch(console.error)
       },
+      edit: async () => {
+        // Fetch full template with questions for editing
+        const fullTemplate = await deps.getTemplateWithQuestions({ id: t._id as Id<"questionTemplates"> })
+        if (fullTemplate) {
+          editingTemplate$.value = EffectOption.some(fullTemplate)
+          templateDialogOpen$.value = true
+        }
+      }
     }))
   )
 
@@ -152,75 +185,149 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
   // Question dialog
   const questionDialog: DialogVM = {
     isOpen$: questionDialogOpen$,
-    open: () => { questionDialogOpen$.value = true },
-    close: () => { questionDialogOpen$.value = false },
+    open: () => {
+      editingQuestion$.value = EffectOption.none()
+      questionDialogOpen$.value = true
+    },
+    close: () => {
+      questionDialogOpen$.value = false
+      editingQuestion$.value = EffectOption.none()
+    },
   }
 
   // Template dialog
   const templateDialog: DialogVM = {
     isOpen$: templateDialogOpen$,
-    open: () => { templateDialogOpen$.value = true },
-    close: () => { templateDialogOpen$.value = false },
+    open: () => {
+      editingTemplate$.value = EffectOption.none()
+      templateDialogOpen$.value = true
+    },
+    close: () => {
+      templateDialogOpen$.value = false
+      editingTemplate$.value = EffectOption.none()
+    },
   }
 
   // Category dialog
   const categoryDialog: DialogVM = {
     isOpen$: categoryDialogOpen$,
-    open: () => { categoryDialogOpen$.value = true },
-    close: () => { categoryDialogOpen$.value = false },
+    open: () => {
+      editingCategory$.value = EffectOption.none()
+      categoryDialogOpen$.value = true
+    },
+    close: () => {
+      categoryDialogOpen$.value = false
+      editingCategory$.value = EffectOption.none()
+    },
   }
 
   // Form submission handlers
   const onQuestionSubmit = (values: QuestionFormValues): void => {
-    deps.createQuestion({
-      question: values.question,
-      kind: values.kind,
-      category: values.category || undefined,
-      semesterId: "default",
+    EffectOption.match(editingQuestion$.value, {
+      onNone: () => {
+        deps.createQuestion({
+          question: values.question,
+          kind: values.kind,
+          category: values.category || undefined,
+          semesterId: "default",
+        })
+          .then(() => {
+            questionDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingQuestion) => {
+        deps.updateQuestion({
+          id: editingQuestion._id as Id<"questions">,
+          question: values.question,
+          kind: values.kind,
+          category: values.category || undefined
+        })
+          .then(() => {
+            questionDialog.close()
+          })
+          .catch(console.error)
+      }
     })
-      .then(() => {
-        questionDialog.close()
-      })
-      .catch(console.error)
   }
 
   const onTemplateSubmit = (values: TemplateFormValues): void => {
-    deps.createTemplate({
-      title: values.title,
-      description: values.description || undefined,
-      semesterId: "default",
-    })
-      .then((templateId) => {
-        const promises = values.questionIds.map(qId =>
-          deps.addQuestionToTemplate({
-            templateId,
-            questionId: qId as Id<"questions">,
+    EffectOption.match(editingTemplate$.value, {
+      onNone: () => {
+        deps.createTemplate({
+          title: values.title,
+          description: values.description || undefined,
+          semesterId: "default",
+        })
+          .then((templateId) => {
+            const promises = values.questionIds.map(qId =>
+              deps.addQuestionToTemplate({
+                templateId,
+                questionId: qId as Id<"questions">,
+              })
+            )
+            return Promise.all(promises)
           })
-        )
-        return Promise.all(promises)
-      })
-      .then(() => {
-        templateDialog.close()
-      })
-      .catch(console.error)
+          .then(() => {
+            templateDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingTemplate) => {
+        deps.updateTemplate({
+          id: editingTemplate._id as Id<"questionTemplates">,
+          title: values.title,
+          description: values.description || undefined
+        })
+          .then(() => {
+            return deps.reorderTemplateQuestions({
+              templateId: editingTemplate._id as Id<"questionTemplates">,
+              questionIds: values.questionIds.map(id => id as Id<"questions">)
+            })
+          })
+          .then(() => {
+            templateDialog.close()
+          })
+          .catch(console.error)
+      }
+    })
   }
 
   const onCategorySubmit = (values: CategoryFormValues): void => {
-    deps.createCategory({
-      name: values.name,
-      description: values.description || undefined,
-      semesterId: "default",
+    EffectOption.match(editingCategory$.value, {
+      onNone: () => {
+        deps.createCategory({
+          name: values.name,
+          description: values.description || undefined,
+          semesterId: "default",
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingCategory) => {
+        deps.updateCategory({
+          id: editingCategory._id as Id<"categories">,
+          name: values.name,
+          description: values.description || undefined
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      }
     })
-      .then(() => {
-        categoryDialog.close()
-      })
-      .catch(console.error)
   }
+
 
   return {
     questions$,
     templates$,
     categories$,
+    editingQuestion$,
+    editingTemplate$,
+    editingCategory$,
     questionDialog,
     templateDialog,
     categoryDialog,

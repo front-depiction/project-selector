@@ -244,22 +244,22 @@ export interface MetricsGridProps {
 export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) => {
   // Use provided stats or fall back to context stats
   const { stats: contextStats } = useDashboard()
-  
+
   // Transform query stats to legacy format if provided
-  const stats = statsProp 
+  const stats = statsProp
     ? {
-        totalTopics: statsProp.totalTopics,
-        activeTopics: statsProp.totalTopics, // All returned topics are active
-        totalStudents: statsProp.totalStudents,
-        totalSelections: statsProp.totalSelections,
-        averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
-        matchRate: 0, // Not in query result, would need assignments data
-        topChoiceRate: 0, // Not in query result
-        currentPeriodDisplay: statsProp.isActive ? (statsProp.title ?? "NONE") : "NONE",
-        currentPeriodVariant: statsProp.isActive 
-          ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
-          : ""
-      }
+      totalTopics: statsProp.totalTopics,
+      activeTopics: statsProp.totalTopics, // All returned topics are active
+      totalStudents: statsProp.totalStudents,
+      totalSelections: statsProp.totalSelections,
+      averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
+      matchRate: 0, // Not in query result, would need assignments data
+      topChoiceRate: 0, // Not in query result
+      currentPeriodDisplay: statsProp.isActive ? (statsProp.title ?? "NONE") : "NONE",
+      currentPeriodVariant: statsProp.isActive
+        ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
+        : ""
+    }
     : contextStats
 
   if (!stats) return null
@@ -342,9 +342,9 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
             <TableRow>
               <TableHead>Student</TableHead>
               <TableHead>Assigned Topic</TableHead>
-              <TableHead>Preference Match</TableHead>
-              <TableHead>Rank</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="text-center">Preference Match</TableHead>
+              <TableHead className="text-center">Rank</TableHead>
+              <TableHead className="text-center">Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -352,7 +352,7 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
               <TableRow key={idx}>
                 <TableCell className="font-medium">{assignment.studentId}</TableCell>
                 <TableCell>{assignment.topicTitle}</TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   {assignment.isMatched ? (
                     <Badge variant="outline" className="text-green-600 border-green-600">
                       ✓ Matched
@@ -363,12 +363,12 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   <Badge variant={assignment.preferenceRank === 1 ? "default" : "secondary"}>
                     #{assignment.preferenceRank}
                   </Badge>
                 </TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   <Badge className="bg-purple-600 text-white">
                     {assignment.status}
                   </Badge>
@@ -384,9 +384,10 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
 
 export interface TopicsTableProps {
   readonly onEdit?: (topic: Doc<"topics">) => void
+  readonly showActions?: boolean
 }
 
-export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
+export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit, showActions = true }) => {
   const { topics, toggleTopicActive, deleteTopic } = useDashboard()
 
   if (!topics || topics.length === 0) {
@@ -407,9 +408,9 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
           <TableRow>
             <TableHead>Title</TableHead>
             <TableHead>Description</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Selections</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="text-center">Status</TableHead>
+            <TableHead className="text-center">Selections</TableHead>
+            {showActions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -417,41 +418,43 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
             <TableRow key={topic._id}>
               <TableCell className="font-medium">{topic.title}</TableCell>
               <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
-              <TableCell>
+              <TableCell className="text-center">
                 <Badge variant={topic.isActive ? "default" : "secondary"}>
                   {topic.isActive ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
-              <TableCell>0</TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {onEdit && (
-                      <DropdownMenuItem onClick={() => onEdit(topic)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
+              <TableCell className="text-center">0</TableCell>
+              {showActions && (
+                <TableCell className="text-right">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(topic)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={() => toggleTopicActive(topic._id)}>
+                        <Power className="mr-2 h-4 w-4" />
+                        {topic.isActive ? "Deactivate" : "Activate"}
                       </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onClick={() => toggleTopicActive(topic._id)}>
-                      <Power className="mr-2 h-4 w-4" />
-                      {topic.isActive ? "Deactivate" : "Activate"}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-red-600"
-                      onClick={() => deleteTopic(topic._id)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-red-600"
+                        onClick={() => deleteTopic(topic._id)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -462,9 +465,10 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit }) => {
 
 export interface PeriodsTableProps {
   readonly onEdit?: (period: SelectionPeriodWithStats) => void
+  readonly showActions?: boolean
 }
 
-export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
+export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit, showActions = true }) => {
   const { periods, setActivePeriod, deletePeriod } = useDashboard()
 
   if (!periods || periods.length === 0) {
@@ -484,11 +488,11 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Open Date</TableHead>
-            <TableHead>Close Date</TableHead>
-            <TableHead>Students</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead className="text-center">Status</TableHead>
+            <TableHead className="text-center">Open Date</TableHead>
+            <TableHead className="text-center">Close Date</TableHead>
+            <TableHead className="text-center">Students</TableHead>
+            {showActions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -498,7 +502,7 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
             return (
               <TableRow key={rowKey}>
                 <TableCell className="font-medium">{period.title}</TableCell>
-                <TableCell>
+                <TableCell className="text-center">
                   <Badge className={SelectionPeriodModule.match(period)({
                     open: () => "bg-green-600 text-white",
                     inactive: () => "bg-blue-600 text-white",
@@ -506,64 +510,66 @@ export const PeriodsTable: React.FC<PeriodsTableProps> = ({ onEdit }) => {
                     assigned: () => "bg-purple-600 text-white"
                   })}>
                     {SelectionPeriodModule.match(period)({
-                      open: () => "open",
-                      inactive: () => "inactive",
-                      closed: () => "closed",
-                      assigned: () => "assigned"
+                      open: () => "Open",
+                      inactive: () => "Inactive",
+                      closed: () => "Closed",
+                      assigned: () => "Assigned"
                     })}
                   </Badge>
                 </TableCell>
-                <TableCell>{format(period.openDate, "MMM d, yyyy")}</TableCell>
-                <TableCell>{format(period.closeDate, "MMM d, yyyy")}</TableCell>
-                <TableCell>{period.studentCount || 0}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {onEdit && (
-                        <DropdownMenuItem onClick={() => onEdit(period)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      )}
-                      {SelectionPeriodModule.match(period)({
-                        open: () => null,
-                        inactive: () => periodId && (
-                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
-                            <Power className="mr-2 h-4 w-4" />
-                            Set Active
+                <TableCell className="text-center">{format(period.openDate, "MMM d, yyyy")}</TableCell>
+                <TableCell className="text-center">{format(period.closeDate, "MMM d, yyyy")}</TableCell>
+                <TableCell className="text-center">{period.studentCount || 0}</TableCell>
+                {showActions && (
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {onEdit && (
+                          <DropdownMenuItem onClick={() => onEdit(period)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
-                        ),
-                        closed: () => periodId && (
-                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
-                            <Power className="mr-2 h-4 w-4" />
-                            Set Active
+                        )}
+                        {SelectionPeriodModule.match(period)({
+                          open: () => null,
+                          inactive: () => periodId && (
+                            <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                              <Power className="mr-2 h-4 w-4" />
+                              Set Active
+                            </DropdownMenuItem>
+                          ),
+                          closed: () => periodId && (
+                            <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                              <Power className="mr-2 h-4 w-4" />
+                              Set Active
+                            </DropdownMenuItem>
+                          ),
+                          assigned: () => periodId && (
+                            <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
+                              <Power className="mr-2 h-4 w-4" />
+                              Set Active
+                            </DropdownMenuItem>
+                          )
+                        })}
+                        <DropdownMenuSeparator />
+                        {periodId && (
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => deletePeriod(periodId)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </DropdownMenuItem>
-                        ),
-                        assigned: () => periodId && (
-                          <DropdownMenuItem onClick={() => setActivePeriod(periodId)}>
-                            <Power className="mr-2 h-4 w-4" />
-                            Set Active
-                          </DropdownMenuItem>
-                        )
-                      })}
-                      <DropdownMenuSeparator />
-                      {periodId && (
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => deletePeriod(periodId)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             )
           })}

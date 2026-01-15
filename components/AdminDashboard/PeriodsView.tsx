@@ -94,9 +94,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     <TableRow>
                       <TableHead>Student</TableHead>
                       <TableHead>Assigned Topic</TableHead>
-                      <TableHead>Preference Match</TableHead>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Preference Match</TableHead>
+                      <TableHead className="text-center">Rank</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -104,7 +104,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                       <TableRow key={assignment.key}>
                         <TableCell className="font-medium">{assignment.studentId}</TableCell>
                         <TableCell>{assignment.topicTitle}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           {assignment.isMatched ? (
                             <Badge variant="outline" className="text-green-600 border-green-600">
                               ✓ Matched
@@ -115,12 +115,12 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant={assignment.rankBadgeVariant}>
                             #{assignment.preferenceRank}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge className="bg-purple-600 text-white">
                             {assignment.statusDisplay}
                           </Badge>
@@ -161,10 +161,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Open Date</TableHead>
-                <TableHead>Close Date</TableHead>
-                <TableHead>Students</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Open Date</TableHead>
+                <TableHead className="text-center">Close Date</TableHead>
+                <TableHead className="text-center">Students</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -172,14 +172,14 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               {vm.periods$.value.map((period) => (
                 <TableRow key={period.key}>
                   <TableCell className="font-medium">{period.title}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Badge className={period.statusColor}>
                       {period.statusDisplay}
                     </Badge>
                   </TableCell>
-                  <TableCell>{period.openDateDisplay}</TableCell>
-                  <TableCell>{period.closeDateDisplay}</TableCell>
-                  <TableCell>{period.studentCountDisplay}</TableCell>
+                  <TableCell className="text-center">{period.openDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.closeDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.studentCountDisplay}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -277,9 +277,15 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               await vm.updatePeriod({
                 periodId: editingPeriod._id,
                 title: values.title,
-                description: values.title,
+                description: values.description,
                 openDate: values.start_deadline.getTime(),
                 closeDate: values.end_deadline.getTime(),
+              })
+              console.log('[PeriodsView] Update payload:', {
+                title: values.title,
+                openDate: values.start_deadline.getTime(),
+                closeDate: values.end_deadline.getTime(),
+                now: Date.now()
               })
 
               // Sync questions using the correct existing question IDs
