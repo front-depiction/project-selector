@@ -20,6 +20,7 @@ const BaseSelectionPeriod = {
 export const InactivePeriod = v.object({
   ...BaseSelectionPeriod,
   kind: v.literal("inactive"),
+  scheduledOpenFunctionId: v.optional(v.id("_scheduled_functions")),
 })
 
 /**
@@ -95,6 +96,7 @@ export const makeInactive = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly scheduledOpenFunctionId?: Id<"_scheduled_functions">
 }): InactivePeriod => ({
   semesterId: params.semesterId,
   title: params.title,
@@ -102,6 +104,7 @@ export const makeInactive = (params: {
   openDate: params.openDate,
   closeDate: params.closeDate,
   kind: "inactive" as const,
+  scheduledOpenFunctionId: params.scheduledOpenFunctionId,
 })
 
 /**

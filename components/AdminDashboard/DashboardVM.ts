@@ -146,14 +146,16 @@ export interface DashboardVM {
 
   // Raw data for child components that need full objects
   readonly topicAnalytics: readonly unknown[] | undefined
+  readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 }
 
 export interface SelectionPeriodFormValues {
   readonly title: string
   readonly selection_period_id: string
   readonly start_deadline: Date
+
   readonly end_deadline: Date
-  readonly isActive: boolean
+  readonly questionIds: string[]
 }
 
 export interface TopicFormValues {
@@ -168,7 +170,6 @@ export interface PeriodFormData {
   readonly semesterId: string
   readonly openDate: Date
   readonly closeDate: Date
-  readonly setAsActive?: boolean
 }
 
 export interface TopicFormData {
@@ -346,6 +347,12 @@ export function useDashboardVM(): DashboardVM {
     })
   })
 
+  // Computed: existing question IDs for the currently editing period (if any)
+  const existingQuestionIds$ = computed((): readonly string[] => {
+    const existingQuestionsData = dataSignals.existingQuestionsData$.value
+    return (existingQuestionsData ?? []).map((sq) => sq.questionId)
+  })
+
   // Computed: periods list for table
   const periods$ = computed((): Loadable.Loadable<readonly PeriodItemVM[]> => {
     if (periodsData === undefined) {
@@ -521,7 +528,6 @@ export function useDashboardVM(): DashboardVM {
       semesterId: data.semesterId,
       openDate: data.openDate.getTime(),
       closeDate: data.closeDate.getTime(),
-      setAsActive: data.setAsActive
     }).catch(console.error)
   }
 
@@ -644,7 +650,6 @@ export function useDashboardVM(): DashboardVM {
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
-      setActivePeriod: setActivePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
     })
@@ -728,7 +733,6 @@ export function useDashboardVM(): DashboardVM {
         semesterId: data.semesterId,
         openDate: data.openDate.getTime(),
         closeDate: data.closeDate.getTime(),
-        setAsActive: data.setAsActive
       }).catch(console.error)
     }
 
@@ -795,9 +799,32 @@ export function useDashboardVM(): DashboardVM {
           updatePeriodMutation({
             periodId: editingPeriod._id,
             title: values.title,
-            description: values.title,
             openDate: values.start_deadline.getTime(),
             closeDate: values.end_deadline.getTime()
+          }).then(() => {
+            // Sync questions: remove those not in new selection, add new ones
+            const newQuestionIds = new Set(values.questionIds)
+            const oldQuestionIds = new Set(existingQuestionIds$.value)
+
+            const removePromises = existingQuestionIds$.value
+              .filter(qId => !newQuestionIds.has(qId))
+              .map(qId =>
+                removeQuestionMutation({
+                  selectionPeriodId: editingPeriod._id,
+                  questionId: qId as Id<"questions">,
+                })
+              )
+
+            const addPromises = values.questionIds
+              .filter(qId => !oldQuestionIds.has(qId as Id<"questions">))
+              .map(qId =>
+                addQuestionMutation({
+                  selectionPeriodId: editingPeriod._id,
+                  questionId: qId as Id<"questions">,
+                })
+              )
+
+            return Promise.all([...removePromises, ...addPromises])
           }).then(() => {
             editPeriodDialogOpen$.value = false
             editingPeriod$.value = Option.none()
@@ -866,8 +893,9 @@ export function useDashboardVM(): DashboardVM {
 
       // Raw data
       topicAnalytics: topicAnalyticsData,
+      existingQuestionIds$: existingQuestionIds$,
     }
   }
 
-  return vm.current
+  return vm.current as DashboardVM
 }
