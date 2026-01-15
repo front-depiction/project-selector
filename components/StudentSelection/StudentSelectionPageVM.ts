@@ -258,11 +258,11 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
 
   const selectionProgress$ = computed((): SelectionProgressVM => {
     const selectedCount = selectedTopicIds$.value.length
-    const maxSelections = 5
     const availableTopics = topics$.value.length
+    const maxSelections = availableTopics
 
     const progressPercentage = availableTopics > 0
-      ? (selectedCount / Math.min(maxSelections, availableTopics)) * 100
+      ? (selectedCount / maxSelections) * 100
       : 0
 
     return {
