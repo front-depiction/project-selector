@@ -20,6 +20,10 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## CP-SAT Assignment Solver
+
+This project integrates with a CP-SAT based assignment algorithm for optimal student-to-topic matching. See [CP_SAT_SETUP.md](./CP_SAT_SETUP.md) for setup instructions.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
