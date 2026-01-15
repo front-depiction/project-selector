@@ -34,6 +34,8 @@ import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentA
 import type { PeriodsViewVM } from "./PeriodsViewVM"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useSignals } from "@preact/signals-react/runtime"
+import { useQuery } from "convex/react"
+import { api } from "@/convex/_generated/api"
 
 // ============================================================================
 // PERIODS VIEW - Clean table-based layout using View Model
@@ -41,7 +43,17 @@ import { useSignals } from "@preact/signals-react/runtime"
 
 export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
   useSignals()
-  
+
+  // Fetch existing questions for the period being edited
+  const existingQuestionsForEdit = useQuery(
+    api.selectionQuestions.getQuestionsForPeriod,
+    Option.isSome(vm.editDialog.editingPeriod$.value)
+      ? { selectionPeriodId: vm.editDialog.editingPeriod$.value.value._id }
+      : "skip"
+  )
+
+  console.log('[PeriodsView] existingQuestionsForEdit:', existingQuestionsForEdit)
+
   // Local state for managing access codes dialog
   const [accessCodesDialogOpen, setAccessCodesDialogOpen] = React.useState(false)
   const [selectedPeriodForCodes, setSelectedPeriodForCodes] = React.useState<{
@@ -82,9 +94,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     <TableRow>
                       <TableHead>Student</TableHead>
                       <TableHead>Assigned Topic</TableHead>
-                      <TableHead>Preference Match</TableHead>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Preference Match</TableHead>
+                      <TableHead className="text-center">Rank</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -92,7 +104,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                       <TableRow key={assignment.key}>
                         <TableCell className="font-medium">{assignment.studentId}</TableCell>
                         <TableCell>{assignment.topicTitle}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           {assignment.isMatched ? (
                             <Badge variant="outline" className="text-green-600 border-green-600">
                               ✓ Matched
@@ -103,12 +115,12 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge variant={assignment.rankBadgeVariant}>
                             #{assignment.preferenceRank}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <Badge className="bg-purple-600 text-white">
                             {assignment.statusDisplay}
                           </Badge>
@@ -149,10 +161,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Open Date</TableHead>
-                <TableHead>Close Date</TableHead>
-                <TableHead>Students</TableHead>
+                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">Open Date</TableHead>
+                <TableHead className="text-center">Close Date</TableHead>
+                <TableHead className="text-center">Students</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -160,14 +172,14 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               {vm.periods$.value.map((period) => (
                 <TableRow key={period.key}>
                   <TableCell className="font-medium">{period.title}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <Badge className={period.statusColor}>
                       {period.statusDisplay}
                     </Badge>
                   </TableCell>
-                  <TableCell>{period.openDateDisplay}</TableCell>
-                  <TableCell>{period.closeDateDisplay}</TableCell>
-                  <TableCell>{period.studentCountDisplay}</TableCell>
+                  <TableCell className="text-center">{period.openDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.closeDateDisplay}</TableCell>
+                  <TableCell className="text-center">{period.studentCountDisplay}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -184,12 +196,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                           <Key className="mr-2 h-4 w-4" />
                           Manage Access Codes
                         </DropdownMenuItem>
-                        {period.canSetActive && (
-                          <DropdownMenuItem onClick={period.onSetActive}>
-                            <Power className="mr-2 h-4 w-4" />
-                            Set Active
-                          </DropdownMenuItem>
-                        )}
+
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600"
@@ -250,21 +257,87 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               Update the details of this project assignment.
             </DialogDescription>
           </DialogHeader>
-          {Option.isSome(vm.editDialog.editingPeriod$.value) && (
-            <SelectionPeriodForm
-              questions={vm.questions$.value}
-              templates={vm.templates$.value}
-              initialValues={{
-                title: vm.editDialog.editingPeriod$.value.value.title,
-                selection_period_id: vm.editDialog.editingPeriod$.value.value.semesterId,
-                start_deadline: new Date(vm.editDialog.editingPeriod$.value.value.openDate),
-                end_deadline: new Date(vm.editDialog.editingPeriod$.value.value.closeDate),
-                isActive: vm.editDialog.editingPeriod$.value.value.kind === "open",
-                questionIds: [...vm.existingQuestionIds$.value],
-              }}
-              onSubmit={vm.onEditSubmit}
-            />
-          )}
+          {Option.isSome(vm.editDialog.editingPeriod$.value) && (() => {
+            if (existingQuestionsForEdit === undefined) {
+              return (
+                <div className="flex h-40 items-center justify-center">
+                  <div className="text-muted-foreground">Loading questions...</div>
+                </div>
+              )
+            }
+            const editingPeriod = vm.editDialog.editingPeriod$.value.value
+            const existingQuestionIds = (existingQuestionsForEdit ?? []).map(sq => sq.questionId)
+            console.log('[PeriodsView] Rendering edit form with existingQuestionIds:', existingQuestionIds)
+
+            // Create a wrapper submit handler that performs question sync with correct old IDs
+            const handleSubmit = async (values: any) => {
+              console.log('[PeriodsView] handleSubmit called with:', { values, existingQuestionIds })
+
+              // Update the period
+              await vm.updatePeriod({
+                periodId: editingPeriod._id,
+                title: values.title,
+                description: values.description,
+                openDate: values.start_deadline.getTime(),
+                closeDate: values.end_deadline.getTime(),
+              })
+              console.log('[PeriodsView] Update payload:', {
+                title: values.title,
+                openDate: values.start_deadline.getTime(),
+                closeDate: values.end_deadline.getTime(),
+                now: Date.now()
+              })
+
+              // Sync questions using the correct existing question IDs
+              const newQuestionIds = new Set(values.questionIds)
+              const oldQuestionIds = new Set(existingQuestionIds)
+
+              console.log('[PeriodsView] Syncing questions:', {
+                new: Array.from(newQuestionIds),
+                old: Array.from(oldQuestionIds)
+              })
+
+              const removePromises = existingQuestionIds
+                .filter((qId: string) => !newQuestionIds.has(qId))
+                .map((qId: string) => {
+                  console.log('[PeriodsView] Removing question:', qId)
+                  return vm.removeQuestion({
+                    selectionPeriodId: editingPeriod._id,
+                    questionId: qId as any,
+                  })
+                })
+
+              const addPromises = values.questionIds
+                .filter((qId: string) => !oldQuestionIds.has(qId as any))
+                .map((qId: string) => {
+                  console.log('[PeriodsView] Adding question:', qId)
+                  return vm.addQuestion({
+                    selectionPeriodId: editingPeriod._id,
+                    questionId: qId as any,
+                  })
+                })
+
+              await Promise.all([...removePromises, ...addPromises])
+
+              // Close the dialog
+              vm.editDialog.close()
+            }
+
+            return (
+              <SelectionPeriodForm
+                questions={vm.questions$.value}
+                templates={vm.templates$.value}
+                initialValues={{
+                  title: editingPeriod.title,
+                  selection_period_id: editingPeriod.semesterId,
+                  start_deadline: new Date(editingPeriod.openDate),
+                  end_deadline: new Date(editingPeriod.closeDate),
+                  questionIds: existingQuestionIds,
+                }}
+                onSubmit={handleSubmit}
+              />
+            )
+          })()}
         </DialogContent>
       </Dialog>
 

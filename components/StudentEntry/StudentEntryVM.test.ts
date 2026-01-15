@@ -40,21 +40,29 @@ Object.defineProperty(globalThis, "localStorage", {
 
 describe("StudentEntryVM", () => {
   let onCompleteMock: ReturnType<typeof vi.fn>
+  let validateCodeMock: ReturnType<typeof vi.fn>
+
+  // Helper to create VM with default mocks
+  const createTestVM = () => createStudentEntryVM({
+    onComplete: onCompleteMock,
+    validateCode: validateCodeMock
+  })
 
   beforeEach(() => {
     localStorageMock.clear()
     onCompleteMock = vi.fn()
+    validateCodeMock = vi.fn().mockResolvedValue({ valid: true })
   })
 
   describe("value$ signal", () => {
     it("should start with empty value", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       expect(vm.value$.value).toBe("")
     })
 
     it("should update value when setValue is called", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC123")
 
@@ -62,7 +70,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should filter out special characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("AB!@C#12")
 
@@ -70,7 +78,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should convert lowercase to uppercase", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("abc123")
 
@@ -78,7 +86,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should limit input to 6 characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABCD12345")
 
@@ -89,13 +97,13 @@ describe("StudentEntryVM", () => {
 
   describe("isComplete$ computed", () => {
     it("should be false when value is empty", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       expect(vm.isComplete$.value).toBe(false)
     })
 
     it("should be false when value has less than 6 characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
 
@@ -103,7 +111,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should be true when value has exactly 6 characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC123")
 
@@ -111,7 +119,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should update reactively when value changes", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       expect(vm.isComplete$.value).toBe(false)
 
@@ -125,7 +133,7 @@ describe("StudentEntryVM", () => {
 
   describe("charSlots$ computed", () => {
     it("should return 6 character slots", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       const slots = vm.charSlots$.value
 
@@ -133,7 +141,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should have correct indices", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       const slots = vm.charSlots$.value
 
@@ -143,7 +151,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should have unique keys", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       const slots = vm.charSlots$.value
       const keys = slots.map((s) => s.key)
@@ -153,7 +161,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should have predictable key format", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       const slots = vm.charSlots$.value
 
@@ -165,13 +173,13 @@ describe("StudentEntryVM", () => {
 
   describe("errorMessage$ signal", () => {
     it("should start with no error", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       expect(Option.isNone(vm.errorMessage$.value)).toBe(true)
     })
 
     it("should show error when input exceeds 6 characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABCD1234")
 
@@ -180,7 +188,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should clear error when input is valid", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABCD1234") // Error
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
@@ -190,7 +198,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should show error when handleCharInput receives special characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("!@#")
 
@@ -199,7 +207,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should clear error after handleBackspace", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABCD1234") // Error
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
@@ -211,7 +219,7 @@ describe("StudentEntryVM", () => {
 
   describe("handleCharInput action", () => {
     it("should accept alphanumeric input", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("ABC")
 
@@ -220,7 +228,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should reject special character input", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("!@#")
 
@@ -230,7 +238,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should reject mixed input with special characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("AB!@#CD")
 
@@ -240,7 +248,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should allow empty input", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC")
       vm.handleCharInput("")
@@ -250,7 +258,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should auto-complete when 6 characters entered", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("ABC123")
 
@@ -262,7 +270,7 @@ describe("StudentEntryVM", () => {
 
   describe("handleBackspace action", () => {
     it("should remove last character", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
       vm.handleBackspace()
@@ -271,7 +279,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should do nothing when value is empty", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleBackspace()
 
@@ -279,7 +287,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should clear error message", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABCD1234") // Triggers error
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
@@ -290,7 +298,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should work multiple times", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
 
@@ -305,7 +313,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle backspace until empty", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("AB")
 
@@ -321,68 +329,111 @@ describe("StudentEntryVM", () => {
   })
 
   describe("handleComplete action", () => {
-    it("should save to localStorage when complete", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+    it("should save to localStorage when complete", async () => {
+      const vm = createTestVM()
 
       vm.setValue("ABC123")
-      vm.handleComplete()
+      await vm.handleComplete()
 
       expect(localStorageMock.getItem("studentId")).toBe("ABC123")
     })
 
-    it("should call onComplete callback with access code", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+    it("should call onComplete callback with access code", async () => {
+      const vm = createTestVM()
 
       // setValue with 6 characters triggers auto-complete (1st call)
       vm.setValue("ABC123")
+      // Wait for async validation in auto-complete
+      await new Promise(resolve => setTimeout(resolve, 0))
+
       expect(onCompleteMock).toHaveBeenCalledTimes(1)
 
       // Calling handleComplete explicitly triggers it again (2nd call)
-      vm.handleComplete()
+      await vm.handleComplete()
 
       expect(onCompleteMock).toHaveBeenCalledWith("ABC123")
       expect(onCompleteMock).toHaveBeenCalledTimes(2)
     })
 
-    it("should not complete when length is less than 6", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+    it("should validate code with backend", async () => {
+      const vm = createTestVM()
 
-      vm.setValue("ABC12")
-      vm.handleComplete()
+      await vm.handleComplete() // Empty
+      expect(validateCodeMock).not.toHaveBeenCalled()
+
+      vm.setValue("ABC123")
+      await vm.handleComplete()
+
+      expect(validateCodeMock).toHaveBeenCalledWith("ABC123")
+    })
+
+    it("should set error when validation fails", async () => {
+      const vm = createTestVM()
+      validateCodeMock.mockResolvedValueOnce({ valid: false, error: "Code not found" })
+
+      vm.setValue("ABC123")
+      await vm.handleComplete()
 
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
-      expect(vm.errorMessage$.value).toEqual(Option.some("Access code must be exactly 6 characters"))
+      expect(vm.errorMessage$.value).toEqual(Option.some("Code not found"))
       expect(onCompleteMock).not.toHaveBeenCalled()
       expect(localStorageMock.getItem("studentId")).toBeNull()
     })
 
-    it("should not complete when value is empty", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+    it("should not complete when length is less than 6", async () => {
+      const vm = createTestVM()
 
-      vm.handleComplete()
+      vm.setValue("ABC12")
+      await vm.handleComplete()
+
+      expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
+      expect(vm.errorMessage$.value).toEqual(Option.some("Access code must be exactly 6 characters"))
+      expect(validateCodeMock).not.toHaveBeenCalled()
+    })
+
+    it("should not complete when value is empty", async () => {
+      const vm = createTestVM()
+
+      await vm.handleComplete()
 
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
       expect(vm.errorMessage$.value).toEqual(Option.some("Access code must be exactly 6 characters"))
       expect(onCompleteMock).not.toHaveBeenCalled()
     })
 
-    it("should clear error message when successful", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+    it("should clear error message when successful", async () => {
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
-      vm.handleComplete()
+      await vm.handleComplete()
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
 
       vm.setValue("ABC123")
-      vm.handleComplete()
+      await vm.handleComplete()
 
       expect(Option.isNone(vm.errorMessage$.value)).toBe(true)
+    })
+
+    it("should set isValidating state during request", async () => {
+      const vm = createTestVM()
+
+      // Delay resolution
+      validateCodeMock.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ valid: true }), 10)))
+
+      vm.setValue("ABC123")
+      const promise = vm.handleComplete()
+
+      expect(vm.isValidating$.value).toBe(true)
+
+      await promise
+
+      expect(vm.isValidating$.value).toBe(false)
     })
   })
 
   describe("integration scenarios", () => {
     it("should handle complete input flow", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       // Start typing
       vm.handleCharInput("A")
@@ -405,7 +456,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle input, error, and correction", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       // Type too many characters
       vm.setValue("ABCD12345")
@@ -420,7 +471,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle backspace during typing", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
       vm.handleBackspace()
@@ -434,7 +485,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should auto-complete on 6th character entry", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC12")
       expect(onCompleteMock).not.toHaveBeenCalled()
@@ -445,7 +496,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should reject special characters during input", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleCharInput("ABC")
       expect(vm.value$.value).toBe("ABC")
@@ -457,7 +508,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle rapid input changes", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("A")
       vm.setValue("AB")
@@ -477,7 +528,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle complete, clear, and re-enter flow", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       // First entry
       vm.setValue("ABC123")
@@ -495,7 +546,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should validate character slots remain constant", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       const slots1 = vm.charSlots$.value
       vm.setValue("ABC")
@@ -514,7 +565,7 @@ describe("StudentEntryVM", () => {
 
   describe("edge cases", () => {
     it("should handle setValue with special characters", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("!@#$%^&*")
 
@@ -522,7 +573,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle setValue with spaces", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("A B C 1 2 3")
 
@@ -530,7 +581,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle lowercase to uppercase conversion", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("abc123")
 
@@ -538,7 +589,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should handle multiple sequential backspaces", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC123")
 
@@ -550,7 +601,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should not save incomplete code to localStorage", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.setValue("ABC")
       vm.handleComplete()
@@ -559,7 +610,7 @@ describe("StudentEntryVM", () => {
     })
 
     it("should overwrite previous localStorage value", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       localStorageMock.setItem("studentId", "OLD123")
 
@@ -572,14 +623,14 @@ describe("StudentEntryVM", () => {
 
   describe("legacy aliases", () => {
     it("digitSlots$ should alias charSlots$", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       expect(vm.digitSlots$).toBe(vm.charSlots$)
       expect(vm.digitSlots$.value).toEqual(vm.charSlots$.value)
     })
 
     it("handleDigitInput should alias handleCharInput", () => {
-      const vm = createStudentEntryVM({ onComplete: onCompleteMock })
+      const vm = createTestVM()
 
       vm.handleDigitInput("ABC")
       expect(vm.value$.value).toBe("ABC")

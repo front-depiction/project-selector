@@ -30,6 +30,9 @@ export interface StudentEntryVM {
   /** Validation error message */
   readonly errorMessage$: ReadonlySignal<Option.Option<string>>
 
+  /** Validating state */
+  readonly isValidating$: ReadonlySignal<boolean>
+
   /** Update the input value (validates alphanumeric only) */
   readonly setValue: (value: string) => void
 
@@ -40,7 +43,7 @@ export interface StudentEntryVM {
   readonly handleBackspace: () => void
 
   /** Handle completion (save and navigate) */
-  readonly handleComplete: () => void
+  readonly handleComplete: () => Promise<void>
 
   // Legacy aliases for compatibility
   readonly digitSlots$: ReadonlySignal<readonly CharSlotVM[]>
@@ -54,6 +57,8 @@ export interface StudentEntryVM {
 export interface StudentEntryVMDeps {
   /** Callback to execute when access code entry is complete */
   readonly onComplete: (accessCode: string) => void
+  /** Async validation function */
+  readonly validateCode: (code: string) => Promise<{ valid: boolean; error?: string }>
 }
 
 // ============================================================================
@@ -61,11 +66,12 @@ export interface StudentEntryVMDeps {
 // ============================================================================
 
 export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
-  const { onComplete } = deps
+  const { onComplete, validateCode } = deps
 
   // State signals - created once in the factory
   const value$ = signal("")
   const errorMessage$ = signal<Option.Option<string>>(Option.none())
+  const isValidating$ = signal(false)
 
   // Computed: Check if entry is complete
   const isComplete$ = computed(() => {
@@ -82,7 +88,7 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
   })
 
   // Action: Handle completion
-  const handleComplete = (): void => {
+  const handleComplete = async (): Promise<void> => {
     const currentValue = value$.value.toUpperCase()
 
     if (currentValue.length !== ACCESS_CODE_LENGTH) {
@@ -95,13 +101,29 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
       return
     }
 
+    // Start validation
+    isValidating$.value = true
     errorMessage$.value = Option.none()
 
-    // Save to localStorage (uppercase normalized)
-    localStorage.setItem("studentId", currentValue)
+    try {
+      const result = await validateCode(currentValue)
 
-    // Execute callback
-    onComplete(currentValue)
+      if (!result.valid) {
+        errorMessage$.value = Option.some(result.error ?? "Invalid access code")
+        return
+      }
+
+      // Save to localStorage (uppercase normalized)
+      localStorage.setItem("studentId", currentValue)
+
+      // Execute callback
+      onComplete(currentValue)
+    } catch (err) {
+      console.error("Validation failed", err)
+      errorMessage$.value = Option.some("Failed to validate code. Please try again.")
+    } finally {
+      isValidating$.value = false
+    }
   }
 
   // Action: Set value with alphanumeric validation
@@ -154,6 +176,7 @@ export function createStudentEntryVM(deps: StudentEntryVMDeps): StudentEntryVM {
     isComplete$,
     charSlots$,
     errorMessage$,
+    isValidating$,
     setValue,
     handleCharInput,
     handleBackspace,

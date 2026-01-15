@@ -13,9 +13,20 @@ export const getQuestionsForPeriod = query({
     // Sort by order
     selectionQuestions.sort((a, b) => a.order - b.order)
 
-    // Fetch full question data for each
+    // Deduplicate questions to prevent incorrect counts
+    const uniqueQuestions: typeof selectionQuestions = []
+    const seenIds = new Set<string>()
+
+    for (const sq of selectionQuestions) {
+      if (!seenIds.has(sq.questionId)) {
+        seenIds.add(sq.questionId)
+        uniqueQuestions.push(sq)
+      }
+    }
+
+    // Fetch full question data for each unique question
     const questionsWithData = await Promise.all(
-      selectionQuestions.map(async (sq) => {
+      uniqueQuestions.map(async (sq) => {
         const question = await ctx.db.get(sq.questionId)
         return {
           ...sq,

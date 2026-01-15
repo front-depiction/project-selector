@@ -11,7 +11,7 @@ export const getAnswers = query({
     return await ctx.db.query("studentAnswers")
       .withIndex("by_student_period", q =>
         q.eq("studentId", args.studentId)
-         .eq("selectionPeriodId", args.selectionPeriodId)
+          .eq("selectionPeriodId", args.selectionPeriodId)
       )
       .collect()
   }
@@ -36,7 +36,7 @@ export const hasCompletedQuestionnaire = query({
     const answers = await ctx.db.query("studentAnswers")
       .withIndex("by_student_period", q =>
         q.eq("studentId", args.studentId)
-         .eq("selectionPeriodId", args.selectionPeriodId)
+          .eq("selectionPeriodId", args.selectionPeriodId)
       )
       .collect()
 
@@ -97,7 +97,7 @@ export const saveAnswersAsTeacher = mutation({
     if (!identity) {
       throw new Error("Must be authenticated as a teacher to submit on behalf of students")
     }
-    
+
     const teacherEmail = identity.email ?? "unknown"
     const submittedAt = Date.now()
 
@@ -114,7 +114,7 @@ export const saveAnswersAsTeacher = mutation({
 
       // Note: We're storing proxy info in the answer itself
       // The answeredAt timestamp is set by the make functions
-      
+
       if (existing) {
         await ctx.db.patch(existing._id, baseData)
       } else {
@@ -169,7 +169,7 @@ export const getIncompleteStudents = query({
 
     // Find students with incomplete answers
     const incompleteStudents: Array<{ studentId: string; answeredCount: number; totalCount: number }> = []
-    
+
     for (const [studentId, answeredQuestions] of studentAnswerCounts) {
       if (answeredQuestions.size < requiredCount) {
         incompleteStudents.push({
@@ -245,7 +245,7 @@ export const getAllStudentsWithCompletionStatus = query({
 
     // Build result array with all students
     const result: Array<{ studentId: string; isCompleted: boolean; answeredCount: number; totalCount: number }> = []
-    
+
     for (const studentId of studentIds) {
       const answeredQuestions = studentAnswerCounts.get(studentId) || new Set()
       const answeredCount = answeredQuestions.size
@@ -261,6 +261,106 @@ export const getAllStudentsWithCompletionStatus = query({
 
     // Sort by studentId for consistent ordering
     return result.sort((a, b) => a.studentId.localeCompare(b.studentId))
+  }
+})
+
+/**
+ * Get all students with their completion status for ALL selection periods.
+ * Grouped by period.
+ */
+export const getAllPeriodsStudentsWithCompletionStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Get all selection periods
+    const periods = await ctx.db.query("selectionPeriods").collect()
+
+    // 2. For each period, calculate student stats
+    // Note: This could be optimized but works for moderate scale
+    const results = await Promise.all(periods.map(async (period) => {
+      // Get all questions for this period
+      const periodQuestions = await ctx.db
+        .query("selectionQuestions")
+        .withIndex("by_selection_period", q => q.eq("selectionPeriodId", period._id))
+        .collect()
+
+      const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+      const requiredCount = questionIds.size
+
+      // Get all unique student IDs from periodStudentAllowList for this period
+      const periodAllowListEntries = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period", q => q.eq("selectionPeriodId", period._id))
+        .collect()
+
+      const studentIds = new Set<string>()
+      for (const entry of periodAllowListEntries) {
+        studentIds.add(entry.studentId)
+      }
+
+      // If no students, return early with empty list
+      if (studentIds.size === 0) {
+        return {
+          period,
+          students: []
+        }
+      }
+
+      // If no questions, all students are "complete"
+      if (periodQuestions.length === 0) {
+        return {
+          period,
+          students: Array.from(studentIds).sort().map(studentId => ({
+            studentId,
+            isCompleted: true,
+            answeredCount: 0,
+            totalCount: 0
+          }))
+        }
+      }
+
+      // Get all answers for this period
+      const allAnswers = await ctx.db.query("studentAnswers")
+        .filter(q => q.eq(q.field("selectionPeriodId"), period._id))
+        .collect()
+
+      // Group answers by student
+      const studentAnswerCounts = new Map<string, Set<string>>()
+      for (const answer of allAnswers) {
+        if (!studentAnswerCounts.has(answer.studentId)) {
+          studentAnswerCounts.set(answer.studentId, new Set())
+        }
+        if (questionIds.has(answer.questionId)) {
+          studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+        }
+      }
+
+      // Build result array with all students
+      const students: Array<{ studentId: string; isCompleted: boolean; answeredCount: number; totalCount: number }> = []
+
+      for (const studentId of studentIds) {
+        const answeredQuestions = studentAnswerCounts.get(studentId) || new Set()
+        const answeredCount = answeredQuestions.size
+        const isCompleted = answeredCount >= requiredCount
+
+        students.push({
+          studentId,
+          isCompleted,
+          answeredCount,
+          totalCount: requiredCount
+        })
+      }
+
+      // Sort by studentId for consistent ordering
+      students.sort((a, b) => a.studentId.localeCompare(b.studentId))
+
+      return {
+        period,
+        students
+      }
+    }))
+
+    // Sort periods by close date (most recent first)
+    return results.sort((a, b) => (b.period.closeDate || 0) - (a.period.closeDate || 0))
   }
 })
 
@@ -300,7 +400,7 @@ export const getStudentAnswersForTeacher = query({
     const answers = await ctx.db.query("studentAnswers")
       .withIndex("by_student_period", q =>
         q.eq("studentId", args.studentId)
-         .eq("selectionPeriodId", args.selectionPeriodId)
+          .eq("selectionPeriodId", args.selectionPeriodId)
       )
       .collect()
 
@@ -357,7 +457,7 @@ export const getCategoryAveragedScores = query({
     const answers = await ctx.db.query("studentAnswers")
       .withIndex("by_student_period", q =>
         q.eq("studentId", args.studentId)
-         .eq("selectionPeriodId", args.selectionPeriodId)
+          .eq("selectionPeriodId", args.selectionPeriodId)
       )
       .collect()
 
@@ -366,11 +466,11 @@ export const getCategoryAveragedScores = query({
 
     // Group answers by category and compute averages
     const categoryScores = new Map<string, number[]>()
-    
+
     for (const q of questionsWithDetails) {
       const normalizedAnswer = answerMap.get(q.questionId as string)
       if (normalizedAnswer === undefined) continue // Skip unanswered questions
-      
+
       const category = q.category ?? "uncategorized"
       const existing = categoryScores.get(category) ?? []
       categoryScores.set(category, [...existing, normalizedAnswer])

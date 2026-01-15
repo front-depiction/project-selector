@@ -39,9 +39,7 @@ export interface PeriodRowVM {
   readonly closeDateDisplay: string
   readonly studentCountDisplay: string
   readonly onEdit: () => void
-  readonly onSetActive: () => void
   readonly onDelete: () => void
-  readonly canSetActive: boolean
 }
 
 /**
@@ -99,6 +97,11 @@ export interface PeriodsViewVM {
 
   /** Finish creation flow and close dialog */
   readonly finishCreation: () => void
+
+  /** Exposed mutations for manual question sync */
+  readonly updatePeriod: PeriodsViewVMDeps["updatePeriod"]
+  readonly addQuestion: PeriodsViewVMDeps["addQuestion"]
+  readonly removeQuestion: PeriodsViewVMDeps["removeQuestion"]
 }
 
 // ============================================================================
@@ -131,7 +134,6 @@ export interface PeriodsViewVMDeps {
     semesterId: string
     openDate: number
     closeDate: number
-    setAsActive?: boolean
   }) => Promise<{ periodId: Id<"selectionPeriods"> }>
 
   /** Mutation to update a period */
@@ -146,8 +148,6 @@ export interface PeriodsViewVMDeps {
   /** Mutation to delete a period */
   readonly deletePeriod: (args: { periodId: Id<"selectionPeriods"> }) => Promise<any>
 
-  /** Mutation to set active period */
-  readonly setActivePeriod: (args: { periodId: Id<"selectionPeriods"> }) => Promise<any>
 
   /** Mutation to add question to period */
   readonly addQuestion: (args: {
@@ -222,10 +222,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
     return periodsData.map((period: any): PeriodRowVM => {
       const statusDisplay = SelectionPeriod.match(period)({
-        open: () => "open",
-        inactive: () => "inactive",
-        closed: () => "closed",
-        assigned: () => "assigned",
+        open: () => "Open",
+        inactive: () => "Inactive",
+        closed: () => "Closed",
+        assigned: () => "Assigned",
       })
 
       const statusColor = SelectionPeriod.match(period)({
@@ -233,13 +233,6 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         inactive: () => "bg-blue-600 text-white",
         closed: () => "bg-red-600 text-white",
         assigned: () => "bg-purple-600 text-white",
-      })
-
-      const canSetActive = SelectionPeriod.match(period)({
-        open: () => false,
-        inactive: () => true,
-        closed: () => true,
-        assigned: () => true,
       })
 
       return {
@@ -256,17 +249,11 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
             editDialogOpen$.value = true
           })
         },
-        onSetActive: () => {
-          if (period._id && canSetActive) {
-            deps.setActivePeriod({ periodId: period._id }).catch(console.error)
-          }
-        },
         onDelete: () => {
           if (period._id) {
             deps.deletePeriod({ periodId: period._id }).catch(console.error)
           }
         },
-        canSetActive,
       }
     })
   })
@@ -295,7 +282,13 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   // Computed: existing question IDs
   const existingQuestionIds$ = computed((): readonly string[] => {
     const existingQuestionsData = deps.existingQuestionsData$.value
-    return (existingQuestionsData ?? []).map((sq) => sq.questionId)
+    const ids = (existingQuestionsData ?? []).map((sq) => sq.questionId)
+    console.log('[PeriodsViewVM] existingQuestionIds$ computed:', {
+      existingQuestionsData,
+      ids,
+      length: ids.length
+    })
+    return ids
   })
 
   // Create dialog
@@ -352,7 +345,6 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       semesterId: values.selection_period_id,
       openDate: values.start_deadline.getTime(),
       closeDate: values.end_deadline.getTime(),
-      setAsActive: values.isActive,
     })
       .then((result) => {
         createdPeriodId = result.periodId
@@ -377,7 +369,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
   const onEditSubmit = (values: SelectionPeriodFormValues): void => {
     Option.match(editingPeriod$.value, {
-      onNone: () => {},
+      onNone: () => { },
       onSome: (editingPeriodValue) => {
         if (!editingPeriodValue._id) return
 
@@ -435,6 +427,9 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     onCreateSubmit,
     onEditSubmit,
     finishCreation,
+    updatePeriod: deps.updatePeriod,
+    addQuestion: deps.addQuestion,
+    removeQuestion: deps.removeQuestion,
   }
 }
 

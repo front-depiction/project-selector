@@ -52,7 +52,7 @@ export const generateStudentAccessCodes = mutation({
       .query("periodStudentAllowList")
       .withIndex("by_period", (q) => q.eq("selectionPeriodId", args.selectionPeriodId))
       .collect()
-    
+
     const existingCodes = new Set(existingEntries.map(e => e.studentId))
     const generatedCodes: string[] = []
 
@@ -117,7 +117,7 @@ export const validateAccessCode = query({
   args: { code: v.string() },
   handler: async (ctx, args) => {
     const normalized = args.code.toUpperCase().trim()
-    
+
     // Check format: 6 characters, alphanumeric
     if (!/^[A-Z0-9]{6}$/.test(normalized)) {
       return { valid: false, error: "Code must be 6 alphanumeric characters" }
@@ -170,9 +170,9 @@ export const removeStudentCode = mutation({
 
     const entry = await ctx.db
       .query("periodStudentAllowList")
-      .withIndex("by_period_studentId", (q) => 
+      .withIndex("by_period_studentId", (q) =>
         q.eq("selectionPeriodId", args.selectionPeriodId)
-         .eq("studentId", normalized)
+          .eq("studentId", normalized)
       )
       .first()
 
@@ -228,19 +228,19 @@ export async function isStudentAllowedForTopic(
   studentId: string
 ): Promise<boolean> {
   const normalized = studentId.trim().toUpperCase()
-  
+
   // Get the topic to find its semester
   const topic = await ctx.db.get(topicId)
   if (!topic) return false
-  
+
   // Find all periods for this semester (not just active ones, to support closed periods too)
   const periods = await ctx.db
     .query("selectionPeriods")
     .withIndex("by_semester", (q) => q.eq("semesterId", topic.semesterId))
     .collect()
-  
+
   if (periods.length === 0) return false
-  
+
   // Check if student has access via any period-level allow list for this semester
   for (const period of periods) {
     const periodEntry = await ctx.db
@@ -249,10 +249,10 @@ export async function isStudentAllowedForTopic(
         q.eq("selectionPeriodId", period._id).eq("studentId", normalized)
       )
       .first()
-    
+
     if (periodEntry !== null) return true
   }
-  
+
   return false
 }
 

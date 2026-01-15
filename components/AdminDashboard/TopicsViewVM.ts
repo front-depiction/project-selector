@@ -30,6 +30,7 @@ export interface TopicGroupVM {
 export interface PeriodOptionVM {
   readonly value: string
   readonly label: string
+  readonly id?: string
 }
 
 export interface DialogVM {
@@ -150,13 +151,13 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const groupedTopics$ = computed((): readonly TopicGroupVM[] => {
     const topics = topicItems$.value
     const periods = periods$.value ?? []
-    
+
     // Create a map of semesterId -> period title
     const periodMap = new Map<string, string>()
     for (const period of periods) {
       periodMap.set(period.semesterId, period.title)
     }
-    
+
     // Group topics by semesterId
     const grouped = new Map<string, TopicItemVM[]>()
     for (const topic of topics) {
@@ -164,7 +165,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       existing.push(topic)
       grouped.set(topic.semesterId, existing)
     }
-    
+
     // Convert to array of groups, sorted by period title
     const groups: TopicGroupVM[] = []
     for (const [semesterId, topicList] of grouped.entries()) {
@@ -175,20 +176,32 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         topics: topicList,
       })
     }
-    
+
     // Sort groups by period title
     groups.sort((a, b) => a.periodTitle.localeCompare(b.periodTitle))
-    
+
     return groups
   })
 
-  // Computed: period options for form
-  const periodOptions$ = computed((): readonly PeriodOptionVM[] =>
-    (periods$.value ?? []).map((period: any): PeriodOptionVM => ({
-      value: period.semesterId,
-      label: period.title,
-    }))
-  )
+  // Computed: period options for form (deduplicated by semesterId)
+  const periodOptions$ = computed((): readonly PeriodOptionVM[] => {
+    const periods = periods$.value ?? []
+    const seenSemesterIds = new Set<string>()
+    const options: PeriodOptionVM[] = []
+
+    for (const period of periods) {
+      if (!seenSemesterIds.has(period.semesterId)) {
+        seenSemesterIds.add(period.semesterId)
+        options.push({
+          value: period.semesterId,
+          label: period.title,
+          id: period._id,
+        })
+      }
+    }
+
+    return options
+  })
 
   // Create topic dialog
   const createTopicDialog: DialogVM = {
@@ -234,7 +247,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   const onEditTopicSubmit = (values: TopicFormValues): void => {
     Option.match(editingTopic$.value, {
-      onNone: () => {},
+      onNone: () => { },
       onSome: (editing) => {
         updateTopic({
           id: editing.id,

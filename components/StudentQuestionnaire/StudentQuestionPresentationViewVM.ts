@@ -131,38 +131,63 @@ export function createStudentQuestionPresentationVM(
         newMap.set(answer.questionId, answer.rawAnswer.value)
       }
       answersMapSignal.value = newMap
+
+      // Auto-navigate to first unanswered question
+      const allQuestions = allQuestions$.value
+      const firstUnansweredIndex = allQuestions.findIndex(q => !newMap.has(q.questionId))
+
+      if (firstUnansweredIndex !== -1) {
+        currentIndexSignal.value = firstUnansweredIndex
+      } else if (allQuestions.length > 0) {
+        // All answered, go to last
+        currentIndexSignal.value = allQuestions.length - 1
+      }
     }
     initializedSignal.value = true
   })
 
-  // Computed: unanswered questions (for navigation) - based on PERSISTED answers only
+  // Computed: unanswered questions (for display count only)
   const unansweredQuestions$ = computed((): readonly QuestionVM[] => {
     const allQuestions = allQuestions$.value
-    const existingAnswers = existingAnswersData$.value
-    const persistedIds = new Set(existingAnswers?.map(a => a.questionId) ?? [])
-    return allQuestions.filter(q => !persistedIds.has(q.questionId))
+    const existing = existingAnswersData$.value || []
+    const local = answersMapSignal.value
+
+    // Check both backend and local state
+    const answeredIds = new Set(existing.map(a => a.questionId))
+    for (const id of local.keys()) {
+      answeredIds.add(id as Id<"questions">)
+    }
+
+    return allQuestions.filter(q => !answeredIds.has(q.questionId))
   })
 
   // Computed: total questions count (stable)
   const totalQuestions$ = computed(() => allQuestions$.value.length)
 
-  // Computed: answered count - based on PERSISTED answers only
-  const answeredCount$ = computed(() => {
-    const existingAnswers = existingAnswersData$.value
-    return existingAnswers?.length ?? 0
+  // Computed: answered count (Backend + Local)
+  const allAnsweredIds$ = computed(() => {
+    const existing = existingAnswersData$.value || []
+    const local = answersMapSignal.value
+    const ids = new Set(existing.map(a => a.questionId))
+    for (const id of local.keys()) {
+      ids.add(id as Id<"questions">)
+    }
+    return ids
   })
 
-  // Computed: remaining unanswered
-  const remainingCount$ = computed(() => unansweredQuestions$.value.length)
+  const answeredCount$ = computed(() => allAnsweredIds$.value.size)
 
-  // Computed: current question (from unanswered list)
+  // Computed: remaining unanswered
+  const remainingCount$ = computed(() => totalQuestions$.value - answeredCount$.value)
+
+  // Computed: current question (based on global index)
   const currentQuestion$ = computed((): QuestionVM | null => {
-    const unanswered = unansweredQuestions$.value
+    const all = allQuestions$.value
     const index = currentIndexSignal.value
-    if (unanswered.length === 0 || index < 0 || index >= unanswered.length) {
+    if (all.length === 0 || index < 0 || index >= all.length) {
       return null
     }
-    return unanswered[index]
+    return all[index]
   })
 
   // Computed: current answer
@@ -179,11 +204,11 @@ export function createStudentQuestionPresentationVM(
     return (answeredCount$.value / total) * 100
   })
 
-  // Computed: navigation state (within unanswered list)
+  // Computed: navigation state
   const isFirst$ = computed(() => currentIndexSignal.value === 0)
   const isLast$ = computed(() => {
-    const remaining = remainingCount$.value
-    return remaining === 0 || currentIndexSignal.value === remaining - 1
+    const total = totalQuestions$.value
+    return total === 0 || currentIndexSignal.value === total - 1
   })
 
   // Computed: completion state - checks BOTH persisted and local answers
@@ -191,24 +216,25 @@ export function createStudentQuestionPresentationVM(
     const allQuestions = allQuestions$.value
     if (allQuestions.length === 0) return false
 
-    const existingAnswers = existingAnswersData$.value
-    const persistedIds = new Set(existingAnswers?.map(a => a.questionId) ?? [])
-    const localAnswers = answersMapSignal.value
-
-    // Complete if every question has either a persisted or local answer
-    return allQuestions.every(q => persistedIds.has(q.questionId) || localAnswers.has(q.questionId))
+    const answeredIds = allAnsweredIds$.value
+    return allQuestions.every(q => answeredIds.has(q.questionId))
   })
 
   // Helper: persist current answer to database (fire and forget)
-  const persistCurrentAnswer = (): void => {
+  const persistCurrentAnswer = (): boolean => {
     const question = currentQuestion$.value
-    if (!question) return
+    if (!question) return false
 
-    // Use stored answer or default (3 for scale, false for boolean)
+    // Use stored answer or default (3 for scale)
+    // IMPORTANT: removed false default for boolean to ensure explicit selection
     const storedAnswer = answersMapSignal.value.get(question.questionId)
-    const answer = storedAnswer ?? (question.kind === "0to6" ? 3 : false)
+    const answer = storedAnswer ?? (question.kind === "0to6" ? 3 : undefined)
 
-    // Also update local map with default if not set
+    if (answer === undefined) {
+      return false // Validation failed
+    }
+
+    // Also update local map with default if not set (for scale default)
     if (storedAnswer === undefined) {
       const newMap = new Map(answersMapSignal.value)
       newMap.set(question.questionId, answer)
@@ -227,6 +253,8 @@ export function createStudentQuestionPresentationVM(
     }).catch((error) => {
       console.error("Failed to persist answer:", error)
     })
+
+    return true
   }
 
   // Actions
@@ -240,15 +268,18 @@ export function createStudentQuestionPresentationVM(
   }
 
   const next = (): void => {
-    // Persist current answer (fire and forget with optimistic update)
-    // The optimistic update shrinks unansweredQuestions$, so staying at
-    // the same index shows the next question
-    persistCurrentAnswer()
+    // Validate and persist
+    const valid = persistCurrentAnswer()
+    if (!valid) {
+      // Could trigger toast here if/when we add toast to deps
+      // For now, UI should probably disable button or we just don't advance
+      return
+    }
 
-    // Clamp index if we're at the end
-    const remaining = remainingCount$.value
-    if (remaining > 0 && currentIndexSignal.value >= remaining - 1) {
-      currentIndexSignal.value = Math.max(0, remaining - 2)
+    // Advance index
+    const total = totalQuestions$.value
+    if (currentIndexSignal.value < total - 1) {
+      currentIndexSignal.value = currentIndexSignal.value + 1
     }
   }
 
@@ -262,7 +293,9 @@ export function createStudentQuestionPresentationVM(
     if (isSubmittingSignal.value) return
 
     // Persist any final answer
-    persistCurrentAnswer()
+    if (!persistCurrentAnswer()) {
+      return // allow submit only if current is valid (or maybe check strict completeness)
+    }
 
     isSubmittingSignal.value = true
 

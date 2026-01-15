@@ -1,6 +1,7 @@
 "use client"
 import { toast } from "sonner"
 import { useForm, useWatch } from "react-hook-form"
+import { useEffect, useMemo } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,6 @@ const formSchema = z.object({
     selection_period_id: z.string().min(1, "Selection period ID is required"),
     start_deadline: z.date(),
     end_deadline: z.date(),
-    isActive: z.boolean(),
     questionIds: z.array(z.string()),
 });
 
@@ -70,10 +70,45 @@ export default function SelectionPeriodForm({
             selection_period_id: initialValues?.selection_period_id ?? "",
             start_deadline: initialValues?.start_deadline ?? new Date(),
             end_deadline: initialValues?.end_deadline ?? new Date(),
-            isActive: initialValues?.isActive ?? false,
             questionIds: initialValues?.questionIds ?? [],
         },
     })
+
+    // Update form when initialValues change (e.g. when data is loaded asynchronously)
+    // Create a stable serialized key to detect changes without varying dependency array size
+    const initialValuesKey = useMemo(() => {
+        if (!initialValues) return ""
+        const key = JSON.stringify({
+            title: initialValues.title,
+            selection_period_id: initialValues.selection_period_id,
+            start_deadline: initialValues.start_deadline?.getTime(),
+            end_deadline: initialValues.end_deadline?.getTime(),
+            questionIds: initialValues.questionIds,
+        })
+        console.log('[SelectionPeriodForm] initialValuesKey changed:', {
+            questionIds: initialValues.questionIds,
+            questionIdsLength: initialValues.questionIds?.length ?? 0
+        })
+        return key
+    }, [initialValues])
+
+    useEffect(() => {
+        console.log('[SelectionPeriodForm] useEffect triggered', {
+            hasInitialValues: !!initialValues,
+            questionIds: initialValues?.questionIds,
+            questionIdsLength: initialValues?.questionIds?.length ?? 0
+        })
+        if (initialValues) {
+            form.reset({
+                title: initialValues.title ?? "",
+                selection_period_id: initialValues.selection_period_id ?? "",
+                start_deadline: initialValues.start_deadline ?? new Date(),
+                end_deadline: initialValues.end_deadline ?? new Date(),
+                questionIds: initialValues.questionIds ?? [],
+            })
+            console.log('[SelectionPeriodForm] Form reset with questionIds:', initialValues.questionIds)
+        }
+    }, [initialValuesKey, form])
 
     const questionIds = useWatch({ control: form.control, name: "questionIds" })
 
@@ -195,24 +230,6 @@ export default function SelectionPeriodForm({
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="isActive"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                                <FormLabel>Mark as active</FormLabel>
-                                <FormDescription>If active, students can immediately start selecting topics</FormDescription>
-                            </div>
-                            <FormControl>
-                                <Switch
-                                    checked={field.value}
-                                    onCheckedChange={field.onChange}
-                                />
-                            </FormControl>
-                        </FormItem>
-                    )}
-                />
 
                 {/* Questions Section */}
                 <div className="space-y-4">

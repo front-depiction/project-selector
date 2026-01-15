@@ -43,10 +43,10 @@ interface TopicsViewProps {
 
 export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   useSignals()
-  
+
   // Track which project assignments are expanded
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set())
-  
+
   const toggleGroup = (semesterId: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev)
@@ -85,7 +85,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
         <div className="space-y-4">
           {vm.groupedTopics$.value.map((group) => {
             const isExpanded = expandedGroups.has(group.semesterId)
-            
+
             return (
               <div key={group.semesterId} className="border rounded-lg">
                 {/* Clickable Section Header */}
@@ -107,7 +107,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                     </div>
                   </div>
                 </button>
-                
+
                 {/* Collapsible Topics Table */}
                 {isExpanded && (
                   <div className="border-t">
@@ -116,8 +116,8 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                         <TableRow>
                           <TableHead>Title</TableHead>
                           <TableHead>Description</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Selections</TableHead>
+                          <TableHead className="text-center">Status</TableHead>
+                          <TableHead className="text-center">Selections</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -126,12 +126,12 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                           <TableRow key={topic.key}>
                             <TableCell className="font-medium">{topic.title}</TableCell>
                             <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
-                            <TableCell>
+                            <TableCell className="text-center">
                               <Badge variant={topic.statusVariant}>
                                 {topic.statusDisplay}
                               </Badge>
                             </TableCell>
-                            <TableCell>{topic.selectionsCount}</TableCell>
+                            <TableCell className="text-center">{topic.selectionsCount}</TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

@@ -55,7 +55,7 @@ const OverviewView: React.FC = () => {
 
   // Get all periods for the selector
   const allPeriods = periods ?? []
-  
+
   // Sort periods: open first, then by closeDate descending
   const sortedPeriods = [...allPeriods].sort((a, b) => {
     const aIsOpen = SelectionPeriod.isOpen(a)
@@ -67,7 +67,7 @@ const OverviewView: React.FC = () => {
 
   // Default to most recent open period, or most recent period if no open ones
   const defaultPeriodId = sortedPeriods.length > 0 ? sortedPeriods[0]._id : null
-  
+
   // State for selected period (persist in localStorage)
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<Id<"selectionPeriods"> | null>(() => {
     if (typeof window !== "undefined") {
@@ -92,8 +92,8 @@ const OverviewView: React.FC = () => {
   }, [selectedPeriodId])
 
   // Get selected period object
-  const selectedPeriod = selectedPeriodId 
-    ? sortedPeriods.find(p => p._id === selectedPeriodId) 
+  const selectedPeriod = selectedPeriodId
+    ? sortedPeriods.find(p => p._id === selectedPeriodId)
     : sortedPeriods[0] ?? null
 
   // Fetch stats for the selected period
@@ -111,7 +111,7 @@ const OverviewView: React.FC = () => {
   // Transform assignments data to Assignment format
   const selectedPeriodAssignments: AD.Assignment[] = React.useMemo(() => {
     if (!selectedPeriodAssignmentsData) return []
-    
+
     const assignments: AD.Assignment[] = []
     for (const [topicId, data] of Object.entries(selectedPeriodAssignmentsData)) {
       const topicData = data as { topic?: { title: string }; students: Array<{ studentId: string; originalRank?: number }> }
@@ -152,10 +152,10 @@ const OverviewView: React.FC = () => {
                   <SelectContent>
                     {sortedPeriods.map((period) => {
                       const statusLabel = SelectionPeriod.match(period)({
-                        open: () => "OPEN",
-                        inactive: () => "INACTIVE",
-                        closed: () => "CLOSED",
-                        assigned: () => "ASSIGNED"
+                        open: () => "Open",
+                        inactive: () => "Inactive",
+                        closed: () => "Closed",
+                        assigned: () => "Assigned"
                       })
                       const statusColor = SelectionPeriod.match(period)({
                         open: () => "bg-green-600",
@@ -163,7 +163,7 @@ const OverviewView: React.FC = () => {
                         closed: () => "bg-red-600",
                         assigned: () => "bg-purple-600"
                       })
-                      
+
                       return (
                         <SelectItem key={period._id} value={period._id}>
                           <div className="flex items-center gap-2 w-full">
@@ -215,7 +215,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Manage project assignment periods</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} />
+            <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} showActions={false} />
           </CardContent>
         </Card>
 
@@ -225,7 +225,7 @@ const OverviewView: React.FC = () => {
             <CardDescription>Available topics for selection</CardDescription>
           </CardHeader>
           <CardContent>
-            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} />
+            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} showActions={false} />
           </CardContent>
         </Card>
       </div>
@@ -246,7 +246,7 @@ const OverviewView: React.FC = () => {
                 selection_period_id: vm.editPeriodDialog.editingPeriod$.value.value.semesterId,
                 start_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.openDate),
                 end_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.closeDate),
-                isActive: SelectionPeriod.isOpen(vm.editPeriodDialog.editingPeriod$.value.value)
+                questionIds: [...vm.existingQuestionIds$.value]
               }}
               onSubmit={vm.updatePeriodFromForm}
             />

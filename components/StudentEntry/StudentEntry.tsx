@@ -3,6 +3,8 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useSignals } from "@preact/signals-react/runtime"
+import { useConvex } from "convex/react"
+import { api } from "@/convex/_generated/api"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { createStudentEntryVM, type StudentEntryVM } from "./StudentEntryVM"
 
@@ -13,6 +15,7 @@ import { createStudentEntryVM, type StudentEntryVM } from "./StudentEntryVM"
 export interface StudentEntryState {
   readonly value: string
   readonly isComplete: boolean
+  readonly isValidating: boolean
 }
 
 export interface StudentEntryActions {
@@ -46,6 +49,7 @@ export interface ProviderProps {
 
 export const Provider: React.FC<ProviderProps> = ({ children }) => {
   const router = useRouter()
+  const convex = useConvex()
 
   // Create the View Model using factory (once per component lifetime)
   const vmRef = React.useRef<StudentEntryVM | null>(null)
@@ -54,6 +58,10 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
       onComplete: (studentId: string) => {
         router.push("/student/select")
       },
+      validateCode: async (code: string) => {
+        const result = await convex.query(api.periodStudentAccessCodes.validateAccessCode, { code })
+        return result
+      }
     })
   }
   const vm = vmRef.current
@@ -63,6 +71,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     <StudentEntryContext.Provider value={{
       get value() { return vm.value$.value },
       get isComplete() { return vm.isComplete$.value },
+      get isValidating() { return vm.isValidating$.value },
       setValue: vm.setValue,
       handleComplete: vm.handleComplete,
     }}>
@@ -104,13 +113,14 @@ export const HelpText: React.FC = () => (
 
 export const StudentIdInput: React.FC = () => {
   useSignals()
-  const { value, setValue } = useStudentEntry()
+  const { value, setValue, isValidating } = useStudentEntry()
 
   return (
     <InputOTP
       maxLength={6}
       value={value}
       onChange={setValue}
+      disabled={isValidating}
       containerClassName="justify-center"
       className="text-2xl sm:text-3xl"
       pattern="[A-Za-z0-9]*"
