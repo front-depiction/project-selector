@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useSignals } from "@preact/signals-react/runtime"
+import { useRouter } from "next/navigation"
 import * as Option from "effect/Option"
 import { Doc, Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
@@ -18,8 +19,10 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Home,
 } from "lucide-react"
 import Link from "next/link"
+import { clearStudentId } from "@/lib/student"
 import { TimerRoot, TimerIcon, TimerDisplay } from "@/components/ui/timer"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { cn } from "@/lib/utils"
@@ -503,11 +506,37 @@ export const AssignmentStats: React.FC = () => {
 
 export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"selectionPeriods"> }> = ({ vm, periodId }) => {
   useSignals()
+  const router = useRouter()
+  const currentPeriod = vm.currentPeriod$.value
+
+  const handleBackToHome = () => {
+    // Clear student ID from localStorage and VM
+    clearStudentId()
+    vm.setStudentId(null)
+    // Navigate to home page (will show portal view)
+    router.push("/")
+  }
 
   return (
     <div className="space-y-8">
+      <div className="flex items-center justify-start mb-6">
+        <Button 
+          variant="outline" 
+          size="lg"
+          onClick={handleBackToHome}
+          className="border-2 hover:bg-accent hover:border-primary/50 transition-colors shadow-sm"
+        >
+          <Home className="mr-2 h-5 w-5" />
+          Back to Portal
+        </Button>
+      </div>
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Assignment Results</h2>
+        {currentPeriod && (
+          <p className="text-lg font-semibold text-primary mb-2">
+            {currentPeriod.title}
+          </p>
+        )}
         <p className="text-muted-foreground">
           {Option.match(vm.studentId$.value, {
             onNone: () => "Enter your student ID to view your assignment",

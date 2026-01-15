@@ -300,6 +300,13 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
   }
 
   const updateSelection = (newItems: Item[] | ((prev: Item[]) => Item[])): void => {
+    // Check if period is closed - prevent any changes
+    const currentPeriod = currentPeriodData$.value
+    if (currentPeriod && currentPeriod.kind !== "open") {
+      error$.value = Option.some("This project assignment is closed. You cannot modify your rankings.")
+      return
+    }
+
     error$.value = Option.none()
 
     const currentItems = topics$.value as unknown as Item[]

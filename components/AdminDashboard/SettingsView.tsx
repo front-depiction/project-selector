@@ -6,7 +6,6 @@ import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Settings, Database, RefreshCw, Trash2 } from "lucide-react"
-import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,33 +52,6 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
             </Button>
           </div>
 
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <h4 className="font-medium">Assign Now</h4>
-              <p className="text-sm text-muted-foreground mt-1">
-                Manually trigger assignment for the current project assignment
-              </p>
-            </div>
-            {SelectionPeriod.matchOptional(currentPeriod)({
-              open: (p) => <AssignNowButton periodId={p._id} status="open" />,
-              assigned: (p) => <AssignNowButton periodId={p._id} status="assigned" />,
-              inactive: () => (
-                <Button disabled variant="outline">
-                  No Active Assignment
-                </Button>
-              ),
-              closed: () => (
-                <Button disabled variant="outline">
-                  Assignment Closed
-                </Button>
-              ),
-              none: () => (
-                <Button disabled variant="outline">
-                  No Active Assignment
-                </Button>
-              )
-            })}
-          </div>
 
           <div className="flex items-center justify-between p-4 border rounded-lg border-red-200 bg-red-50 dark:bg-red-950/20">
             <div>

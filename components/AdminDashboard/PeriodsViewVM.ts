@@ -71,6 +71,9 @@ export interface PeriodsViewVM {
   /** All periods for the table */
   readonly periods$: ReadonlySignal<readonly PeriodRowVM[]>
 
+  /** Raw periods data (for accessing full period documents) */
+  readonly periodsData$: ReadonlySignal<readonly SelectionPeriodWithStats[] | undefined>
+
   /** Create dialog state */
   readonly createDialog: DialogVM
 
@@ -418,6 +421,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     assignments$,
     showAssignmentResults$,
     periods$,
+    periodsData$: deps.periodsData$,
     createDialog,
     editDialog,
     questions$,

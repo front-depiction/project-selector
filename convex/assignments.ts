@@ -1,6 +1,7 @@
 import { v } from "convex/values"
-import { mutation, internalMutation, query, MutationCtx } from "./_generated/server"
+import { mutation, internalMutation, query, internalQuery, MutationCtx } from "./_generated/server"
 import { Id } from "./_generated/dataModel"
+import { internal } from "./_generated/api"
 import * as Assignment from "./schemas/Assignment"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 
@@ -119,7 +120,7 @@ async function assignPeriodInternal(
     }))
   )
 
-  // Distribute students evenly
+  // Use simple distribution (CP-SAT is called via action wrapper)
   const assignments = distributeStudents(studentIds, topics, flatPreferences)
 
   // Create batch ID
@@ -339,5 +340,133 @@ export const getAllAssignmentsForExport = query({
       student_id: assignment.studentId,
       assigned_topic: topicMap.get(assignment.topicId)?.title || "Unknown Topic"
     }))
+  }
+})
+
+/**
+ * Internal queries for CP-SAT solver integration
+ */
+
+export const getPeriodForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.periodId)
+  }
+})
+
+export const getPreferencesForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return []
+
+    return await ctx.db
+      .query("preferences")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+  }
+})
+
+export const getTopicsForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return []
+
+    return await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+  }
+})
+
+export const getStudentAnswersForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    // Query all student answers and filter by period
+    // Note: by_student_period index is [studentId, selectionPeriodId], so we can't query by periodId alone
+    const allAnswers = await ctx.db.query("studentAnswers").collect()
+    return allAnswers.filter(a => a.selectionPeriodId === args.periodId)
+  }
+})
+
+export const getQuestionsForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return []
+
+    // Get questions linked to this period
+    const selectionQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+
+    // Get full question details
+    const questionIds = selectionQuestions.map(sq => sq.questionId)
+    const questions = await Promise.all(
+      questionIds.map(id => ctx.db.get(id))
+    )
+
+    return questions.filter((q): q is NonNullable<typeof q> => q !== null)
+  }
+})
+
+/**
+ * Saves assignments from CP-SAT solver.
+ * 
+ * @category Internal Mutations
+ * @since 0.3.0
+ */
+export const saveCPSATAssignments = internalMutation({
+  args: {
+    periodId: v.id("selectionPeriods"),
+    assignments: v.array(v.object({
+      studentId: v.string(),
+      topicId: v.id("topics"),
+      rank: v.optional(v.number())
+    }))
+  },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+
+    if (!period) {
+      throw new Error("Selection period not found")
+    }
+
+    if (SelectionPeriod.isAssigned(period)) {
+      return period.assignmentBatchId // Already assigned
+    }
+
+    // Create batch ID
+    const batchId = Assignment.createBatchId(args.periodId)
+
+    // Insert all assignments
+    for (const assignment of args.assignments) {
+      await ctx.db.insert("assignments", Assignment.make({
+        periodId: args.periodId,
+        batchId,
+        studentId: assignment.studentId,
+        topicId: assignment.topicId,
+        assignedAt: Date.now(),
+        originalRank: assignment.rank
+      }))
+    }
+
+    // Update period status to assigned
+    await ctx.db.replace(args.periodId, SelectionPeriod.assign(batchId)(
+      SelectionPeriod.isClosed(period)
+        ? period
+        : SelectionPeriod.makeClosed({
+            semesterId: period.semesterId,
+            title: period.title,
+            description: period.description,
+            openDate: period.openDate,
+            closeDate: period.closeDate
+          })
+    ))
+
+    return batchId
   }
 })

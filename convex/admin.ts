@@ -3,6 +3,9 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import * as Topic from "./schemas/Topic"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import * as Preference from "./schemas/Preference"
+import * as StudentAnswer from "./schemas/StudentAnswer"
+import * as Assignment from "./schemas/Assignment"
 import { getActiveSelectionPeriod } from "./share/selection_periods"
 import {
   createTestSelectionPeriod,
@@ -24,12 +27,45 @@ export const seedTestData = mutation({
     const semesterId = "2024-spring"
     const now = Date.now()
     const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
+    const oneWeekAgo = now - (7 * 24 * 60 * 60 * 1000)
+    const oneDayAgo = now - (24 * 60 * 60 * 1000)
 
     // Create selection period and topics
-    const [periodId, topicIds] = await Promise.all([
+    const [periodId, closedPeriodId, topicIds] = await Promise.all([
       createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
+      // Create a closed period for testing
+      ctx.db.insert("selectionPeriods", SelectionPeriod.makeClosed({
+        semesterId,
+        title: "Closed Test Period",
+        description: "This is a closed period for testing closed session behavior",
+        openDate: oneWeekAgo,
+        closeDate: oneDayAgo
+      })),
       createTestTopics(ctx, semesterId)
     ])
+
+    // Create an open period with all questionnaires completed
+    // Since it's already open (opened 3 days ago), create as inactive then convert to open
+    const openWithQuestionnairesOpenDate = now - (3 * 24 * 60 * 60 * 1000) // Opened 3 days ago
+    const inactivePeriod = SelectionPeriod.makeInactive({
+      semesterId,
+      title: "Open Period - All Questionnaires Complete",
+      description: "An open period where all students have completed their questionnaires",
+      openDate: openWithQuestionnairesOpenDate,
+      closeDate: thirtyDaysFromNow,
+    })
+    const openWithQuestionnairesPeriodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
+    
+    // Schedule the close function
+    const scheduledCloseId = await ctx.scheduler.runAt(
+      thirtyDaysFromNow,
+      internal.assignments.assignPeriod,
+      { periodId: openWithQuestionnairesPeriodId }
+    )
+    
+    // Convert to open with the scheduled function
+    const openPeriod = SelectionPeriod.toOpen(inactivePeriod, scheduledCloseId)
+    await ctx.db.replace(openWithQuestionnairesPeriodId, openPeriod)
 
     // Create 5 categories
     const categoryNames = [
@@ -82,18 +118,35 @@ export const seedTestData = mutation({
       )
     )
 
-    // Link first 7 questions to the selection period
-    await Promise.all(
-      questionIds.slice(0, 7).map((questionId, index) =>
+    // Link first 7 questions to all periods
+    await Promise.all([
+      // Questions for open period
+      ...questionIds.slice(0, 7).map((questionId, index) =>
         ctx.db.insert("selectionQuestions", {
           selectionPeriodId: periodId,
           questionId,
           order: index,
         })
+      ),
+      // Questions for closed period
+      ...questionIds.slice(0, 7).map((questionId, index) =>
+        ctx.db.insert("selectionQuestions", {
+          selectionPeriodId: closedPeriodId,
+          questionId,
+          order: index,
+        })
+      ),
+      // Questions for open period with all questionnaires complete
+      ...questionIds.slice(0, 7).map((questionId, index) =>
+        ctx.db.insert("selectionQuestions", {
+          selectionPeriodId: openWithQuestionnairesPeriodId,
+          questionId,
+          order: index,
+        })
       )
-    )
+    ])
 
-    // Generate 20 student access codes for the period
+    // Generate access codes helper
     const CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     const generateAccessCode = () => {
       let code = ""
@@ -103,6 +156,7 @@ export const seedTestData = mutation({
       return code
     }
 
+    // Generate 20 student access codes for the open period
     const accessCodes: string[] = []
     const existingCodes = new Set<string>()
     for (let i = 0; i < 20; i++) {
@@ -120,12 +174,234 @@ export const seedTestData = mutation({
         addedBy: "system",
       })
     }
+
+    // Generate 15 student access codes for the closed period
+    const closedAccessCodes: string[] = []
+    for (let i = 0; i < 15; i++) {
+      let code: string
+      do {
+        code = generateAccessCode()
+      } while (existingCodes.has(code))
+      existingCodes.add(code)
+      closedAccessCodes.push(code)
+
+      await ctx.db.insert("periodStudentAllowList", {
+        selectionPeriodId: closedPeriodId,
+        studentId: code,
+        addedAt: oneWeekAgo, // Added when period was open
+        addedBy: "system",
+      })
+    }
+
+    // Generate 15 student access codes for the open period with all questionnaires complete
+    const openWithQuestionnairesAccessCodes: string[] = []
+    for (let i = 0; i < 15; i++) {
+      let code: string
+      do {
+        code = generateAccessCode()
+      } while (existingCodes.has(code))
+      existingCodes.add(code)
+      openWithQuestionnairesAccessCodes.push(code)
+
+      await ctx.db.insert("periodStudentAllowList", {
+        selectionPeriodId: openWithQuestionnairesPeriodId,
+        studentId: code,
+        addedAt: now - (3 * 24 * 60 * 60 * 1000), // Added when period opened
+        addedBy: "system",
+      })
+    }
+
+    // Create preferences for the open period (some students have already submitted)
+    const openPreferences = await Promise.all(
+      accessCodes.slice(0, 12).map((studentId) => {
+        // Shuffle topics and take first 5
+        const shuffledTopics = [...topicIds].sort(() => Math.random() - 0.5)
+        const preference = Preference.make({
+          studentId,
+          semesterId,
+          topicOrder: shuffledTopics.slice(0, 5),
+        })
+        return ctx.db.insert("preferences", preference)
+      })
+    )
+
+    // Create preferences for ALL closed period students (all 15 students submitted)
+    // Store preference data before inserting so we can use it for assignments
+    const closedPreferenceData = closedAccessCodes.map((studentId) => {
+      // Shuffle topics and take first 5
+      const shuffledTopics = [...topicIds].sort(() => Math.random() - 0.5)
+      return {
+        studentId,
+        topicOrder: shuffledTopics.slice(0, 5),
+        lastUpdated: oneDayAgo - (24 * 60 * 60 * 1000), // Submitted 2 days ago
+      }
+    })
+
+    const closedPreferences = await Promise.all(
+      closedPreferenceData.map((prefData) => {
+        const preference = Preference.make({
+          studentId: prefData.studentId,
+          semesterId,
+          topicOrder: prefData.topicOrder,
+        })
+        // Override lastUpdated to simulate earlier submission
+        return ctx.db.insert("preferences", {
+          ...preference,
+          lastUpdated: prefData.lastUpdated,
+        })
+      })
+    )
+
+    // Create student answers (questionnaire data) for both periods
+    // Get the first 7 questions (which are linked to both periods)
+    const periodQuestionIds = questionIds.slice(0, 7)
+    
+    // Create answers for open period students (8 students completed questionnaire)
+    const openStudentAnswers = await Promise.all(
+      accessCodes.slice(0, 8).flatMap((studentId) =>
+        periodQuestionIds.map((questionId, index) => {
+          const question = questionsData[index]
+          if (question.kind === "boolean") {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeBoolean({
+              studentId,
+              selectionPeriodId: periodId,
+              questionId,
+              value: Math.random() > 0.5, // Random true/false
+            }))
+          } else {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeZeroToSix({
+              studentId,
+              selectionPeriodId: periodId,
+              questionId,
+              value: Math.floor(Math.random() * 7), // Random 0-6
+            }))
+          }
+        })
+      )
+    )
+
+    // Create answers for ALL closed period students (all 15 students completed questionnaire)
+    const closedStudentAnswers = await Promise.all(
+      closedAccessCodes.flatMap((studentId) =>
+        periodQuestionIds.map((questionId, index) => {
+          const question = questionsData[index]
+          if (question.kind === "boolean") {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeBoolean({
+              studentId,
+              selectionPeriodId: closedPeriodId,
+              questionId,
+              value: Math.random() > 0.5, // Random true/false
+            }))
+          } else {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeZeroToSix({
+              studentId,
+              selectionPeriodId: closedPeriodId,
+              questionId,
+              value: Math.floor(Math.random() * 7), // Random 0-6
+            }))
+          }
+        })
+      )
+    )
+
+    // Create preferences for ALL open period with questionnaires students (all 15 students submitted)
+    const openWithQuestionnairesPreferenceData = openWithQuestionnairesAccessCodes.map((studentId) => {
+      // Shuffle topics and take first 5
+      const shuffledTopics = [...topicIds].sort(() => Math.random() - 0.5)
+      return {
+        studentId,
+        topicOrder: shuffledTopics.slice(0, 5),
+      }
+    })
+
+    const openWithQuestionnairesPreferences = await Promise.all(
+      openWithQuestionnairesPreferenceData.map((prefData) => {
+        const preference = Preference.make({
+          studentId: prefData.studentId,
+          semesterId,
+          topicOrder: prefData.topicOrder,
+        })
+        return ctx.db.insert("preferences", preference)
+      })
+    )
+
+    // Create answers for ALL open period with questionnaires students (all 15 students completed questionnaire)
+    const openWithQuestionnairesStudentAnswers = await Promise.all(
+      openWithQuestionnairesAccessCodes.flatMap((studentId) =>
+        periodQuestionIds.map((questionId, index) => {
+          const question = questionsData[index]
+          if (question.kind === "boolean") {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeBoolean({
+              studentId,
+              selectionPeriodId: openWithQuestionnairesPeriodId,
+              questionId,
+              value: Math.random() > 0.5, // Random true/false
+            }))
+          } else {
+            return ctx.db.insert("studentAnswers", StudentAnswer.makeZeroToSix({
+              studentId,
+              selectionPeriodId: openWithQuestionnairesPeriodId,
+              questionId,
+              value: Math.floor(Math.random() * 7), // Random 0-6
+            }))
+          }
+        })
+      )
+    )
+
+    // Create assignments for the closed period (to show formed groups)
+    // Convert closed period to assigned period with assignments
+    const assignmentBatchId = Assignment.createBatchId(closedPeriodId)
+    const closedPeriodAssignments = await Promise.all(
+      closedPreferenceData.map((pref, index) => {
+        // Assign students to topics based on their preferences (prioritize top choices)
+        const preferredTopicId = pref.topicOrder[0] // First preference
+        const assignedTopicId = preferredTopicId || topicIds[index % topicIds.length] // Fallback to round-robin
+        const originalRank = pref.topicOrder.indexOf(assignedTopicId) + 1 // 1-based rank, or undefined if not in preferences
+        
+        return ctx.db.insert("assignments", Assignment.make({
+          periodId: closedPeriodId,
+          batchId: assignmentBatchId,
+          studentId: pref.studentId,
+          topicId: assignedTopicId,
+          assignedAt: oneDayAgo - (24 * 60 * 60 * 1000), // Assigned 2 days ago
+          originalRank: originalRank > 0 ? originalRank : undefined
+        }))
+      })
+    )
+
+    // Update closed period to assigned state
+    const closedPeriod = await ctx.db.get(closedPeriodId)
+    if (closedPeriod) {
+      await ctx.db.replace(closedPeriodId, SelectionPeriod.makeAssigned({
+        semesterId: closedPeriod.semesterId,
+        title: closedPeriod.title,
+        description: closedPeriod.description,
+        openDate: closedPeriod.openDate,
+        closeDate: closedPeriod.closeDate,
+        assignmentBatchId
+      }))
+    }
     
     return { 
       categoryCount: categoryIds.length, 
       questionCount: questionIds.length,
-      accessCodeCount: accessCodes.length,
-      sampleAccessCodes: accessCodes.slice(0, 5) // Return first 5 codes for testing
+      openPeriodAccessCodeCount: accessCodes.length,
+      closedPeriodAccessCodeCount: closedAccessCodes.length,
+      openWithQuestionnairesAccessCodeCount: openWithQuestionnairesAccessCodes.length,
+      openPeriodPreferencesCount: openPreferences.length,
+      closedPeriodPreferencesCount: closedPreferences.length,
+      openWithQuestionnairesPreferencesCount: openWithQuestionnairesPreferences.length,
+      openPeriodStudentAnswersCount: openStudentAnswers.length,
+      closedPeriodStudentAnswersCount: closedStudentAnswers.length,
+      openWithQuestionnairesStudentAnswersCount: openWithQuestionnairesStudentAnswers.length,
+      closedPeriodAssignmentsCount: closedPeriodAssignments.length,
+      sampleAccessCodes: accessCodes.slice(0, 5), // Return first 5 codes for open period
+      sampleClosedAccessCodes: closedAccessCodes.slice(0, 5), // Return first 5 codes for closed period
+      sampleOpenWithQuestionnairesAccessCodes: openWithQuestionnairesAccessCodes.slice(0, 5), // Return first 5 codes for open period with questionnaires
+      openPeriodId: periodId,
+      closedPeriodId: closedPeriodId,
+      openWithQuestionnairesPeriodId: openWithQuestionnairesPeriodId
     }
   }
 })

@@ -168,6 +168,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
     // Convert to array of groups, sorted by period title
     const groups: TopicGroupVM[] = []
+    
+    // First, add groups for periods that have topics
     for (const [semesterId, topicList] of grouped.entries()) {
       const periodTitle = periodMap.get(semesterId) ?? `Unknown Assignment (${semesterId})`
       groups.push({

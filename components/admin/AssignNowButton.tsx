@@ -8,7 +8,7 @@ import { useAssignNowButtonVM } from "./AssignNowButtonVM"
 
 interface AssignNowButtonProps {
   periodId: Id<"selectionPeriods">
-  status?: "open" | "assigned"
+  status?: "open" | "closed" | "assigned"
   disabled?: boolean
 }
 
@@ -16,7 +16,9 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
   useSignals()
   const vm = useAssignNowButtonVM(periodId)
 
-  const isDisabled = disabled || status !== "open" || vm.isLoading$.value
+  // Can assign if status is "closed" (period is closed but not yet assigned)
+  const canAssign = status === "closed" || status === "open"
+  const isDisabled = disabled || !canAssign || status === "assigned" || vm.isLoading$.value
 
   return (
     <Button

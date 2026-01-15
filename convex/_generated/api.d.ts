@@ -10,6 +10,8 @@
 
 import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
+import type * as assignWithCPSAT from "../assignWithCPSAT.js";
+import type * as assignmentSolver from "../assignmentSolver.js";
 import type * as assignments from "../assignments.js";
 import type * as categories from "../categories.js";
 import type * as lib_congestion from "../lib/congestion.js";
@@ -55,6 +57,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
+  assignWithCPSAT: typeof assignWithCPSAT;
+  assignmentSolver: typeof assignmentSolver;
   assignments: typeof assignments;
   categories: typeof categories;
   "lib/congestion": typeof lib_congestion;
