@@ -503,11 +503,17 @@ export const AssignmentStats: React.FC = () => {
 
 export const AllAssignmentsDisplay: React.FC<{ vm: LandingPageVM; periodId: Id<"selectionPeriods"> }> = ({ vm, periodId }) => {
   useSignals()
+  const currentPeriod = vm.currentPeriod$.value
 
   return (
     <div className="space-y-8">
       <div className="text-center">
         <h2 className="text-2xl font-bold mb-2">Assignment Results</h2>
+        {currentPeriod && (
+          <p className="text-lg font-semibold text-primary mb-2">
+            {currentPeriod.title}
+          </p>
+        )}
         <p className="text-muted-foreground">
           {Option.match(vm.studentId$.value, {
             onNone: () => "Enter your student ID to view your assignment",

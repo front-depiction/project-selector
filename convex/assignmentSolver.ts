@@ -2,11 +2,19 @@ import { internalAction } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
+import type { Doc } from "./_generated/dataModel"
 
 /**
- * CP-SAT Service URL - defaults to localhost for development
+ * CP-SAT Service URL
+ * 
+ * Note: For local development, you need to use a tunneling service like ngrok
+ * because Convex actions run in the cloud and cannot reach localhost.
+ * 
+ * Example with ngrok: https://your-ngrok-url.ngrok.io
  */
 const CP_SAT_SERVICE_URL = process.env.CP_SAT_SERVICE_URL || "http://localhost:8000"
+
+type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
 
 /**
  * Solves assignment using CP-SAT algorithm.
@@ -18,24 +26,24 @@ export const solveAssignment = internalAction({
   args: {
     periodId: v.id("selectionPeriods"),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<AssignmentResult> => {
     // Fetch all data needed for the solver
     const period = await ctx.runQuery(internal.assignments.getPeriodForSolver, { periodId: args.periodId })
     if (!period) {
       throw new Error("Period not found")
     }
 
-    const preferences = await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
-    const topics = await ctx.runQuery(internal.assignments.getTopicsForSolver, { periodId: args.periodId })
-    const studentAnswers = await ctx.runQuery(internal.assignments.getStudentAnswersForSolver, { periodId: args.periodId })
-    const questions = await ctx.runQuery(internal.assignments.getQuestionsForSolver, { periodId: args.periodId })
+    const preferences: Array<Doc<"preferences">> = await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
+    const topics: Array<Doc<"topics">> = await ctx.runQuery(internal.assignments.getTopicsForSolver, { periodId: args.periodId })
+    const studentAnswers: Array<Doc<"studentAnswers">> = await ctx.runQuery(internal.assignments.getStudentAnswersForSolver, { periodId: args.periodId })
+    const questions: Array<Doc<"questions"> | null> = await ctx.runQuery(internal.assignments.getQuestionsForSolver, { periodId: args.periodId })
 
     if (topics.length === 0) {
       throw new Error("No active topics found for assignment")
     }
 
     // Get unique student IDs from preferences
-    const studentIds = [...new Set(preferences.map(p => p.studentId))]
+    const studentIds: string[] = [...new Set(preferences.map((p: Doc<"preferences">) => p.studentId))]
     if (studentIds.length === 0) {
       throw new Error("No students to assign")
     }
@@ -80,11 +88,11 @@ export const solveAssignment = internalAction({
  * Transforms Convex data to CP-SAT input format.
  */
 function transformToCPSATFormat(data: {
-  period: any
-  preferences: any[]
-  topics: any[]
-  studentAnswers: any[]
-  questions: any[]
+  period: Doc<"selectionPeriods">
+  preferences: Array<Doc<"preferences">>
+  topics: Array<Doc<"topics">>
+  studentAnswers: Array<Doc<"studentAnswers">>
+  questions: Array<Doc<"questions"> | null>
   studentIds: string[]
 }) {
   const { preferences, topics, studentAnswers, questions, studentIds } = data
@@ -98,9 +106,11 @@ function transformToCPSATFormat(data: {
   topics.forEach((topic, index) => topicIdMap.set(topic._id, index))
 
   // Build question map for quick lookup
-  const questionMap = new Map<Id<"questions">, any>()
+  const questionMap = new Map<Id<"questions">, Doc<"questions">>()
   for (const question of questions) {
-    questionMap.set(question._id, question)
+    if (question) {
+      questionMap.set(question._id, question)
+    }
   }
 
   // Group student answers by student and aggregate by category
@@ -159,7 +169,7 @@ function transformToCPSATFormat(data: {
   // For now, we'll add basic criteria - can be extended based on requirements
   const categories = new Set<string>()
   for (const question of questions) {
-    if (question.category) {
+    if (question && question.category) {
       categories.add(question.category)
     }
   }
@@ -179,11 +189,11 @@ function transformToCPSATFormat(data: {
 
   // Build students with possible_groups from preferences
   const students = studentIds.map((studentId, index) => {
-    const pref = preferences.find(p => p.studentId === studentId)
+    const pref = preferences.find((p: Doc<"preferences">) => p.studentId === studentId)
     const possibleGroups = pref
       ? pref.topicOrder
-          .map(topicId => topicIdMap.get(topicId))
-          .filter((id): id is number => id !== undefined)
+          .map((topicId: Id<"topics">) => topicIdMap.get(topicId))
+          .filter((id: number | undefined): id is number => id !== undefined)
       : topics.map((_, i) => i) // All groups if no preference
 
     // Get student values (aggregated by category)
@@ -216,10 +226,10 @@ function transformToCPSATFormat(data: {
  */
 function transformFromCPSATFormat(
   result: { assignments: Array<{ student: number; group: number }> },
-  topics: Array<{ _id: Id<"topics"> }>,
-  preferences: Array<{ studentId: string; topicOrder: Id<"topics">[] }>,
+  topics: Array<Doc<"topics">>,
+  preferences: Array<Doc<"preferences">>,
   studentIds: string[]
-): Array<{ studentId: string; topicId: Id<"topics">; rank?: number }> {
+): AssignmentResult {
   // Build preference map for rank lookup
   const preferenceMap = new Map<string, Map<Id<"topics">, number>>()
 
@@ -227,12 +237,12 @@ function transformFromCPSATFormat(
     if (!preferenceMap.has(pref.studentId)) {
       preferenceMap.set(pref.studentId, new Map())
     }
-    pref.topicOrder.forEach((topicId, index) => {
+    pref.topicOrder.forEach((topicId: Id<"topics">, index: number) => {
       preferenceMap.get(pref.studentId)!.set(topicId, index + 1)
     })
   }
 
-  return result.assignments.map(({ student, group }) => {
+  return result.assignments.map(({ student, group }: { student: number; group: number }) => {
     const studentId = studentIds[student]
     const topicId = topics[group]._id
     const rank = preferenceMap.get(studentId)?.get(topicId)

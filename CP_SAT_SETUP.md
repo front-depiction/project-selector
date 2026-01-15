@@ -30,25 +30,55 @@ uv run python -m src.assignment.main --serve
 
 The service will start on `http://localhost:8000` by default. You can verify it's running by visiting `http://localhost:8000/docs` for API documentation.
 
-### 3. Configure Environment Variable
+### 3. Expose Local Service (Development Only)
 
-Add the CP-SAT service URL to your Convex environment variables:
+**Important:** Convex actions run in the cloud and cannot reach `localhost`. For local development, you need to expose your local service using a tunneling tool.
 
-**For Local Development:**
-- The service defaults to `http://localhost:8000` if not configured
-- No configuration needed if running locally on default port
+#### Option A: Using ngrok (Recommended)
 
-**For Production/Deployment:**
-1. Go to your Convex dashboard
-2. Navigate to Settings → Environment Variables
-3. Add: `CP_SAT_SERVICE_URL` with your deployed service URL
+1. Install ngrok: https://ngrok.com/download
+2. Expose your local service:
+   ```bash
+   ngrok http 8000
+   ```
+3. Copy the HTTPS URL (e.g., `https://abc123.ngrok.io`)
+4. Set it as an environment variable in Convex:
+   ```bash
+   npx convex env set CP_SAT_SERVICE_URL https://abc123.ngrok.io
+   ```
 
-**Or via Convex CLI:**
+#### Option B: Using Cloudflare Tunnel
+
 ```bash
-npx convex env set CP_SAT_SERVICE_URL http://your-service-url:8000
+cloudflared tunnel --url http://localhost:8000
 ```
 
-### 4. Test the Integration
+#### Option C: Deploy the Service
+
+Deploy the CP-SAT service to a public URL (Railway, Heroku, etc.) and use that URL.
+
+### 4. Configure Environment Variable
+
+**For Local Development (with tunneling):**
+
+```bash
+npx convex env set CP_SAT_SERVICE_URL https://your-ngrok-url.ngrok.io
+```
+
+**For Production/Deployment:**
+
+1. Deploy the CP-SAT service to a public URL
+2. Go to your Convex dashboard
+3. Navigate to Settings → Environment Variables
+4. Add: `CP_SAT_SERVICE_URL` with your deployed service URL
+
+**Or via Convex CLI:**
+
+```bash
+npx convex env set CP_SAT_SERVICE_URL https://your-deployed-service.com
+```
+
+### 5. Test the Integration
 
 1. Create a test project assignment in your app
 2. Add some students with preferences
@@ -115,6 +145,7 @@ To prevent specific students from being in the same group, add to the `exclude` 
 ### Service Not Found
 
 If you see errors about CP-SAT service being unavailable:
+
 1. Verify the service is running: `curl http://localhost:8000/docs`
 2. Check the `CP_SAT_SERVICE_URL` environment variable
 3. Check Convex logs for detailed error messages
@@ -122,6 +153,7 @@ If you see errors about CP-SAT service being unavailable:
 ### Fallback Behavior
 
 The system will automatically fall back to simple distribution if CP-SAT is unavailable. Check logs for warnings like:
+
 ```
 CP-SAT solver unavailable, using simple distribution
 ```

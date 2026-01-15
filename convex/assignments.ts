@@ -1,5 +1,5 @@
 import { v } from "convex/values"
-import { mutation, internalMutation, query, MutationCtx } from "./_generated/server"
+import { mutation, internalMutation, query, internalQuery, MutationCtx } from "./_generated/server"
 import { Id } from "./_generated/dataModel"
 import { internal } from "./_generated/api"
 import * as Assignment from "./schemas/Assignment"
@@ -327,14 +327,14 @@ export const getAllAssignmentsForExport = query({
  * Internal queries for CP-SAT solver integration
  */
 
-export const getPeriodForSolver = query({
+export const getPeriodForSolver = internalQuery({
   args: { periodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.periodId)
   }
 })
 
-export const getPreferencesForSolver = query({
+export const getPreferencesForSolver = internalQuery({
   args: { periodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
@@ -347,7 +347,7 @@ export const getPreferencesForSolver = query({
   }
 })
 
-export const getTopicsForSolver = query({
+export const getTopicsForSolver = internalQuery({
   args: { periodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
@@ -361,17 +361,17 @@ export const getTopicsForSolver = query({
   }
 })
 
-export const getStudentAnswersForSolver = query({
+export const getStudentAnswersForSolver = internalQuery({
   args: { periodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("studentAnswers")
-      .withIndex("by_student_period", q => q.eq("selectionPeriodId", args.periodId))
-      .collect()
+    // Query all student answers and filter by period
+    // Note: by_student_period index is [studentId, selectionPeriodId], so we can't query by periodId alone
+    const allAnswers = await ctx.db.query("studentAnswers").collect()
+    return allAnswers.filter(a => a.selectionPeriodId === args.periodId)
   }
 })
 
-export const getQuestionsForSolver = query({
+export const getQuestionsForSolver = internalQuery({
   args: { periodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
@@ -389,7 +389,7 @@ export const getQuestionsForSolver = query({
       questionIds.map(id => ctx.db.get(id))
     )
 
-    return questions.filter(q => q !== null)
+    return questions.filter((q): q is NonNullable<typeof q> => q !== null)
   }
 })
 
