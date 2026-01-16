@@ -14,9 +14,15 @@ export interface SettingsViewVM {
   readonly clearDialog: DialogVM
   readonly isSeedingData$: ReadonlySignal<boolean>
   readonly isClearingData$: ReadonlySignal<boolean>
+  readonly isSettingUpExperiment$: ReadonlySignal<boolean>
+  readonly isGeneratingAnswers$: ReadonlySignal<boolean>
+  readonly experimentMapping$: ReadonlySignal<Array<{ name: string; accessCode: string; originalTeam: number }> | null>
+  readonly experimentPeriodId$: ReadonlySignal<string | null>
   readonly seedTestData: () => void
   readonly clearAllData: () => void
   readonly confirmClear: () => void
+  readonly setupExperiment: () => void
+  readonly generateRandomAnswers: () => void
 }
 
 // ============================================================================
@@ -26,6 +32,8 @@ export interface SettingsViewVM {
 export interface SettingsViewVMDeps {
   readonly seedTestDataMutation: (args: {}) => Promise<any>
   readonly clearAllDataMutation: (args: {}) => Promise<any>
+  readonly setupExperimentMutation: (args: {}) => Promise<any>
+  readonly generateRandomAnswersMutation: (args: { periodId: string }) => Promise<any>
 }
 
 // ============================================================================
@@ -33,12 +41,16 @@ export interface SettingsViewVMDeps {
 // ============================================================================
 
 export function createSettingsViewVM(deps: SettingsViewVMDeps): SettingsViewVM {
-  const { seedTestDataMutation, clearAllDataMutation } = deps
+  const { seedTestDataMutation, clearAllDataMutation, setupExperimentMutation, generateRandomAnswersMutation } = deps
 
   // Create signals once
   const clearDialogOpen$ = signal(false)
   const isSeedingData$ = signal(false)
   const isClearingData$ = signal(false)
+  const isSettingUpExperiment$ = signal(false)
+  const isGeneratingAnswers$ = signal(false)
+  const experimentMapping$ = signal<Array<{ name: string; accessCode: string; originalTeam: number }> | null>(null)
+  const experimentPeriodId$ = signal<string | null>(null)
 
   // Dialog VM
   const clearDialog: DialogVM = {
@@ -82,12 +94,52 @@ export function createSettingsViewVM(deps: SettingsViewVMDeps): SettingsViewVM {
       })
   }
 
+  const setupExperiment = (): void => {
+    isSettingUpExperiment$.value = true
+    experimentMapping$.value = null
+    experimentPeriodId$.value = null
+    setupExperimentMutation({})
+      .then((result) => {
+        isSettingUpExperiment$.value = false
+        experimentMapping$.value = result.mapping
+        experimentPeriodId$.value = result.periodId
+      })
+      .catch((error) => {
+        console.error("Failed to setup experiment:", error)
+        isSettingUpExperiment$.value = false
+      })
+  }
+
+  const generateRandomAnswers = (): void => {
+    if (!experimentPeriodId$.value) {
+      console.error("No experiment period ID available")
+      return
+    }
+
+    isGeneratingAnswers$.value = true
+    generateRandomAnswersMutation({ periodId: experimentPeriodId$.value })
+      .then((result) => {
+        isGeneratingAnswers$.value = false
+        console.log("Generated random answers:", result)
+      })
+      .catch((error) => {
+        console.error("Failed to generate random answers:", error)
+        isGeneratingAnswers$.value = false
+      })
+  }
+
   return {
     clearDialog,
     isSeedingData$,
     isClearingData$,
+    isSettingUpExperiment$,
+    isGeneratingAnswers$,
+    experimentMapping$,
+    experimentPeriodId$,
     seedTestData,
     clearAllData,
     confirmClear,
+    setupExperiment,
+    generateRandomAnswers,
   }
 }

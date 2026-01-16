@@ -16,6 +16,12 @@ export interface StudentItemVM {
   readonly rankBadgeVariant: "default" | "outline"
 }
 
+export interface QualityBadgeVM {
+  readonly letter: string
+  readonly value: string
+  readonly fullName: string
+}
+
 export interface TopicAssignmentVM {
   readonly key: string
   readonly title: string
@@ -25,6 +31,7 @@ export interface TopicAssignmentVM {
   readonly students: readonly StudentItemVM[]
   readonly hasMoreStudents: boolean
   readonly moreStudentsDisplay: string | null
+  readonly qualityBadges: readonly QualityBadgeVM[]
 }
 
 export interface MyAssignmentVM {
@@ -177,14 +184,21 @@ export function useAssignmentDisplayVM(
       ([, a], [, b]) => (b as any).students.length - (a as any).students.length
     )
 
+    // Map category names to letters
+    const categoryLetterMap: Record<string, { letter: string; fullName: string }> = {
+      "Leader": { letter: "L", fullName: "Leader" },
+      "Creative Thinker": { letter: "C", fullName: "Creative Thinker" },
+      "Doer": { letter: "D", fullName: "Doer" },
+      "IT Professional": { letter: "I", fullName: "IT Professional" },
+    }
+
     return topicEntries.map(([topicId, data]): TopicAssignmentVM => {
       const topicData = data as any
       const isUserAssigned = myAssignment?.topic?._id === topicId
       const studentCount = topicData.students.length
-      const hasMoreStudents = studentCount > 4
-      const displayedStudents = topicData.students.slice(0, 4)
 
-      const students: StudentItemVM[] = displayedStudents.map((student: any): StudentItemVM => {
+      // Show all students (no limit)
+      const students: StudentItemVM[] = topicData.students.map((student: any): StudentItemVM => {
         const isCurrentUser = student.studentId === studentId
         const hasRank = student.originalRank != null
 
@@ -197,10 +211,23 @@ export function useAssignmentDisplayVM(
         }
       })
 
-      const moreCount = studentCount - 4
-      const moreStudentsDisplay = hasMoreStudents
-        ? `+${moreCount} more student${moreCount !== 1 ? 's' : ''}`
-        : null
+      const hasMoreStudents = false
+      const moreStudentsDisplay = null
+
+      // Build quality badges from qualityAverages
+      const qualityBadges: QualityBadgeVM[] = []
+      if (topicData.qualityAverages) {
+        for (const [category, average] of Object.entries(topicData.qualityAverages)) {
+          const mapping = categoryLetterMap[category]
+          if (mapping) {
+            qualityBadges.push({
+              letter: mapping.letter,
+              value: (average as number).toFixed(1),
+              fullName: mapping.fullName,
+            })
+          }
+        }
+      }
 
       return {
         key: topicId,
@@ -211,6 +238,7 @@ export function useAssignmentDisplayVM(
         students,
         hasMoreStudents,
         moreStudentsDisplay,
+        qualityBadges,
       }
     })
   })

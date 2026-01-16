@@ -12,6 +12,8 @@ const BaseSelectionPeriod = {
   description: v.string(),
   openDate: v.number(),
   closeDate: v.number(),
+  isExperiment: v.optional(v.boolean()),
+  excludePairs: v.optional(v.array(v.array(v.string()))),
 }
 
 /**
@@ -96,6 +98,8 @@ export const makeInactive = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly isExperiment?: boolean
+  readonly excludePairs?: string[][]
   readonly scheduledOpenFunctionId?: Id<"_scheduled_functions">
 }): InactivePeriod => ({
   semesterId: params.semesterId,
@@ -103,6 +107,8 @@ export const makeInactive = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  isExperiment: params.isExperiment,
+  excludePairs: params.excludePairs,
   kind: "inactive" as const,
   scheduledOpenFunctionId: params.scheduledOpenFunctionId,
 })
@@ -119,6 +125,8 @@ export const makeOpen = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly isExperiment?: boolean
+  readonly excludePairs?: string[][]
   readonly scheduledFunctionId: Id<"_scheduled_functions">
 }): OpenPeriod => ({
   semesterId: params.semesterId,
@@ -126,6 +134,8 @@ export const makeOpen = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  isExperiment: params.isExperiment,
+  excludePairs: params.excludePairs,
   kind: "open" as const,
   scheduledFunctionId: params.scheduledFunctionId,
 })
@@ -142,12 +152,16 @@ export const makeClosed = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly isExperiment?: boolean
+  readonly excludePairs?: string[][]
 }): ClosedPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  isExperiment: params.isExperiment,
+  excludePairs: params.excludePairs,
   kind: "closed" as const,
 })
 
@@ -163,6 +177,8 @@ export const makeAssigned = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly isExperiment?: boolean
+  readonly excludePairs?: string[][]
   readonly assignmentBatchId: string
 }): AssignedPeriod => ({
   semesterId: params.semesterId,
@@ -170,6 +186,8 @@ export const makeAssigned = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  isExperiment: params.isExperiment,
+  excludePairs: params.excludePairs,
   kind: "assigned" as const,
   assignmentBatchId: params.assignmentBatchId,
 })

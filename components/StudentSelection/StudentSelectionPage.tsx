@@ -364,7 +364,7 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                           </CardTitle>
                         </div>
                         <CardDescription className="text-base max-w-2xl">
-                          {period.description}
+                          {period.description.split('EXCLUSIONS:')[0].trim()}
                         </CardDescription>
                       </div>
                       <Badge className={

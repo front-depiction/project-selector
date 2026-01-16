@@ -616,3 +616,277 @@ export const clearAllData = mutation({
     ])
       .then(() => "All data cleared")
 })
+
+/**
+ * Generates random answers for all students in the experiment period.
+ * This is for testing purposes only.
+ * 
+ * @category Mutations
+ * @since 0.4.0
+ */
+export const generateRandomAnswers = mutation({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    
+    if (!period) {
+      throw new Error("Period not found")
+    }
+
+    // Get all students for this period
+    const accessList = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", (q) => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+
+    // Get all questions for this period
+    const selectionQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q) => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+
+    const questionIds = selectionQuestions.map(sq => sq.questionId)
+
+    let answersCreated = 0
+
+    // Generate random answers for each student
+    for (const accessCode of accessList) {
+      for (const questionId of questionIds) {
+        // Check if answer already exists
+        const existingAnswer = await ctx.db
+          .query("studentAnswers")
+          .withIndex("by_student_period", (q) => 
+            q.eq("studentId", accessCode.studentId)
+             .eq("selectionPeriodId", args.periodId)
+          )
+          .filter((q) => q.eq(q.field("questionId"), questionId))
+          .first()
+
+        if (!existingAnswer) {
+          // Generate random 0-6 answer
+          const randomValue = Math.floor(Math.random() * 7)
+          
+          await ctx.db.insert("studentAnswers", StudentAnswer.makeZeroToSix({
+            studentId: accessCode.studentId,
+            selectionPeriodId: args.periodId,
+            questionId,
+            value: randomValue,
+          }))
+          
+          answersCreated++
+        }
+      }
+    }
+
+    return {
+      studentsProcessed: accessList.length,
+      questionsCount: questionIds.length,
+      answersCreated,
+    }
+  }
+})
+
+/**
+ * Sets up the experiment for user testing.
+ * Creates categories, questions, topics, and access codes for the experiment.
+ * 
+ * @category Mutations
+ * @since 0.4.0
+ */
+export const setupExperiment = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const semesterId = "experiment-2026"
+    const now = Date.now()
+    const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
+
+    // Student names from prev_teams.txt (maintaining order for exclusion pairs)
+    const studentNames = [
+      // Team 1
+      "Mats", "Tiberius", "Lard", "Vigo",
+      // Team 2
+      "Jasmijn", "Layan", "Kajsa", "Sara",
+      // Team 3
+      "Robin", "Esmee", "Alex", "Quirine",
+      // Team 4
+      "Hannah", "Sevval", "Stijn",
+      // Team 5
+      "Walid", "Finn", "Vic", "Jim",
+      // Team 6
+      "Finn", "Jolie", "Marcelina",
+      // Team 7
+      "Tess", "Sean", "Lotte",
+      // Team 8
+      "Melle", "Cas", "Tygo"
+    ]
+
+    // Build exclusion pairs (students who were in the same previous team)
+    const teamSizes = [4, 4, 4, 3, 4, 3, 3, 3]
+    const exclusions: Array<[number, number]> = []
+    let startIdx = 0
+    
+    for (const teamSize of teamSizes) {
+      // Generate all pairs within this team
+      for (let i = startIdx; i < startIdx + teamSize; i++) {
+        for (let j = i + 1; j < startIdx + teamSize; j++) {
+          exclusions.push([i, j])
+        }
+      }
+      startIdx += teamSize
+    }
+
+    // Create 4 categories
+    const categories = [
+      { name: "Leader", description: "Leadership and initiative qualities" },
+      { name: "Creative Thinker", description: "Creative and analytical thinking abilities" },
+      { name: "Doer", description: "Practical execution and implementation skills" },
+      { name: "IT Professional", description: "Technical and digital competencies" },
+    ]
+    
+    const categoryIds = await Promise.all(
+      categories.map(cat => 
+        ctx.db.insert("categories", {
+          name: cat.name,
+          description: cat.description,
+          semesterId,
+          createdAt: now,
+        })
+      )
+    )
+
+    // Create 16 questions (4 per category, all 0-6 scale)
+    const questionsData = [
+      // Leader (4 questions)
+      { text: "I naturally take the initiative when the team needs to get started or gets stuck.", category: "Leader" },
+      { text: "I can maintain a good overview and assign tasks within the team at the start of the lesson.", category: "Leader" },
+      { text: "I listen carefully to others and take their ideas seriously.", category: "Leader" },
+      { text: "I take responsibility for my own tasks and the group process.", category: "Leader" },
+      // Creative Thinker (4 questions)
+      { text: "I often come up with original ideas or unexpected solutions.", category: "Creative Thinker" },
+      { text: "I enjoy improving or further developing existing ideas.", category: "Creative Thinker" },
+      { text: "I enjoy analyzing problems and coming up with multiple possible solutions.", category: "Creative Thinker" },
+      { text: "I reflect on what went well and what could be improved in my own work.", category: "Creative Thinker" },
+      // Doer (4 questions)
+      { text: "I enjoy working practically and would rather make something than just talk about it.", category: "Doer" },
+      { text: "If something needs to be done, I tackle it quickly and independently.", category: "Doer" },
+      { text: "I enjoy testing designs and using feedback to implement improvements.", category: "Doer" },
+      { text: "I can work independently without constant guidance.", category: "Doer" },
+      // IT Professional (4 questions)
+      { text: "I'm comfortable working with digital tools (such as creating a shared folder in OneDrive, designing in Canva, or creating a presentation in Word).", category: "IT Professional" },
+      { text: "I quickly learn new technical or digital skills.", category: "IT Professional" },
+      { text: "I feel comfortable presenting technical ideas or results.", category: "IT Professional" },
+      { text: "I'm comfortable giving and receiving feedback on technical or content-related choices.", category: "IT Professional" },
+    ]
+
+    const questionIds = await Promise.all(
+      questionsData.map(q =>
+        ctx.db.insert("questions", {
+          question: q.text,
+          kind: "0to6" as const,
+          category: q.category,
+          semesterId,
+          createdAt: now,
+        })
+      )
+    )
+
+    // Create 7 group topics (identical placeholders)
+    const topicIds = await Promise.all(
+      Array.from({ length: 7 }, (_, i) => 
+        ctx.db.insert("topics", Topic.make({
+          title: `Group ${i + 1}`,
+          description: "Experiment group - no specific project",
+          semesterId,
+          isActive: true,
+        }))
+      )
+    )
+
+    // Generate 28 unique access codes
+    const CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    const generateAccessCode = () => {
+      let code = ""
+      for (let i = 0; i < 6; i++) {
+        code += CHARSET[Math.floor(Math.random() * CHARSET.length)]
+      }
+      return code
+    }
+
+    const accessCodes: string[] = []
+    const existingCodes = new Set<string>()
+    
+    for (let i = 0; i < studentNames.length; i++) {
+      let code: string
+      do {
+        code = generateAccessCode()
+      } while (existingCodes.has(code))
+      existingCodes.add(code)
+      accessCodes.push(code)
+    }
+
+    // Create selection period with exclusion data embedded in description
+    const exclusionsJson = JSON.stringify(exclusions)
+    const periodDescription = `User test experiment - Team assignment based on student qualities. EXCLUSIONS:${exclusionsJson}`
+    
+    const period = SelectionPeriod.makeInactive({
+      semesterId,
+      title: "Experiment: Team Assignment",
+      description: periodDescription,
+      openDate: now,
+      closeDate: thirtyDaysFromNow,
+    })
+
+    const periodId = await ctx.db.insert("selectionPeriods", period)
+
+    // Schedule the close function
+    const scheduledCloseId = await ctx.scheduler.runAt(
+      thirtyDaysFromNow,
+      internal.assignments.assignPeriod,
+      { periodId }
+    )
+    
+    // Convert to open with the scheduled function
+    const openPeriod = SelectionPeriod.toOpen(period, scheduledCloseId)
+    await ctx.db.replace(periodId, openPeriod)
+
+    // Link all questions to the period
+    await Promise.all(
+      questionIds.map((questionId, index) =>
+        ctx.db.insert("selectionQuestions", {
+          selectionPeriodId: periodId,
+          questionId,
+          order: index,
+        })
+      )
+    )
+
+    // Create access codes for all students
+    await Promise.all(
+      accessCodes.map((code, index) =>
+        ctx.db.insert("periodStudentAllowList", {
+          selectionPeriodId: periodId,
+          studentId: code,
+          addedAt: now,
+          addedBy: "experiment-setup",
+        })
+      )
+    )
+
+    // Build mapping for return
+    const mapping = studentNames.map((name, index) => ({
+      name,
+      accessCode: accessCodes[index],
+      originalTeam: index < 4 ? 1 : index < 8 ? 2 : index < 12 ? 3 : index < 15 ? 4 : index < 19 ? 5 : index < 22 ? 6 : index < 25 ? 7 : 8
+    }))
+
+    return {
+      periodId,
+      categoryCount: categoryIds.length,
+      questionCount: questionIds.length,
+      topicCount: topicIds.length,
+      studentCount: accessCodes.length,
+      exclusionPairCount: exclusions.length,
+      mapping,
+    }
+  }
+})

@@ -254,6 +254,8 @@ export function useDashboardVM(): DashboardVM {
 
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
+  const setupExperimentMutation = useMutation(api.admin.setupExperiment)
+  const generateRandomAnswersMutation = useMutation(api.admin.generateRandomAnswers)
 
   // ============================================================================
   // DATA SIGNALS - Updated when query data changes
@@ -690,6 +692,8 @@ export function useDashboardVM(): DashboardVM {
     const settingsView = createSettingsViewVM({
       seedTestDataMutation,
       clearAllDataMutation,
+      setupExperimentMutation,
+      generateRandomAnswersMutation,
     })
 
     const analyticsView = createAnalyticsViewVM({

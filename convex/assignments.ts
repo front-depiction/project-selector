@@ -67,6 +67,9 @@ async function assignPeriodInternal(
     return period.assignmentBatchId // Already assigned
   }
 
+  // Check if this is an experiment period (doesn't require topic preferences)
+  const isExperiment = period.description.includes("EXCLUSIONS:")
+
   // Get all preferences for this semester
   const preferences = await ctx.db
     .query("preferences")
@@ -80,26 +83,22 @@ async function assignPeriodInternal(
     .filter((q) => q.eq(q.field("isActive"), true))
     .collect()
 
-  // If no topics or students,just close the period without assignment
-  if (topics.length === 0 || preferences.length === 0) {
-    console.log(`[assignPeriod] Insufficient data for assignment (Topics: ${topics.length}, Preferences: ${preferences.length}). Closing period without assignment.`)
-
-    await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
-      semesterId: period.semesterId,
-      title: period.title,
-      description: period.description,
-      openDate: period.openDate,
-      closeDate: period.closeDate
-    }))
-
-    return null
+  // For experiment periods, get students from access list instead of preferences
+  let studentIds: string[]
+  if (isExperiment) {
+    const accessList = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", (q) => q.eq("selectionPeriodId", periodId))
+      .collect()
+    studentIds = accessList.map(a => a.studentId)
+  } else {
+    // Normal periods: get students from preferences
+    studentIds = [...new Set(preferences.map((p) => p.studentId))]
   }
 
-  // Get unique student IDs
-  const studentIds = [...new Set(preferences.map((p) => p.studentId))]
-
-  if (studentIds.length === 0) {
-    console.log("[assignPeriod] No unique students found. Closing period.")
+  // If no topics or students, close the period without assignment
+  if (topics.length === 0 || studentIds.length === 0) {
+    console.log(`[assignPeriod] Insufficient data for assignment (Topics: ${topics.length}, Students: ${studentIds.length}). Closing period without assignment.`)
 
     await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
       semesterId: period.semesterId,
@@ -108,6 +107,7 @@ async function assignPeriodInternal(
       openDate: period.openDate,
       closeDate: period.closeDate
     }))
+
     return null
   }
 
@@ -199,7 +199,7 @@ function distributeStudents(
 }
 
 /**
- * Gets assignments for a selection period.
+ * Gets assignments for a selection period with quality averages.
  * 
  * @category Queries
  * @since 0.1.0
@@ -222,7 +222,64 @@ export const getAssignments = query({
     const topics = await ctx.db.query("topics").collect()
     const topicMap = new Map(topics.map(t => [t._id, t]))
 
-    const byTopic: Record<string, { topic: typeof topics[0] | undefined; students: Array<{ studentId: string; originalRank?: number; assignedAt: number }> }> = {}
+    // Get all student answers for this period
+    const allAnswers = await ctx.db.query("studentAnswers").collect()
+    const periodAnswers = allAnswers.filter(a => a.selectionPeriodId === args.periodId)
+
+    // Get questions to map to categories
+    const selectionQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q) => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+    
+    const questionIds = selectionQuestions.map(sq => sq.questionId)
+    const questions = await Promise.all(
+      questionIds.map(id => ctx.db.get(id))
+    )
+    const questionMap = new Map(questions.filter(q => q !== null).map(q => [q!._id, q!]))
+
+    // Build student quality map (category -> average)
+    const studentQualityMap = new Map<string, Map<string, number>>()
+    
+    for (const answer of periodAnswers) {
+      const question = questionMap.get(answer.questionId)
+      if (!question || !question.category) continue
+
+      if (!studentQualityMap.has(answer.studentId)) {
+        studentQualityMap.set(answer.studentId, new Map())
+      }
+
+      const qualities = studentQualityMap.get(answer.studentId)!
+      const category = question.category
+      
+      if (!qualities.has(category)) {
+        qualities.set(category, 0)
+        qualities.set(`${category}_count`, 0)
+      }
+
+      const currentSum = qualities.get(category) || 0
+      const currentCount = qualities.get(`${category}_count`) || 0
+      
+      qualities.set(category, currentSum + answer.normalizedAnswer * 6) // Convert back to 0-6
+      qualities.set(`${category}_count`, currentCount + 1)
+    }
+
+    // Calculate averages
+    for (const [studentId, qualities] of studentQualityMap.entries()) {
+      const categories = Array.from(qualities.keys()).filter(k => !k.endsWith('_count'))
+      for (const category of categories) {
+        const sum = qualities.get(category) || 0
+        const count = qualities.get(`${category}_count`) || 1
+        qualities.set(category, sum / count)
+        qualities.delete(`${category}_count`)
+      }
+    }
+
+    const byTopic: Record<string, { 
+      topic: typeof topics[0] | undefined; 
+      students: Array<{ studentId: string; originalRank?: number; assignedAt: number }>;
+      qualityAverages: Record<string, number>;
+    }> = {}
 
     for (const assignment of assignments) {
       const topicId = assignment.topicId as string
@@ -231,7 +288,8 @@ export const getAssignments = query({
       if (!byTopic[topicId]) {
         byTopic[topicId] = {
           topic: topic,
-          students: []
+          students: [],
+          qualityAverages: {}
         }
       }
 
@@ -240,6 +298,30 @@ export const getAssignments = query({
         originalRank: assignment.originalRank,
         assignedAt: assignment.assignedAt
       })
+    }
+
+    // Calculate quality averages for each topic
+    for (const [topicId, data] of Object.entries(byTopic)) {
+      const categoryTotals = new Map<string, { sum: number; count: number }>()
+
+      for (const student of data.students) {
+        const qualities = studentQualityMap.get(student.studentId)
+        if (!qualities) continue
+
+        for (const [category, value] of qualities.entries()) {
+          if (!categoryTotals.has(category)) {
+            categoryTotals.set(category, { sum: 0, count: 0 })
+          }
+          const totals = categoryTotals.get(category)!
+          totals.sum += value
+          totals.count += 1
+        }
+      }
+
+      // Calculate averages
+      for (const [category, totals] of categoryTotals.entries()) {
+        data.qualityAverages[category] = totals.count > 0 ? totals.sum / totals.count : 0
+      }
     }
 
     return byTopic
@@ -410,6 +492,16 @@ export const getQuestionsForSolver = internalQuery({
     )
 
     return questions.filter((q): q is NonNullable<typeof q> => q !== null)
+  }
+})
+
+export const getAccessListForSolver = internalQuery({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
   }
 })
 

@@ -9,6 +9,7 @@ import { signal, computed } from "@preact/signals-react"
 import { createStudentSelectionPageVM } from "@/components/StudentSelection/StudentSelectionPageVM"
 import { createStudentQuestionPresentationVM } from "@/components/StudentQuestionnaire/StudentQuestionPresentationViewVM"
 import { StudentSelectionPage } from "@/components/StudentSelection/StudentSelectionPage"
+import { toast } from "sonner"
 
 /**
  * Hook to create VM with Convex queries - follows LandingPage pattern
@@ -142,6 +143,11 @@ function useStudentSelectionPageVM() {
   // Track questionnaire completion for optimistic UI
   const questionnaireCompleted$ = React.useMemo(() => signal(false), [])
 
+  // Check if this is an experiment period
+  const isExperimentPeriod = React.useMemo(() => {
+    return currentPeriod?.description?.includes("EXCLUSIONS:") ?? false
+  }, [currentPeriod])
+
   // Wrap mutation to match expected signature (fire and forget - no await needed)
   const saveAnswers = React.useCallback((args: Parameters<typeof saveAnswersMutation>[0]) => {
     saveAnswersMutation(args).catch(err => console.error("Failed to save answer:", err))
@@ -162,10 +168,21 @@ function useStudentSelectionPageVM() {
         saveAnswers,
         onComplete: () => {
           questionnaireCompleted$.value = true
+          
+          // For experiment periods, redirect to home with success notification
+          if (period.description?.includes("EXCLUSIONS:")) {
+            toast.success("Questionnaire completed successfully!", {
+              description: "Thank you for completing the questionnaire. Your responses have been saved.",
+            })
+            // Delay redirect slightly to show the toast
+            setTimeout(() => {
+              router.push("/")
+            }, 500)
+          }
         }
       })
     })
-  }, [periodQuestions$, existingAnswers$, saveAnswers, initialStudentId, currentPeriod$, questionnaireCompleted$])
+  }, [periodQuestions$, existingAnswers$, saveAnswers, initialStudentId, currentPeriod$, questionnaireCompleted$, router])
 
   // Create VM once
   const vm = React.useMemo(
@@ -195,6 +212,15 @@ function useStudentSelectionPageVM() {
       router.push("/")
     }
   }, [currentPeriod, router])
+
+  // Redirect to home for experiment periods after questionnaire is completed
+  React.useEffect(() => {
+    if (currentPeriod && 
+        currentPeriod.description?.includes("EXCLUSIONS:") && 
+        hasCompletedQuestionnaire === true) {
+      router.push("/")
+    }
+  }, [currentPeriod, hasCompletedQuestionnaire, router])
 
   return vm
 }

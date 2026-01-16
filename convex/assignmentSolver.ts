@@ -5,14 +5,15 @@ import type { Id } from "./_generated/dataModel"
 import type { Doc } from "./_generated/dataModel"
 
 /**
- * CP-SAT Service URL
- * 
- * Note: For local development, you need to use a tunneling service like ngrok
- * because Convex actions run in the cloud and cannot reach localhost.
- * 
- * Example with ngrok: https://your-ngrok-url.ngrok.io
+ * Assignment Solver Service URL
+ *
+ * Uses Railway-hosted GA solver for production assignments.
+ * For local development, you can override with GA_SERVICE_URL or CP_SAT_SERVICE_URL env var.
  */
-const CP_SAT_SERVICE_URL = process.env.CP_SAT_SERVICE_URL || "http://localhost:8000"
+const GA_SERVICE_URL =
+  process.env.GA_SERVICE_URL ||
+  process.env.CP_SAT_SERVICE_URL ||
+  "https://ga-production-2d99.up.railway.app"
 
 type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
 
@@ -42,8 +43,20 @@ export const solveAssignment = internalAction({
       throw new Error("No active topics found for assignment")
     }
 
-    // Get unique student IDs from preferences
-    const studentIds: string[] = [...new Set(preferences.map((p: Doc<"preferences">) => p.studentId))]
+    // Check if this is an experiment period (doesn't require topic preferences)
+    const isExperiment = period.description.includes("EXCLUSIONS:")
+
+    // Get unique student IDs - either from preferences or from access list for experiments
+    let studentIds: string[]
+    if (isExperiment) {
+      // For experiment periods, get students from access list
+      const accessList = await ctx.runQuery(internal.assignments.getAccessListForSolver, { periodId: args.periodId })
+      studentIds = accessList.map((a: any) => a.studentId)
+    } else {
+      // For normal periods, get students from preferences
+      studentIds = [...new Set(preferences.map((p: Doc<"preferences">) => p.studentId))]
+    }
+    
     if (studentIds.length === 0) {
       throw new Error("No students to assign")
     }
@@ -58,9 +71,9 @@ export const solveAssignment = internalAction({
       studentIds
     })
 
-    // Call CP-SAT service
+    // Call GA service
     try {
-      const response = await fetch(`${CP_SAT_SERVICE_URL}/solve`, {
+      const response = await fetch(`${GA_SERVICE_URL}/solve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cpSatInput)
@@ -68,7 +81,7 @@ export const solveAssignment = internalAction({
 
       if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(`CP-SAT service error (${response.status}): ${errorText}`)
+        throw new Error(`GA service error (${response.status}): ${errorText}`)
       }
 
       const result = await response.json()
@@ -77,7 +90,7 @@ export const solveAssignment = internalAction({
       return transformFromCPSATFormat(result, topics, preferences, studentIds)
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Failed to call CP-SAT service: ${error.message}`)
+        throw new Error(`Failed to call GA service: ${error.message}`)
       }
       throw error
     }
@@ -159,14 +172,15 @@ function transformToCPSATFormat(data: {
   // Build groups (topics) with criteria
   // Calculate target group size (even distribution)
   const targetGroupSize = Math.ceil(studentIds.length / topics.length)
+  type CriterionConfig = { type: string; min_ratio?: number; target?: number }
   const groups = topics.map((topic, index) => ({
     id: index,
     size: targetGroupSize,
-    criteria: {} as Record<string, { type: string; min_ratio?: number; target?: number }>
+    criteria: {} as Record<string, CriterionConfig[]>
   }))
 
   // Add criteria based on question categories
-  // For now, we'll add basic criteria - can be extended based on requirements
+  // Collect all unique categories from questions
   const categories = new Set<string>()
   for (const question of questions) {
     if (question && question.category) {
@@ -174,16 +188,16 @@ function transformToCPSATFormat(data: {
     }
   }
 
-  // Add criteria to groups (example: ensure diversity in categories)
-  // This can be customized based on your requirements
+  // Add "minimize" criteria with target 0 for each category to spread qualities across groups
+  // This ensures students with similar qualities are distributed evenly
   for (const category of categories) {
-    // Add a constraint to ensure at least 20% of students in each group have this category
-    // This is just an example - adjust based on your needs
     for (const group of groups) {
-      group.criteria[category] = {
-        type: "constraint",
-        min_ratio: 0.2
-      }
+      group.criteria[category] = [
+        {
+          type: "minimize",
+          target: 0
+        }
+      ]
     }
   }
 
@@ -212,10 +226,48 @@ function transformToCPSATFormat(data: {
     }
   })
 
+  // Build exclusion pairs (students who cannot be in the same group)
+  // For experiment: extract from period description if it contains exclusion data
+  const exclusions: Array<[number, number]> = []
+  
+  // Check if period description contains exclusion data in format: "EXCLUSIONS:[[0,1],[2,3]]"
+  if (data.period.description.includes("EXCLUSIONS:")) {
+    try {
+      const match = data.period.description.match(/EXCLUSIONS:(\[\[.*?\]\])/)
+      if (match && match[1]) {
+        const parsedExclusions = JSON.parse(match[1]) as Array<[number, number]>
+        exclusions.push(...parsedExclusions)
+      }
+    } catch (e) {
+      console.warn("Failed to parse exclusion data from period description:", e)
+    }
+  }
+
+  // Check if period description contains criteria data in format: "CRITERIA:{"0":{"Leader":[{"type":"best_min","min_ratio":0.5}]}}"
+  if (data.period.description.includes("CRITERIA:")) {
+    try {
+      const match = data.period.description.match(/CRITERIA:(\{.*?\})/)
+      if (match && match[1]) {
+        const customCriteria = JSON.parse(match[1]) as Record<string, Record<string, CriterionConfig[]>>
+        for (const [groupIdStr, groupCriteria] of Object.entries(customCriteria)) {
+          const groupId = parseInt(groupIdStr)
+          const group = groups.find(g => g.id === groupId)
+          if (group) {
+            for (const [category, configs] of Object.entries(groupCriteria)) {
+              group.criteria[category] = configs
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to parse criteria data from period description:", e)
+    }
+  }
+
   return {
     num_students: studentIds.length,
     num_groups: topics.length,
-    exclude: [], // Can add student exclusion pairs here if needed
+    exclude: exclusions,
     groups,
     students
   }
@@ -225,7 +277,7 @@ function transformToCPSATFormat(data: {
  * Transforms CP-SAT output to assignment format.
  */
 function transformFromCPSATFormat(
-  result: { assignments: Array<{ student: number; group: number }> },
+  result: { assignments: Array<{ student?: number; group?: number; student_id?: number; group_id?: number }> },
   topics: Array<Doc<"topics">>,
   preferences: Array<Doc<"preferences">>,
   studentIds: string[]
@@ -242,9 +294,11 @@ function transformFromCPSATFormat(
     })
   }
 
-  return result.assignments.map(({ student, group }: { student: number; group: number }) => {
-    const studentId = studentIds[student]
-    const topicId = topics[group]._id
+  return result.assignments.map((assignment) => {
+    const studentIndex = assignment.student_id ?? assignment.student ?? 0
+    const groupIndex = assignment.group_id ?? assignment.group ?? 0
+    const studentId = studentIds[studentIndex]
+    const topicId = topics[groupIndex]._id
     const rank = preferenceMap.get(studentId)?.get(topicId)
 
     return { studentId, topicId, rank }

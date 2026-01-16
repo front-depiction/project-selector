@@ -31,6 +31,7 @@ import {
 import { Plus, Edit, Power, Trash2, MoreVertical, Key, PlayCircle, Users } from "lucide-react"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
+import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { useAssignNowButtonVM } from "@/components/admin/AssignNowButtonVM"
 import type { PeriodsViewVM } from "./PeriodsViewVM"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -102,6 +103,32 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
     title: string
   } | null>(null)
 
+  const handleViewGroups = (periodId: Id<"selectionPeriods">, periodTitle: string) => {
+    setSelectedPeriodForAssignments({ id: periodId, title: periodTitle })
+    setAssignmentsDialogOpen(true)
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Assignment Results - Clean data table format */}
+      {vm.showAssignmentResults$.value && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>Assignment Results</CardTitle>
+            <CardDescription>
+              Students have been assigned to topics for {Option.match(vm.currentPeriod$.value, {
+                onNone: () => "Unknown Period",
+                onSome: (period) => period.title
+              })}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Badge variant="outline" className="text-sm">
+                  Total Assignments: {vm.assignments$.value.length}
+                </Badge>
+              </div>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -149,13 +176,6 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
         </Card>
       )}
 
-  const handleViewGroups = (periodId: Id<"selectionPeriods">, periodTitle: string) => {
-    setSelectedPeriodForAssignments({ id: periodId, title: periodTitle })
-    setAssignmentsDialogOpen(true)
-  }
-
-  return (
-    <div className="space-y-6">
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
@@ -217,21 +237,31 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                           <Key className="mr-2 h-4 w-4" />
                           Manage Access Codes
                         </DropdownMenuItem>
-
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={period.onDelete}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                        {period.statusDisplay === "Assigned" && (
+                          <DropdownMenuItem onClick={() => handleViewGroups(period.key as Id<"selectionPeriods">, period.title)}>
+                            <Users className="mr-2 h-4 w-4" />
+                            View Groups
                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+                        )}
+                        {(period.statusDisplay === "Open" || period.statusDisplay === "Closed") && (
+                          <AssignNowMenuItem 
+                            periodId={period.key as Id<"selectionPeriods">} 
+                            status={period.statusDisplay.toLowerCase() as "open" | "closed"} 
+                          />
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={period.onDelete}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
@@ -393,77 +423,18 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           setSelectedPeriodForAssignments(null)
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assignment Groups</DialogTitle>
             <DialogDescription>
               View formed groups for {selectedPeriodForAssignments?.title || "this project assignment"}
             </DialogDescription>
           </DialogHeader>
-          {assignmentsData === undefined ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="text-muted-foreground">Loading assignments...</div>
-            </div>
-          ) : assignmentsData === null ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="text-muted-foreground">No assignments found for this period.</div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(assignmentsData).map(([topicId, groupData]) => (
-                <Card key={topicId} className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      {groupData.topic?.title || "Unknown Topic"}
-                    </CardTitle>
-                    {groupData.topic?.description && (
-                      <CardDescription>{groupData.topic.description}</CardDescription>
-                    )}
-                    <div className="mt-2">
-                      <Badge variant="outline" className="text-sm">
-                        {groupData.students.length} {groupData.students.length === 1 ? "student" : "students"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Student ID</TableHead>
-                            <TableHead>Preference Rank</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupData.students.map((student, idx) => (
-                            <TableRow key={`${student.studentId}-${idx}`}>
-                              <TableCell className="font-medium">{student.studentId}</TableCell>
-                              <TableCell>
-                                {student.originalRank ? (
-                                  <Badge variant="outline" className="text-green-600 border-green-600">
-                                    #{student.originalRank} Preference
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                    Alternative
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge className="bg-purple-600 text-white">
-                                  Assigned
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          {selectedPeriodForAssignments && (
+            <AssignmentDisplay 
+              periodId={selectedPeriodForAssignments.id} 
+              showFullQualityNames={true}
+            />
           )}
         </DialogContent>
       </Dialog>
