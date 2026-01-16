@@ -1,4 +1,5 @@
 import { signal, ReadonlySignal } from "@preact/signals-react"
+import type { Id } from "@/convex/_generated/dataModel"
 
 // ============================================================================
 // View Model Types
@@ -17,7 +18,7 @@ export interface SettingsViewVM {
   readonly isSettingUpExperiment$: ReadonlySignal<boolean>
   readonly isGeneratingAnswers$: ReadonlySignal<boolean>
   readonly experimentMapping$: ReadonlySignal<Array<{ name: string; accessCode: string; originalTeam: number }> | null>
-  readonly experimentPeriodId$: ReadonlySignal<string | null>
+  readonly experimentPeriodId$: ReadonlySignal<Id<"selectionPeriods"> | null>
   readonly seedTestData: () => void
   readonly clearAllData: () => void
   readonly confirmClear: () => void
@@ -33,7 +34,7 @@ export interface SettingsViewVMDeps {
   readonly seedTestDataMutation: (args: {}) => Promise<any>
   readonly clearAllDataMutation: (args: {}) => Promise<any>
   readonly setupExperimentMutation: (args: {}) => Promise<any>
-  readonly generateRandomAnswersMutation: (args: { periodId: string }) => Promise<any>
+  readonly generateRandomAnswersMutation: (args: { periodId: Id<"selectionPeriods"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -50,7 +51,7 @@ export function createSettingsViewVM(deps: SettingsViewVMDeps): SettingsViewVM {
   const isSettingUpExperiment$ = signal(false)
   const isGeneratingAnswers$ = signal(false)
   const experimentMapping$ = signal<Array<{ name: string; accessCode: string; originalTeam: number }> | null>(null)
-  const experimentPeriodId$ = signal<string | null>(null)
+  const experimentPeriodId$ = signal<Id<"selectionPeriods"> | null>(null)
 
   // Dialog VM
   const clearDialog: DialogVM = {
