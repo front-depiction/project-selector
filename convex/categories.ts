@@ -88,8 +88,10 @@ export const deleteCategory = mutation({
     if (!category) throw new Error("Category not found")
 
     // Check if any questions are using this category
-    const allQuestions = await ctx.db.query("questions").collect()
-    const questionsUsingCategory = allQuestions.filter((q) => q.category === category.name)
+    const questionsUsingCategory = await ctx.db
+      .query("questions")
+      .withIndex("by_category", (q) => q.eq("category", category.name))
+      .collect()
 
     // Unassign the questions
     if (questionsUsingCategory.length > 0) {

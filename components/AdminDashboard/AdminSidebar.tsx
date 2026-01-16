@@ -40,16 +40,16 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       tooltip: "Dashboard overview and metrics",
     },
     {
-      id: "topics" as AD.ViewType,
-      title: "Topics",
-      icon: FileText,
-      tooltip: "Manage project topics",
-    },
-    {
       id: "periods" as AD.ViewType,
       title: "Project Assignments",
       icon: Calendar,
       tooltip: "Manage project assignment periods",
+    },
+    {
+      id: "topics" as AD.ViewType,
+      title: "Project Topics",
+      icon: FileText,
+      tooltip: "Manage project topics",
     },
     {
       id: "analytics" as AD.ViewType,

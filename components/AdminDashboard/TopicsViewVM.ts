@@ -4,6 +4,7 @@ import type { TopicFormValues } from "@/components/forms/topic-form"
 import * as Option from "effect/Option"
 import { toast } from "sonner"
 
+
 // ============================================================================
 // View Model Types
 // ============================================================================
@@ -75,6 +76,7 @@ export interface TopicsViewVMDeps {
     id: Id<"topics">
     title: string
     description: string
+    semesterId?: string
   }) => Promise<any>
   readonly toggleTopicActive: (args: { id: Id<"topics"> }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
@@ -168,7 +170,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
     // Convert to array of groups, sorted by period title
     const groups: TopicGroupVM[] = []
-    
+
     // First, add groups for periods that have topics
     for (const [semesterId, topicList] of grouped.entries()) {
       const periodTitle = periodMap.get(semesterId) ?? `Unknown Assignment (${semesterId})`
@@ -241,8 +243,9 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create topic:", error)
+      toast.error(error.message || "Failed to create topic. Please try again.")
       throw error
     }
   }
@@ -255,11 +258,15 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           id: editing.id,
           title: values.title,
           description: values.description,
+          semesterId: values.selection_period_id,
         })
           .then(() => {
             editTopicDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to update topic:", error)
+            toast.error(error.message || "Failed to update topic. Please try again.")
+          })
       }
     })
   }

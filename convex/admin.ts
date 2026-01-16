@@ -55,14 +55,14 @@ export const seedTestData = mutation({
       closeDate: thirtyDaysFromNow,
     })
     const openWithQuestionnairesPeriodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
-    
+
     // Schedule the close function
     const scheduledCloseId = await ctx.scheduler.runAt(
       thirtyDaysFromNow,
       internal.assignments.assignPeriod,
       { periodId: openWithQuestionnairesPeriodId }
     )
-    
+
     // Convert to open with the scheduled function
     const openPeriod = SelectionPeriod.toOpen(inactivePeriod, scheduledCloseId)
     await ctx.db.replace(openWithQuestionnairesPeriodId, openPeriod)
@@ -75,9 +75,9 @@ export const seedTestData = mutation({
       { name: "Interests", description: "Personal interests and motivation" },
       { name: "Availability", description: "Time commitment and schedule flexibility" },
     ]
-    
+
     const categoryIds = await Promise.all(
-      categoryNames.map(cat => 
+      categoryNames.map(cat =>
         ctx.db.insert("categories", {
           name: cat.name,
           description: cat.description,
@@ -255,7 +255,7 @@ export const seedTestData = mutation({
     // Create student answers (questionnaire data) for both periods
     // Get the first 7 questions (which are linked to both periods)
     const periodQuestionIds = questionIds.slice(0, 7)
-    
+
     // Create answers for open period students (8 students completed questionnaire)
     const openStudentAnswers = await Promise.all(
       accessCodes.slice(0, 8).flatMap((studentId) =>
@@ -358,7 +358,7 @@ export const seedTestData = mutation({
         const preferredTopicId = pref.topicOrder[0] // First preference
         const assignedTopicId = preferredTopicId || topicIds[index % topicIds.length] // Fallback to round-robin
         const originalRank = pref.topicOrder.indexOf(assignedTopicId) + 1 // 1-based rank, or undefined if not in preferences
-        
+
         return ctx.db.insert("assignments", Assignment.make({
           periodId: closedPeriodId,
           batchId: assignmentBatchId,
@@ -382,9 +382,9 @@ export const seedTestData = mutation({
         assignmentBatchId
       }))
     }
-    
-    return { 
-      categoryCount: categoryIds.length, 
+
+    return {
+      categoryCount: categoryIds.length,
       questionCount: questionIds.length,
       openPeriodAccessCodeCount: accessCodes.length,
       closedPeriodAccessCodeCount: closedAccessCodes.length,
@@ -427,12 +427,12 @@ export const createTopic = mutation({
       semesterId: args.semesterId,
       isActive: true,
     })
-    
+
     // Create multiple copies of the topic
     const ids = await Promise.all(
       Array.from({ length: count }, () => ctx.db.insert("topics", topicData))
     )
-    
+
     // Return the first ID for backward compatibility
     return ids[0]
   }
@@ -449,6 +449,7 @@ export const updateTopic = mutation({
     id: v.id("topics"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
+    semesterId: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -459,6 +460,7 @@ export const updateTopic = mutation({
     const updates: any = {}
     if (args.title !== undefined) updates.title = args.title
     if (args.description !== undefined) updates.description = args.description
+    if (args.semesterId !== undefined) updates.semesterId = args.semesterId
     if (args.isActive !== undefined) updates.isActive = args.isActive
 
     await ctx.db.patch(args.id, updates)

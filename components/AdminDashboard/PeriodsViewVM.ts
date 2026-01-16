@@ -5,6 +5,7 @@ import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { SelectionPeriodWithStats, Assignment } from "./index"
 import { format } from "date-fns"
 import * as Option from "effect/Option"
+import { toast } from "sonner"
 
 // ============================================================================
 // View Model Types
@@ -367,7 +368,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         // Show access codes panel instead of closing
         createdPeriod$.value = Option.some({ id: createdPeriodId, title: periodTitle })
       })
-      .catch(console.error)
+      .catch((error) => {
+        console.error("Failed to create period:", error)
+        toast.error(error.message || "Failed to create period. Please try again.")
+      })
   }
 
   const onEditSubmit = (values: SelectionPeriodFormValues): void => {
@@ -411,7 +415,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
           .then(() => {
             editDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to update period:", error)
+            toast.error(error.message || "Failed to update period. Please try again.")
+          })
       }
     })
   }

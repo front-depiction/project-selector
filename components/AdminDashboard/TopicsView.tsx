@@ -202,6 +202,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                 selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
               }}
               onSubmit={vm.onEditTopicSubmit}
+              isEditing={true}
             />
           )}
         </DialogContent>

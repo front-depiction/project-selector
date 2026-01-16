@@ -1,4 +1,5 @@
 import { signal, computed, ReadonlySignal, Signal } from "@preact/signals-react"
+import { toast } from "sonner"
 import * as EffectOption from "effect/Option"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionFormValues } from "@/components/forms/question-form"
@@ -234,7 +235,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             questionDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to create question:", error)
+            toast.error(error.message || "Failed to create question")
+          })
       },
       onSome: (editingQuestion) => {
         deps.updateQuestion({
@@ -246,7 +250,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             questionDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to update question:", error)
+            toast.error(error.message || "Failed to update question")
+          })
       }
     })
   }
@@ -271,7 +278,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             templateDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to create template:", error)
+            toast.error(error.message || "Failed to create template")
+          })
       },
       onSome: (editingTemplate) => {
         deps.updateTemplate({
@@ -288,7 +298,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             templateDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to update template:", error)
+            toast.error(error.message || "Failed to update template")
+          })
       }
     })
   }
@@ -304,7 +317,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             categoryDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to create category:", error)
+            toast.error(error.message || "Failed to create category")
+          })
       },
       onSome: (editingCategory) => {
         deps.updateCategory({
@@ -315,7 +331,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .then(() => {
             categoryDialog.close()
           })
-          .catch(console.error)
+          .catch((error) => {
+            console.error("Failed to update category:", error)
+            toast.error(error.message || "Failed to update category")
+          })
       }
     })
   }

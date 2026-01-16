@@ -47,7 +47,7 @@ const AssignNowMenuItem: React.FC<{ periodId: Id<"selectionPeriods">; status: "o
   const isDisabled = !canAssign || vm.isLoading$.value
 
   return (
-    <DropdownMenuItem 
+    <DropdownMenuItem
       onClick={() => !isDisabled && vm.assignTopics()}
       disabled={isDisabled}
     >
@@ -101,53 +101,6 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
     id: Id<"selectionPeriods">
     title: string
   } | null>(null)
-
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Assigned Topic</TableHead>
-                      <TableHead className="text-center">Preference Match</TableHead>
-                      <TableHead className="text-center">Rank</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vm.assignments$.value.map((assignment) => (
-                      <TableRow key={assignment.key}>
-                        <TableCell className="font-medium">{assignment.studentId}</TableCell>
-                        <TableCell>{assignment.topicTitle}</TableCell>
-                        <TableCell className="text-center">
-                          {assignment.isMatched ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
-                              ✓ Matched
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-600">
-                              Alternative
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={assignment.rankBadgeVariant}>
-                            #{assignment.preferenceRank}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge className="bg-purple-600 text-white">
-                            {assignment.statusDisplay}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
   const handleViewGroups = (periodId: Id<"selectionPeriods">, periodTitle: string) => {
     setSelectedPeriodForAssignments({ id: periodId, title: periodTitle })
@@ -218,20 +171,20 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                           Manage Access Codes
                         </DropdownMenuItem>
 
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={period.onDelete}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={period.onDelete}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              )
+              )}
             </TableBody>
           </Table>
         </div>
@@ -400,71 +353,56 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               View formed groups for {selectedPeriodForAssignments?.title || "this project assignment"}
             </DialogDescription>
           </DialogHeader>
-          {assignmentsData === undefined ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="text-muted-foreground">Loading assignments...</div>
-            </div>
-          ) : assignmentsData === null ? (
-            <div className="flex h-40 items-center justify-center">
-              <div className="text-muted-foreground">No assignments found for this period.</div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(assignmentsData).map(([topicId, groupData]) => (
-                <Card key={topicId} className="border-0 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      {groupData.topic?.title || "Unknown Topic"}
-                    </CardTitle>
-                    {groupData.topic?.description && (
-                      <CardDescription>{groupData.topic.description}</CardDescription>
-                    )}
-                    <div className="mt-2">
-                      <Badge variant="outline" className="text-sm">
-                        {groupData.students.length} {groupData.students.length === 1 ? "student" : "students"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Student ID</TableHead>
-                            <TableHead>Preference Rank</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupData.students.map((student, idx) => (
-                            <TableRow key={`${student.studentId}-${idx}`}>
-                              <TableCell className="font-medium">{student.studentId}</TableCell>
-                              <TableCell>
-                                {student.originalRank ? (
-                                  <Badge variant="outline" className="text-green-600 border-green-600">
-                                    #{student.originalRank} Preference
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                    Alternative
-                                  </Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge className="bg-purple-600 text-white">
-                                  Assigned
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Assigned Topic</TableHead>
+                  <TableHead className="text-center">Preference Match</TableHead>
+                  <TableHead className="text-center">Rank</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vm.assignments$.value.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                      No assignments found for this period.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  vm.assignments$.value.map((assignment) => (
+                    <TableRow key={assignment.key}>
+                      <TableCell className="font-medium">{assignment.studentId}</TableCell>
+                      <TableCell>{assignment.topicTitle}</TableCell>
+                      <TableCell className="text-center">
+                        {assignment.isMatched ? (
+                          <Badge variant="outline" className="text-green-600 border-green-600">
+                            ✓ Matched
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-orange-600 border-orange-600">
+                            Alternative
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={assignment.rankBadgeVariant}>
+                          #{assignment.preferenceRank}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className="bg-purple-600 text-white">
+                          {assignment.statusDisplay}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

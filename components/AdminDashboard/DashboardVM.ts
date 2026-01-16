@@ -390,14 +390,22 @@ export function useDashboardVM(): DashboardVM {
         studentCount: p.studentCount ?? 0,
         assignmentCount: p.assignmentCount ?? 0,
         setActive: () => {
-          setActivePeriodMutation({ periodId: p._id }).catch(console.error)
+          setActivePeriodMutation({ periodId: p._id })
+            .catch((error) => {
+              console.error("Failed to set active period:", error)
+              toast.error(error.message || "Failed to set active period")
+            })
         },
         edit: () => {
           editingPeriod$.value = Option.some(p)
           editPeriodDialogOpen$.value = true
         },
         remove: () => {
-          deletePeriodMutation({ periodId: p._id }).catch(console.error)
+          deletePeriodMutation({ periodId: p._id })
+            .catch((error) => {
+              console.error("Failed to delete period:", error)
+              toast.error(error.message || "Failed to delete period")
+            })
         },
         canSetActive
       }
@@ -420,7 +428,11 @@ export function useDashboardVM(): DashboardVM {
       statusVariant: t.isActive ? "default" : "secondary",
       selectionCount: 0, // TODO: Add real selection count when available
       toggleActive: () => {
-        toggleTopicActiveMutation({ id: t._id }).catch(console.error)
+        toggleTopicActiveMutation({ id: t._id })
+          .catch((error) => {
+            console.error("Failed to toggle topic active status:", error)
+            toast.error(error.message || "Failed to toggle topic status")
+          })
       },
       edit: () => {
         editingTopic$.value = Option.some(t)
@@ -533,7 +545,10 @@ export function useDashboardVM(): DashboardVM {
       semesterId: data.semesterId,
       openDate: data.openDate.getTime(),
       closeDate: data.closeDate.getTime(),
-    }).catch(console.error)
+    }).catch((error) => {
+      console.error("Failed to create period:", error)
+      toast.error(error.message || "Failed to create period")
+    })
   }
 
   const updatePeriod = (id: Id<"selectionPeriods">, updates: Partial<PeriodFormData>): void => {
@@ -543,15 +558,26 @@ export function useDashboardVM(): DashboardVM {
       description: updates.description,
       openDate: updates.openDate?.getTime(),
       closeDate: updates.closeDate?.getTime()
-    }).catch(console.error)
+    }).catch((error) => {
+      console.error("Failed to update period:", error)
+      toast.error(error.message || "Failed to update period")
+    })
   }
 
   const deletePeriod = (id: Id<"selectionPeriods">): void => {
-    deletePeriodMutation({ periodId: id }).catch(console.error)
+    deletePeriodMutation({ periodId: id })
+      .catch((error) => {
+        console.error("Failed to delete period:", error)
+        toast.error(error.message || "Failed to delete period")
+      })
   }
 
   const setActivePeriod = (id: Id<"selectionPeriods">): void => {
-    setActivePeriodMutation({ periodId: id }).catch(console.error)
+    setActivePeriodMutation({ periodId: id })
+      .catch((error) => {
+        console.error("Failed to set active period:", error)
+        toast.error(error.message || "Failed to set active period")
+      })
   }
 
   const createTopic = (data: TopicFormData): void => {
@@ -559,7 +585,10 @@ export function useDashboardVM(): DashboardVM {
       title: data.title,
       description: data.description,
       semesterId: data.semesterId,
-    }).catch(console.error)
+    }).catch((error) => {
+      console.error("Failed to create topic:", error)
+      toast.error(error.message || "Failed to create topic")
+    })
   }
 
   const updateTopic = (id: Id<"topics">, updates: Partial<TopicFormData>): void => {
@@ -567,15 +596,26 @@ export function useDashboardVM(): DashboardVM {
       id,
       title: updates.title,
       description: updates.description,
-    }).catch(console.error)
+    }).catch((error) => {
+      console.error("Failed to update topic:", error)
+      toast.error(error.message || "Failed to update topic")
+    })
   }
 
   const toggleTopicActive = (id: Id<"topics">): void => {
-    toggleTopicActiveMutation({ id }).catch(console.error)
+    toggleTopicActiveMutation({ id })
+      .catch((error) => {
+        console.error("Failed to toggle topic:", error)
+        toast.error(error.message || "Failed to toggle topic")
+      })
   }
 
   const deleteTopic = (id: Id<"topics">): void => {
-    deleteTopicMutation({ id }).catch(console.error)
+    deleteTopicMutation({ id })
+      .catch((error) => {
+        console.error("Failed to delete topic:", error)
+        toast.error(error.message || "Failed to delete topic")
+      })
   }
 
   const assignTopics = (_periodId: Id<"selectionPeriods">): void => {
@@ -605,7 +645,10 @@ export function useDashboardVM(): DashboardVM {
         }).then(() => {
           editPeriodDialogOpen$.value = false
           editingPeriod$.value = Option.none()
-        }).catch(console.error)
+        }).catch((error) => {
+          console.error("Failed to update period:", error)
+          toast.error(error.message || "Failed to update period")
+        })
       }
     })
   }
@@ -618,11 +661,15 @@ export function useDashboardVM(): DashboardVM {
         updateTopicMutation({
           id: editingTopic._id,
           title: values.title,
-          description: values.description
+          description: values.description,
+          semesterId: values.selection_period_id
         }).then(() => {
           editTopicDialogOpen$.value = false
           editingTopic$.value = Option.none()
-        }).catch(console.error)
+        }).catch((error) => {
+          console.error("Failed to update topic:", error)
+          toast.error(error.message || "Failed to update topic")
+        })
       }
     })
   }
@@ -777,6 +824,7 @@ export function useDashboardVM(): DashboardVM {
         id,
         title: updates.title,
         description: updates.description,
+        semesterId: updates.semesterId,
       }).catch(console.error)
     }
 

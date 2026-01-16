@@ -35,6 +35,9 @@ const formSchema = z.object({
     start_deadline: z.date(),
     end_deadline: z.date(),
     questionIds: z.array(z.string()),
+}).refine((data) => data.end_deadline > data.start_deadline, {
+    message: "End date must be after start date",
+    path: ["end_deadline"],
 });
 
 export type SelectionPeriodFormValues = z.infer<typeof formSchema>

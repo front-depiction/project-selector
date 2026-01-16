@@ -60,10 +60,12 @@ export default function TopicForm({
     periods,
     initialValues,
     onSubmit,
+    isEditing = false,
 }: {
     periods: PeriodOption[]
     initialValues?: Partial<TopicFormValues>
     onSubmit: (values: TopicFormValues) => void | Promise<void>
+    isEditing?: boolean
 }) {
     const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -166,31 +168,33 @@ export default function TopicForm({
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="duplicateCount"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Number of Copies</FormLabel>
-                            <FormControl>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={100}
-                                    placeholder="1"
-                                    className="w-full"
-                                    {...field}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                                    value={field.value || 1}
-                                />
-                            </FormControl>
-                            <FormDescription>
-                                Create multiple copies of this topic (useful when one topic should be available for multiple groups)
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {!isEditing && (
+                    <FormField
+                        control={form.control}
+                        name="duplicateCount"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Number of Copies</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={100}
+                                        placeholder="1"
+                                        className="w-full"
+                                        {...field}
+                                        onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                                        value={field.value || 1}
+                                    />
+                                </FormControl>
+                                <FormDescription>
+                                    Create multiple copies of this topic (useful when one topic should be available for multiple groups)
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
 
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? "Creating..." : "Submit"}

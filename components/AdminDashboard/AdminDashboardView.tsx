@@ -272,6 +272,7 @@ const OverviewView: React.FC = () => {
                 selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
               }}
               onSubmit={vm.updateTopicFromForm}
+              isEditing={true}
             />
           )}
         </DialogContent>
