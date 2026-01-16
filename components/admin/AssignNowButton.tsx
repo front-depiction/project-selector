@@ -16,9 +16,10 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
   useSignals()
   const vm = useAssignNowButtonVM(periodId)
 
+  const isAssigned = status === "assigned"
   // Can assign if status is "closed" (period is closed but not yet assigned)
   const canAssign = status === "closed" || status === "open"
-  const isDisabled = disabled || !canAssign || status === "assigned" || vm.isLoading$.value
+  const isDisabled = disabled || isAssigned || !canAssign || vm.isLoading$.value
 
   return (
     <Button
@@ -32,7 +33,7 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Assigning...
         </>
-      ) : status === "assigned" ? (
+      ) : isAssigned ? (
         "Already Assigned"
       ) : (
         <>
