@@ -85,9 +85,17 @@ export const solveAssignment = internalAction({
       }
 
       const result = await response.json()
+      if (!result || !Array.isArray(result.assignments)) {
+        throw new Error("GA service returned invalid payload")
+      }
 
       // Transform results back to assignments
-      return transformFromCPSATFormat(result, topics, preferences, studentIds)
+      return transformFromCPSATFormat(
+        { assignments: result.assignments },
+        topics,
+        preferences,
+        studentIds
+      )
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to call GA service: ${error.message}`)
