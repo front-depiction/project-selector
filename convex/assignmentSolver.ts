@@ -1,4 +1,4 @@
-import { internalAction } from "./_generated/server"
+import { internalAction, internalQuery } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
@@ -61,6 +61,11 @@ export const solveAssignment = internalAction({
       throw new Error("No students to assign")
     }
 
+    // Fetch categories for criterion types
+    const allCategories = await ctx.runQuery(internal.categories.getAllCategoriesForSolver, {
+      semesterId: period.semesterId
+    })
+
     // Transform to CP-SAT format
     const cpSatInput = transformToCPSATFormat({
       period,
@@ -68,7 +73,8 @@ export const solveAssignment = internalAction({
       topics,
       studentAnswers,
       questions,
-      studentIds
+      studentIds,
+      categories: allCategories
     })
 
     // Call GA service
@@ -107,8 +113,9 @@ function transformToCPSATFormat(data: {
   studentAnswers: Array<Doc<"studentAnswers">>
   questions: Array<Doc<"questions"> | null>
   studentIds: string[]
+  categories: Array<Doc<"categories">>
 }) {
-  const { preferences, topics, studentAnswers, questions, studentIds } = data
+  const { preferences, topics, studentAnswers, questions, studentIds, categories } = data
 
   // Map student IDs to indices
   const studentIdMap = new Map<string, number>()
@@ -179,25 +186,62 @@ function transformToCPSATFormat(data: {
     criteria: {} as Record<string, CriterionConfig[]>
   }))
 
-  // Add criteria based on question categories
+  // Add criteria based on question categories and their criterion types
   // Collect all unique categories from questions
-  const categories = new Set<string>()
+  const categoryNames = new Set<string>()
   for (const question of questions) {
     if (question && question.category) {
-      categories.add(question.category)
+      categoryNames.add(question.category)
     }
   }
 
-  // Add "minimize" criteria with target 0 for each category to spread qualities across groups
-  // This ensures students with similar qualities are distributed evenly
-  for (const category of categories) {
+  // Build category map by name
+  const categoryMap = new Map<string, typeof categories[0]>()
+  for (const cat of categories) {
+    categoryMap.set(cat.name, cat)
+  }
+
+  // Add criteria based on category criterion types
+  for (const categoryName of categoryNames) {
+    const category = categoryMap.get(categoryName)
+    
+    // Skip if category doesn't exist or has no criterion type
+    if (!category || !category.criterionType) {
+      continue
+    }
+
+    // Build criterion config based on type
+    const criterionConfig: CriterionConfig = { type: "" }
+    
+    if (category.criterionType === "prerequisite") {
+      criterionConfig.type = "constraint"
+      if (category.minRatio !== undefined) {
+        criterionConfig.min_ratio = category.minRatio
+      } else {
+        // Default to 0.4 if not specified
+        criterionConfig.min_ratio = 0.4
+      }
+    } else if (category.criterionType === "minimize") {
+      criterionConfig.type = "minimize"
+      if (category.target !== undefined) {
+        criterionConfig.target = category.target
+      } else {
+        // Default to 0 to balance evenly
+        criterionConfig.target = 0
+      }
+    } else if (category.criterionType === "pull") {
+      criterionConfig.type = "maximize"
+      if (category.target !== undefined) {
+        criterionConfig.target = category.target
+      } else {
+        // Default to 1.0 to maximize
+        criterionConfig.target = 1.0
+      }
+    }
+
+    // Apply to all groups
     for (const group of groups) {
-      group.criteria[category] = [
-        {
-          type: "minimize",
-          target: 0
-        }
-      ]
+      group.criteria[categoryName] = [criterionConfig]
     }
   }
 

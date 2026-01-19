@@ -31,6 +31,9 @@ export interface CategoryItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionDisplay: string
+  readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly edit: () => void
   readonly remove: () => void
 }
@@ -79,6 +82,9 @@ export interface Category {
   readonly _id: string
   readonly name: string
   readonly description?: string
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly minRatio?: number
+  readonly target?: number
 }
 
 export interface QuestionnairesViewDeps {
@@ -95,8 +101,22 @@ export interface QuestionnairesViewDeps {
   readonly getTemplateWithQuestions: (args: { id: Id<"questionTemplates"> }) => Promise<any>
   readonly addQuestionToTemplate: (args: { templateId: Id<"questionTemplates">; questionId: Id<"questions"> }) => Promise<any>
   readonly reorderTemplateQuestions: (args: { templateId: Id<"questionTemplates">; questionIds: Id<"questions">[] }) => Promise<any>
-  readonly createCategory: (args: { name: string; description?: string; semesterId: string }) => Promise<any>
-  readonly updateCategory: (args: { id: Id<"categories">; name?: string; description?: string }) => Promise<any>
+  readonly createCategory: (args: { 
+    name: string
+    description?: string
+    semesterId: string
+    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    minRatio?: number
+    target?: number
+  }) => Promise<any>
+  readonly updateCategory: (args: { 
+    id: Id<"categories">
+    name?: string
+    description?: string
+    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    minRatio?: number
+    target?: number
+  }) => Promise<any>
   readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
@@ -138,18 +158,42 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
 
   // Computed: categories list for table
   const categories$ = computed((): readonly CategoryItemVM[] =>
-    (deps.categories$.value ?? []).map((c): CategoryItemVM => ({
-      key: c._id,
-      name: c.name,
-      description: c.description ?? "—",
-      remove: () => {
-        deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
-      },
-      edit: () => {
-        editingCategory$.value = EffectOption.some(c)
-        categoryDialogOpen$.value = true
+    (deps.categories$.value ?? []).map((c): CategoryItemVM => {
+      const criterionType = c.criterionType
+      let criterionDisplay = "None"
+      let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
+      
+      if (criterionType === "prerequisite") {
+        criterionDisplay = c.minRatio !== undefined 
+          ? `Required Min: ${Math.round(c.minRatio * 100)}%`
+          : "Required Minimum"
+        criterionBadgeVariant = "default"
+      } else if (criterionType === "minimize") {
+        criterionDisplay = c.target !== undefined
+          ? `Balance: Target ${Math.round(c.target * 100)}%`
+          : "Balance Evenly"
+        criterionBadgeVariant = "secondary"
+      } else if (criterionType === "pull") {
+        criterionDisplay = "Maximize"
+        criterionBadgeVariant = "default"
       }
-    }))
+      
+      return {
+        key: c._id,
+        name: c.name,
+        description: c.description ?? "—",
+        criterionType: c.criterionType,
+        criterionDisplay,
+        criterionBadgeVariant,
+        remove: () => {
+          deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+        },
+        edit: () => {
+          editingCategory$.value = EffectOption.some(c)
+          categoryDialogOpen$.value = true
+        }
+      }
+    })
   )
 
   // Computed: templates list for table
@@ -228,7 +272,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
         deps.createQuestion({
           question: values.question,
           kind: values.kind,
-          category: values.category || undefined,
+          category: values.category,
           semesterId: "default",
         })
           .then(() => {
@@ -300,6 +344,9 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           name: values.name,
           description: values.description || undefined,
           semesterId: "default",
+          criterionType: values.criterionType ?? undefined,
+          minRatio: values.minRatio,
+          target: values.target,
         })
           .then(() => {
             categoryDialog.close()
@@ -310,7 +357,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
         deps.updateCategory({
           id: editingCategory._id as Id<"categories">,
           name: values.name,
-          description: values.description || undefined
+          description: values.description || undefined,
+          criterionType: values.criterionType ?? undefined,
+          minRatio: values.minRatio,
+          target: values.target,
         })
           .then(() => {
             categoryDialog.close()

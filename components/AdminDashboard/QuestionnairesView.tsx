@@ -97,6 +97,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Criterion</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -105,6 +106,11 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                   <TableRow key={c.key}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.criterionBadgeVariant}>
+                        {c.criterionDisplay}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -235,7 +241,10 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              semester_id: "default"
+              semester_id: "default",
+              criterionType: c.criterionType ?? null,
+              minRatio: c.minRatio !== undefined ? Math.round(c.minRatio * 100) : undefined,
+              target: c.target !== undefined ? Math.round(c.target * 100) : undefined,
             })))}
           />
         </DialogContent>
@@ -254,7 +263,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
               question: q.question,
               kind: q.kind,
-              category: q.category || "",
+              category: q.category,
               semester_id: "default"
             })))}
           />

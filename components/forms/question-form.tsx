@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils"
 const formSchema = z.object({
     question: z.string().min(3, "Question must be at least 3 characters"),
     kind: z.enum(["boolean", "0to6"]),
-    category: z.string().optional(),
+    category: z.string().min(1, "Please select a category for this question"),
 })
 
 export type QuestionFormValues = z.infer<typeof formSchema>
@@ -62,7 +62,7 @@ export default function QuestionForm({
         defaultValues: {
             question: initialValues?.question ?? "",
             kind: initialValues?.kind ?? "boolean",
-            category: initialValues?.category ?? "",
+            category: initialValues?.category ?? (existingCategories.length > 0 ? existingCategories[0] : ""),
         },
     })
 
@@ -129,7 +129,7 @@ export default function QuestionForm({
                     name="category"
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
-                            <FormLabel>Category (Optional)</FormLabel>
+                            <FormLabel>Category <span className="text-red-500">*</span></FormLabel>
                             <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
                                 <PopoverTrigger asChild>
                                     <FormControl>
@@ -162,22 +162,6 @@ export default function QuestionForm({
                                                 </div>
                                             </CommandEmpty>
                                             <CommandGroup>
-                                                {/* Clear option */}
-                                                <CommandItem
-                                                    value=""
-                                                    onSelect={() => {
-                                                        form.setValue("category", "")
-                                                        setCategoryOpen(false)
-                                                    }}
-                                                >
-                                                    <Check
-                                                        className={cn(
-                                                            "mr-2 h-4 w-4",
-                                                            !field.value ? "opacity-100" : "opacity-0"
-                                                        )}
-                                                    />
-                                                    <span className="text-muted-foreground italic">No category</span>
-                                                </CommandItem>
                                                 {sortedCategories.map((category) => (
                                                     <CommandItem
                                                         key={category}
@@ -202,7 +186,7 @@ export default function QuestionForm({
                                 </PopoverContent>
                             </Popover>
                             <FormDescription>
-                                Select a category from the Categories section. Create categories first before assigning them to questions.
+                                Every question must belong to a category. Create categories in the Categories section first, then select one here.
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
