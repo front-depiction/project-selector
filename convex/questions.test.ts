@@ -18,9 +18,13 @@ async function createTestQuestion(
     question: string
     kind: "boolean" | "0to6"
     semesterId: string
+    category?: string
   }
 ): Promise<Id<"questions">> {
-  return await t.mutation(api.questions.createQuestion, params)
+  return await t.mutation(api.questions.createQuestion, {
+    ...params,
+    category: params.category ?? "Test Category"
+  })
 }
 
 test("getAllQuestions: returns all questions when no semesterId filter", async () => {

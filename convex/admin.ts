@@ -67,13 +67,38 @@ export const seedTestData = mutation({
     const openPeriod = SelectionPeriod.toOpen(inactivePeriod, scheduledCloseId)
     await ctx.db.replace(openWithQuestionnairesPeriodId, openPeriod)
 
-    // Create 5 categories
+    // Create 5 categories with criterion types
     const categoryNames = [
-      { name: "Technical Skills", description: "Programming and technical abilities" },
-      { name: "Soft Skills", description: "Communication and teamwork abilities" },
-      { name: "Academic Background", description: "Prior coursework and knowledge" },
-      { name: "Interests", description: "Personal interests and motivation" },
-      { name: "Availability", description: "Time commitment and schedule flexibility" },
+      { 
+        name: "Technical Skills", 
+        description: "Programming and technical abilities",
+        criterionType: "minimize" as const, // Balance evenly - no group gets all the best coders
+        target: undefined // Use overall average
+      },
+      { 
+        name: "Soft Skills", 
+        description: "Communication and teamwork abilities",
+        criterionType: "pull" as const, // Maximize - put students with good teamwork together
+        target: undefined
+      },
+      { 
+        name: "Academic Background", 
+        description: "Prior coursework and knowledge",
+        criterionType: "minimize" as const, // Balance evenly - mix of experience levels
+        target: undefined
+      },
+      { 
+        name: "Interests", 
+        description: "Personal interests and motivation",
+        criterionType: "pull" as const, // Maximize - group students with similar interests
+        target: undefined
+      },
+      { 
+        name: "Availability", 
+        description: "Time commitment and schedule flexibility",
+        criterionType: "prerequisite" as const, // Required minimum - ensure groups have enough available students
+        minRatio: 0.3 // At least 30% of students in each group must have good availability
+      },
     ]
     
     const categoryIds = await Promise.all(
@@ -83,6 +108,9 @@ export const seedTestData = mutation({
           description: cat.description,
           semesterId,
           createdAt: now,
+          criterionType: cat.criterionType,
+          minRatio: cat.minRatio,
+          target: cat.target,
         })
       )
     )
@@ -349,8 +377,11 @@ export const seedTestData = mutation({
       )
     )
 
-    // Create assignments for the closed period (to show formed groups)
-    // Convert closed period to assigned period with assignments
+    // Create assignments for the closed period
+    // Note: Mutations cannot call actions, so seed data uses simple distribution for speed.
+    // However, all categories are correctly configured with criterion types (see categoryNames above),
+    // so when teachers use "Assign Now (CP-SAT)" in the UI, it will use the CP-SAT algorithm
+    // with all the criterion types (Required Minimum, Balance Evenly, Maximize) properly applied.
     const assignmentBatchId = Assignment.createBatchId(closedPeriodId)
     const closedPeriodAssignments = await Promise.all(
       closedPreferenceData.map((pref, index) => {

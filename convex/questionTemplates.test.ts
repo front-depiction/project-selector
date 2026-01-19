@@ -30,7 +30,8 @@ async function createTestQuestions(
     const id = await t.mutation(api.questions.createQuestion, {
       question: `Test question ${i + 1}`,
       kind: i % 2 === 0 ? "boolean" : "0to6",
-      semesterId
+      semesterId,
+      category: "Test Category"
     })
     questionIds.push(id)
   }
