@@ -237,7 +237,7 @@ export const getAssignments = query({
       .query("selectionQuestions")
       .withIndex("by_selection_period", (q) => q.eq("selectionPeriodId", args.periodId))
       .collect()
-    
+
     const questionIds = selectionQuestions.map(sq => sq.questionId)
     const questions = await Promise.all(
       questionIds.map(id => ctx.db.get(id))
@@ -246,7 +246,7 @@ export const getAssignments = query({
 
     // Build student quality map (category -> average)
     const studentQualityMap = new Map<string, Map<string, number>>()
-    
+
     for (const answer of periodAnswers) {
       const question = questionMap.get(answer.questionId)
       if (!question || !question.category) continue
@@ -257,7 +257,7 @@ export const getAssignments = query({
 
       const qualities = studentQualityMap.get(answer.studentId)!
       const category = question.category
-      
+
       if (!qualities.has(category)) {
         qualities.set(category, 0)
         qualities.set(`${category}_count`, 0)
@@ -265,7 +265,7 @@ export const getAssignments = query({
 
       const currentSum = qualities.get(category) || 0
       const currentCount = qualities.get(`${category}_count`) || 0
-      
+
       qualities.set(category, currentSum + answer.normalizedAnswer * 6) // Convert back to 0-6
       qualities.set(`${category}_count`, currentCount + 1)
     }
@@ -281,8 +281,8 @@ export const getAssignments = query({
       }
     }
 
-    const byTopic: Record<string, { 
-      topic: typeof topics[0] | undefined; 
+    const byTopic: Record<string, {
+      topic: typeof topics[0] | undefined;
       students: Array<{ studentId: string; name?: string; originalRank?: number; assignedAt: number }>;
       qualityAverages: Record<string, number>;
     }> = {}
@@ -299,10 +299,13 @@ export const getAssignments = query({
         }
       }
 
-      // Get student name if available
+      // Get student name if available (must query by period and studentId)
       const studentEntry = await ctx.db
         .query("periodStudentAllowList")
-        .withIndex("by_studentId", (q) => q.eq("studentId", assignment.studentId))
+        .withIndex("by_period_studentId", (q) =>
+          q.eq("selectionPeriodId", args.periodId)
+            .eq("studentId", assignment.studentId)
+        )
         .first()
 
       byTopic[topicId].students.push({
@@ -564,12 +567,12 @@ export const saveCPSATAssignments = internalMutation({
       SelectionPeriod.isClosed(period)
         ? period
         : SelectionPeriod.makeClosed({
-            semesterId: period.semesterId,
-            title: period.title,
-            description: period.description,
-            openDate: period.openDate,
-            closeDate: period.closeDate
-          })
+          semesterId: period.semesterId,
+          title: period.title,
+          description: period.description,
+          openDate: period.openDate,
+          closeDate: period.closeDate
+        })
     ))
 
     return batchId

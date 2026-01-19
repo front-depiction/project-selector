@@ -309,12 +309,16 @@ export const getAllPeriodsStudentsWithCompletionStatus = query({
       if (periodQuestions.length === 0) {
         return {
           period,
-          students: Array.from(studentIds).sort().map(studentId => ({
-            studentId,
-            isCompleted: true,
-            answeredCount: 0,
-            totalCount: 0
-          }))
+          students: Array.from(studentIds).sort().map(studentId => {
+            const studentEntry = periodAllowListEntries.find(e => e.studentId === studentId)
+            return {
+              studentId,
+              name: studentEntry?.name,
+              isCompleted: true,
+              answeredCount: 0,
+              totalCount: 0
+            }
+          })
         }
       }
 
@@ -335,15 +339,19 @@ export const getAllPeriodsStudentsWithCompletionStatus = query({
       }
 
       // Build result array with all students
-      const students: Array<{ studentId: string; isCompleted: boolean; answeredCount: number; totalCount: number }> = []
+      const students: Array<{ studentId: string; name?: string; isCompleted: boolean; answeredCount: number; totalCount: number }> = []
 
       for (const studentId of studentIds) {
         const answeredQuestions = studentAnswerCounts.get(studentId) || new Set()
         const answeredCount = answeredQuestions.size
         const isCompleted = answeredCount >= requiredCount
 
+        // Get student name from periodStudentAllowList
+        const studentEntry = periodAllowListEntries.find(e => e.studentId === studentId)
+
         students.push({
           studentId,
+          name: studentEntry?.name,
           isCompleted,
           answeredCount,
           totalCount: requiredCount

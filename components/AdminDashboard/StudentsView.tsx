@@ -116,7 +116,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
                   <TableBody>
                     {group.students.map((student) => (
                       <TableRow key={student.key}>
-                        <TableCell className="pl-6 font-mono font-medium">{student.studentId}</TableCell>
+                        <TableCell className="pl-6 font-medium">{student.studentIdDisplay}</TableCell>
                         <TableCell>
                           {student.isCompleted ? (
                             <Badge variant="default" className="bg-green-600 hover:bg-green-700">

@@ -11,6 +11,8 @@ import * as Option from "effect/Option"
 export interface StudentItemVM {
   readonly key: string
   readonly studentId: string
+  readonly name?: string
+  readonly studentIdDisplay: string
   readonly isCompleted: boolean
   readonly answeredCount: number
   readonly totalCount: number
@@ -82,9 +84,16 @@ export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
           ? (student.answeredCount / student.totalCount) * 100
           : 100
 
+        // Format: "Name (CODE)" if name exists, otherwise just CODE
+        const studentIdDisplay = student.name 
+          ? `${student.name} (${student.studentId})` 
+          : student.studentId
+
         return {
           key: `${group.period._id}-${student.studentId}`,
           studentId: student.studentId,
+          name: student.name,
+          studentIdDisplay,
           isCompleted: student.isCompleted,
           answeredCount: student.answeredCount,
           totalCount: student.totalCount,
