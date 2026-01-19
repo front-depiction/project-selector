@@ -230,7 +230,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
       </Dialog>
 
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
@@ -242,7 +242,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
               name: c.name,
               description: c.description || "",
               semester_id: "default",
-              criterionType: c.criterionType ?? null,
+              criterionType: c.criterionType ?? undefined,
               minRatio: c.minRatio !== undefined ? Math.round(c.minRatio * 100) : undefined,
               target: c.target !== undefined ? Math.round(c.target * 100) : undefined,
             })))}
