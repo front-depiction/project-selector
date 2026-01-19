@@ -13,6 +13,7 @@ import * as User from "./schemas/User"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Category from "./schemas/Category"
+import * as DeferredSolverJob from "./schemas/DeferredSolverJob"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -79,4 +80,9 @@ export default defineSchema({
     .index("by_period", ["selectionPeriodId"])
     .index("by_period_studentId", ["selectionPeriodId", "studentId"])
     .index("by_studentId", ["studentId"]),
+
+  deferredSolverJobs: defineTable(DeferredSolverJob.DeferredSolverJob)
+    .index("by_deferred_id", ["deferredId"])
+    .index("by_period", ["periodId"])
+    .index("by_status", ["status"]),
 })
