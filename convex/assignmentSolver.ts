@@ -1,3 +1,5 @@
+"use node"
+
 import { randomUUID } from "crypto"
 import { v } from "convex/values"
 import { internalAction } from "./_generated/server"

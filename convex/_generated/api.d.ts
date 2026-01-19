@@ -43,6 +43,7 @@ import type * as selectionQuestions from "../selectionQuestions.js";
 import type * as share_admin_helpers from "../share/admin_helpers.js";
 import type * as share_rankings from "../share/rankings.js";
 import type * as share_selection_periods from "../share/selection_periods.js";
+import type * as solverTransforms from "../solverTransforms.js";
 import type * as stats from "../stats.js";
 import type * as studentAnswers from "../studentAnswers.js";
 import type * as templateQuestions from "../templateQuestions.js";
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   "share/admin_helpers": typeof share_admin_helpers;
   "share/rankings": typeof share_rankings;
   "share/selection_periods": typeof share_selection_periods;
+  solverTransforms: typeof solverTransforms;
   stats: typeof stats;
   studentAnswers: typeof studentAnswers;
   templateQuestions: typeof templateQuestions;
