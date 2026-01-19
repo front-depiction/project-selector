@@ -250,6 +250,81 @@ export const periodNeedsNames = query({
  * @category Queries
  * @since 0.3.0
  */
+/**
+ * Batch check if all questionnaires are complete for multiple periods
+ */
+export const batchCheckPeriodsReadyForAssignment = query({
+  args: { periodIds: v.array(v.id("selectionPeriods")) },
+  handler: async (ctx, args) => {
+    const result: Record<string, boolean> = {}
+    
+    for (const periodId of args.periodIds) {
+      // Get all questions for this period
+      const periodQuestions = await ctx.db
+        .query("selectionQuestions")
+        .withIndex("by_selection_period", q => q.eq("selectionPeriodId", periodId))
+        .collect()
+
+      const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+      const requiredCount = questionIds.size
+
+      // If no questions, skip (can't be ready)
+      if (requiredCount === 0) {
+        result[periodId] = false
+        continue
+      }
+
+      // Get all students for this period
+      const periodAllowListEntries = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period", q => q.eq("selectionPeriodId", periodId))
+        .collect()
+
+      const studentIds = new Set<string>()
+      for (const entry of periodAllowListEntries) {
+        studentIds.add(entry.studentId)
+      }
+
+      // If no students, not ready
+      if (studentIds.size === 0) {
+        result[periodId] = false
+        continue
+      }
+
+      // Get all answers for this period
+      const allAnswers = await ctx.db.query("studentAnswers")
+        .filter(q => q.eq(q.field("selectionPeriodId"), periodId))
+        .collect()
+
+      // Group answers by student
+      const studentAnswerCounts = new Map<string, Set<string>>()
+      for (const answer of allAnswers) {
+        if (!studentAnswerCounts.has(answer.studentId)) {
+          studentAnswerCounts.set(answer.studentId, new Set())
+        }
+        if (questionIds.has(answer.questionId)) {
+          studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+        }
+      }
+
+      // Check if all students have completed
+      let allComplete = true
+      for (const studentId of studentIds) {
+        const answeredQuestions = studentAnswerCounts.get(studentId) || new Set()
+        const answeredCount = answeredQuestions.size
+        if (answeredCount < requiredCount) {
+          allComplete = false
+          break
+        }
+      }
+
+      result[periodId] = allComplete
+    }
+
+    return result
+  },
+})
+
 export const batchCheckPeriodsNeedNames = query({
   args: { periodIds: v.array(v.id("selectionPeriods")) },
   handler: async (ctx, args) => {

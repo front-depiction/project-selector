@@ -39,6 +39,7 @@ export interface PeriodRowVM {
   readonly closeDateDisplay: string
   readonly studentCountDisplay: string
   readonly needsNames: boolean // Whether this period needs student names
+  readonly readyForAssignment: boolean // Whether all questionnaires are complete
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
@@ -250,6 +251,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         closeDateDisplay: format(period.closeDate, "MMM d, yyyy"),
         studentCountDisplay: String(period.studentCount || 0),
         needsNames: false, // Will be set by component-level query
+        readyForAssignment: false, // Will be set by component-level query
         onEdit: () => {
           batch(() => {
             editingPeriod$.value = Option.some(period)

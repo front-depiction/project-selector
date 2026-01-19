@@ -84,12 +84,17 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
   console.log('[PeriodsView] existingQuestionsForEdit:', existingQuestionsForEdit)
 
-  // Fetch names status for all periods using batch query
+  // Fetch names status and questionnaire completion status for all periods using batch queries
   const periods = vm.periods$.value
   const periodIds = periods.map(p => p.key as Id<"selectionPeriods">)
   
   const namesStatusMap = useQuery(
     api.periodStudentAccessCodes.batchCheckPeriodsNeedNames,
+    periodIds.length > 0 ? { periodIds } : "skip"
+  ) ?? {}
+
+  const readyForAssignmentMap = useQuery(
+    api.periodStudentAccessCodes.batchCheckPeriodsReadyForAssignment,
     periodIds.length > 0 ? { periodIds } : "skip"
   ) ?? {}
 
@@ -153,31 +158,31 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     {vm.assignments$.value.map((assignment) => {
                       const displayName = (assignment as any).name || assignment.studentId
                       return (
-                        <TableRow key={assignment.key}>
+                      <TableRow key={assignment.key}>
                           <TableCell className="font-medium">{displayName}</TableCell>
-                          <TableCell>{assignment.topicTitle}</TableCell>
+                        <TableCell>{assignment.topicTitle}</TableCell>
                           <TableCell className="text-center">
-                            {assignment.isMatched ? (
-                              <Badge variant="outline" className="text-green-600 border-green-600">
-                                ✓ Matched
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                Alternative
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={assignment.rankBadgeVariant}>
-                              #{assignment.preferenceRank}
+                          {assignment.isMatched ? (
+                            <Badge variant="outline" className="text-green-600 border-green-600">
+                              ✓ Matched
                             </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge className="bg-purple-600 text-white">
-                              {assignment.statusDisplay}
+                          ) : (
+                            <Badge variant="outline" className="text-orange-600 border-orange-600">
+                              Alternative
                             </Badge>
-                          </TableCell>
-                        </TableRow>
+                          )}
+                        </TableCell>
+                          <TableCell className="text-center">
+                          <Badge variant={assignment.rankBadgeVariant}>
+                            #{assignment.preferenceRank}
+                          </Badge>
+                        </TableCell>
+                          <TableCell className="text-center">
+                          <Badge className="bg-purple-600 text-white">
+                            {assignment.statusDisplay}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
                       )
                     })}
                   </TableBody>
@@ -224,6 +229,17 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <TableBody>
               {vm.periods$.value.map((period) => {
                 const needsNames = namesStatusMap[period.key] ?? false
+                const readyForAssignment = readyForAssignmentMap[period.key] ?? false
+                const isOpenOrClosed = period.statusDisplay === "Open" || period.statusDisplay === "Closed"
+                
+                // Override status if all questionnaires are complete
+                let statusDisplay = period.statusDisplay
+                let statusColor = period.statusColor
+                if (isOpenOrClosed && readyForAssignment) {
+                  statusDisplay = "Ready for Assignment"
+                  statusColor = "bg-blue-600 text-white"
+                }
+                
                 return (
                 <TableRow key={period.key}>
                   <TableCell className="font-medium">
@@ -237,8 +253,8 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge className={period.statusColor}>
-                      {period.statusDisplay}
+                    <Badge className={statusColor}>
+                      {statusDisplay}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">{period.openDateDisplay}</TableCell>
@@ -266,10 +282,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             View Groups
                           </DropdownMenuItem>
                         )}
-                        {(period.statusDisplay === "Open" || period.statusDisplay === "Closed") && (
+                        {(statusDisplay === "Open" || statusDisplay === "Closed" || statusDisplay === "Ready for Assignment") && (
                           <AssignNowMenuItem 
                             periodId={period.key as Id<"selectionPeriods">} 
-                            status={period.statusDisplay.toLowerCase() as "open" | "closed"} 
+                            status={(statusDisplay === "Ready for Assignment" ? "open" : statusDisplay.toLowerCase()) as "open" | "closed"} 
                           />
                         )}
                         <DropdownMenuSeparator />

@@ -143,7 +143,7 @@ export const HelpView: React.FC = () => {
   const quickTips = [
     {
       icon: AlertCircle,
-      title: "Period Statuses",
+      title: "Period Statuses & Tags",
       content: (
         <ul className="list-disc list-inside space-y-1 text-sm">
           <li>
@@ -152,7 +152,11 @@ export const HelpView: React.FC = () => {
           </li>
           <li>
             <Badge className="bg-green-600 text-white mr-2">Open</Badge>
-            Students can currently make selections
+            Students can currently make selections (some questionnaires may still be incomplete)
+          </li>
+          <li>
+            <Badge className="bg-blue-600 text-white mr-2">Ready for Assignment</Badge>
+            All students have completed their questionnaires. You can now assign students to topics.
           </li>
           <li>
             <Badge className="bg-red-600 text-white mr-2">Closed</Badge>
@@ -161,6 +165,10 @@ export const HelpView: React.FC = () => {
           <li>
             <Badge className="bg-purple-600 text-white mr-2">Assigned</Badge>
             Students have been assigned to topics
+          </li>
+          <li className="mt-2">
+            <Badge variant="outline" className="text-orange-600 border-orange-600 mr-2">Names Needed</Badge>
+            Student names haven't been added yet. Add names to display them instead of access codes.
           </li>
         </ul>
       ),
