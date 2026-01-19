@@ -154,6 +154,7 @@ function createMockStatsSignal(
     const activeTopicsCount = (topicsData ?? []).filter(t => t.isActive).length
     const totalTopicsCount = topicsData?.length ?? 0
     const totalStudents = statsData?.totalStudents ?? 0
+    const totalSelections = statsData?.totalSelections ?? 0
     const avgSelections = statsData?.averageSelectionsPerStudent ?? 0
 
     const matchRate = assignmentsCount > 0 ? 75 : 0 // Mock: 75% match rate
@@ -163,6 +164,7 @@ function createMockStatsSignal(
       totalTopicsDisplay: String(totalTopicsCount),
       activeTopicsDisplay: String(activeTopicsCount),
       totalStudentsDisplay: String(totalStudents),
+      totalSelectionsDisplay: String(totalSelections),
       averageSelectionsDisplay: avgSelections.toFixed(1),
       matchRateDisplay: `${matchRate.toFixed(0)}%`,
       topChoiceRateDisplay: `${topChoiceRate.toFixed(0)}%`,
@@ -719,6 +721,7 @@ describe("DashboardVM", () => {
           totalTopicsDisplay: String(totalTopicsCount),
           activeTopicsDisplay: String(activeTopicsCount),
           totalStudentsDisplay: String(stats.totalStudents),
+          totalSelectionsDisplay: String(stats.totalSelections),
           averageSelectionsDisplay: stats.averageSelectionsPerStudent.toFixed(1),
           matchRateDisplay: "75%",
           topChoiceRateDisplay: "33%",

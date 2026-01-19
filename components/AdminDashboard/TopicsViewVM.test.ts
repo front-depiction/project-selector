@@ -20,12 +20,9 @@ function createMockTopicsSignal(mockData: any[] | null | undefined) {
       key: topic._id,
       title: topic.title,
       description: topic.description,
-      statusDisplay: topic.isActive ? "Active" : "Inactive",
-      statusVariant: topic.isActive ? "default" : "secondary",
-      selectionsCount: 0,
-      toggleActive: () => {},
       remove: () => {},
       edit: () => {},
+      semesterId: topic.semesterId,
     }))
   )
 }
@@ -68,17 +65,11 @@ describe("TopicsViewVM", () => {
         key: "t1",
         title: "Machine Learning",
         description: "Advanced ML techniques",
-        statusDisplay: "Active",
-        statusVariant: "default",
-        selectionsCount: 0,
       })
       expect(topics[1]).toMatchObject({
         key: "t2",
         title: "Web Development",
         description: "Full-stack web apps",
-        statusDisplay: "Inactive",
-        statusVariant: "secondary",
-        selectionsCount: 0,
       })
     })
 
@@ -113,10 +104,6 @@ describe("TopicsViewVM", () => {
       const topics$ = createMockTopicsSignal(mockTopics)
       const topics = topics$.value
 
-      expect(topics[0].statusDisplay).toBe("Active")
-      expect(topics[0].statusVariant).toBe("default")
-      expect(topics[1].statusDisplay).toBe("Inactive")
-      expect(topics[1].statusVariant).toBe("secondary")
     })
   })
 
@@ -282,8 +269,9 @@ describe("TopicsViewVM", () => {
 
       expect(topics).toHaveLength(3)
 
-      const activeTopics = topics.filter((t) => t.statusDisplay === "Active")
-      const inactiveTopics = topics.filter((t) => t.statusDisplay === "Inactive")
+      // Status filtering removed - all topics are shown
+      const activeTopics = topics
+      const inactiveTopics: typeof topics = []
 
       expect(activeTopics).toHaveLength(2)
       expect(inactiveTopics).toHaveLength(1)

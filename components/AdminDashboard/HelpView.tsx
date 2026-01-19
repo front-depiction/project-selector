@@ -127,16 +127,15 @@ export const HelpView: React.FC = () => {
     },
     {
       number: 7,
-      title: "View Results & Analytics",
+      title: "View Results",
       description: "Review assignments, statistics, and group compositions",
       icon: BarChart3,
       details: [
         "View assignments in the Overview section",
         "See topics with their assigned student groups",
         "Check match rates and statistics",
-        "Use Analytics for detailed reports and insights",
       ],
-      location: "Overview / Analytics",
+      location: "Overview",
     },
   ]
 
@@ -350,15 +349,6 @@ export const HelpView: React.FC = () => {
                 <h4 className="font-semibold">Questionnaires</h4>
                 <p className="text-sm text-muted-foreground">
                   Create and manage questions that students answer
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <BarChart3 className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                <h4 className="font-semibold">Analytics</h4>
-                <p className="text-sm text-muted-foreground">
-                  View detailed analytics, reports, and topic popularity trends
                 </p>
               </div>
             </div>

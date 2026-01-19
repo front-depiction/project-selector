@@ -15,13 +15,12 @@ import { createPeriodsViewVM } from "./PeriodsViewVM"
 import { createTopicsViewVM } from "./TopicsViewVM"
 import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
-import { createAnalyticsViewVM } from "./AnalyticsViewVM"
 import { createStudentsViewVM } from "./StudentsViewVM"
 // ============================================================================
 // View Model Types
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "questionnaires" | "settings" | "help"
+export type ViewType = "overview" | "periods" | "topics" | "students" | "questionnaires" | "settings" | "help"
 
 export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
   studentCount?: number
@@ -75,6 +74,7 @@ export interface StatsVM {
   readonly totalTopicsDisplay: string
   readonly activeTopicsDisplay: string
   readonly totalStudentsDisplay: string
+  readonly totalSelectionsDisplay: string
   readonly averageSelectionsDisplay: string
   readonly matchRateDisplay: string
   readonly topChoiceRateDisplay: string
@@ -116,7 +116,6 @@ export interface DashboardVM {
   readonly topicsView: import("./TopicsViewVM").TopicsViewVM
   readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
   readonly settingsView: import("./SettingsViewVM").SettingsViewVM
-  readonly analyticsView: import("./AnalyticsViewVM").AnalyticsViewVM
   readonly studentsView: import("./StudentsViewVM").StudentsViewVM
 
   // Legacy support - for backward compatibility with existing overview components
@@ -485,6 +484,7 @@ export function useDashboardVM(): DashboardVM {
       totalTopicsDisplay: String(totalTopicsCount),
       activeTopicsDisplay: String(activeTopicsCount),
       totalStudentsDisplay: String(totalStudents),
+      totalSelectionsDisplay: String(totalSelections),
       averageSelectionsDisplay: avgSelections.toFixed(1),
       matchRateDisplay: `${matchRate.toFixed(0)}%`,
       topChoiceRateDisplay: `${topChoiceRate.toFixed(0)}%`,
@@ -666,7 +666,6 @@ export function useDashboardVM(): DashboardVM {
       periods$: dataSignals.periodsData$,
       createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
-      toggleTopicActive: toggleTopicActiveMutation,
       deleteTopic: deleteTopicMutation,
     })
 
@@ -694,12 +693,6 @@ export function useDashboardVM(): DashboardVM {
       clearAllDataMutation,
       setupExperimentMutation,
       generateRandomAnswersMutation,
-    })
-
-    const analyticsView = createAnalyticsViewVM({
-      topicsData$: dataSignals.topicsData$,
-      statsData$: dataSignals.statsData$,
-      topicAnalyticsData$: dataSignals.topicAnalyticsData$,
     })
 
     const studentsView = createStudentsViewVM({
@@ -879,7 +872,6 @@ export function useDashboardVM(): DashboardVM {
       topicsView,
       questionnairesView,
       settingsView,
-      analyticsView,
       studentsView,
 
       // Legacy support for overview

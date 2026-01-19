@@ -147,7 +147,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     totalTopics: parseInt(stats.totalTopicsDisplay),
     activeTopics: parseInt(stats.activeTopicsDisplay),
     totalStudents: parseInt(stats.totalStudentsDisplay),
-    totalSelections: 0,
+    totalSelections: parseInt(stats.totalSelectionsDisplay),
     averageSelectionsPerStudent: parseFloat(stats.averageSelectionsDisplay),
     matchRate: parseFloat(stats.matchRateDisplay.replace('%', '')),
     topChoiceRate: parseFloat(stats.topChoiceRateDisplay.replace('%', '')),
@@ -291,7 +291,6 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) =>
         title="Match Rate"
         value={`${stats.matchRate.toFixed(0)}%`}
         icon={<Award className="h-4 w-4" />}
-        trend={{ value: 12, isPositive: true }}
       />
       <MetricCard
         title="Current Period"
@@ -413,7 +412,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit, showActions = 
             <TableHead>Title</TableHead>
             <TableHead>Description</TableHead>
             <TableHead className="text-center">Status</TableHead>
-            <TableHead className="text-center">Selections</TableHead>
             {showActions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
@@ -427,7 +425,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit, showActions = 
                   {topic.isActive ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
-              <TableCell className="text-center">0</TableCell>
               {showActions && (
                 <TableCell className="text-right">
                   <DropdownMenu>

@@ -6,7 +6,6 @@ import {
   Calendar,
   FileText,
   Users,
-  BarChart3,
   Settings,
   ClipboardList,
   GraduationCap,
@@ -51,12 +50,6 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       title: "Project Assignments",
       icon: Calendar,
       tooltip: "Manage project assignment periods",
-    },
-    {
-      id: "analytics" as AD.ViewType,
-      title: "Analytics",
-      icon: BarChart3,
-      tooltip: "View analytics and reports",
     },
     {
       id: "questionnaires" as AD.ViewType,

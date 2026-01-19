@@ -31,7 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Edit, Trash2 as Trash, Power, MoreVertical, ChevronDown, ChevronRight } from "lucide-react"
+import { Edit, Trash2 as Trash, MoreVertical, ChevronDown, ChevronRight } from "lucide-react"
 
 // ============================================================================
 // TOPICS VIEW - Clean table-based layout with View Model pattern
@@ -116,8 +116,6 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                         <TableRow>
                           <TableHead>Title</TableHead>
                           <TableHead>Description</TableHead>
-                          <TableHead className="text-center">Status</TableHead>
-                          <TableHead className="text-center">Selections</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -126,12 +124,6 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                           <TableRow key={topic.key}>
                             <TableCell className="font-medium">{topic.title}</TableCell>
                             <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant={topic.statusVariant}>
-                                {topic.statusDisplay}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">{topic.selectionsCount}</TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -143,10 +135,6 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                                   <DropdownMenuItem onClick={topic.edit}>
                                     <Edit className="mr-2 h-4 w-4" />
                                     Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={topic.toggleActive}>
-                                    <Power className="mr-2 h-4 w-4" />
-                                    {topic.statusDisplay === "Active" ? "Deactivate" : "Activate"}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem

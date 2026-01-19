@@ -12,10 +12,6 @@ export interface TopicItemVM {
   readonly key: string
   readonly title: string
   readonly description: string
-  readonly statusDisplay: string
-  readonly statusVariant: "default" | "secondary"
-  readonly selectionsCount: number
-  readonly toggleActive: () => void
   readonly remove: () => void
   readonly edit: () => void
   readonly semesterId: string
@@ -76,7 +72,6 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
   }) => Promise<any>
-  readonly toggleTopicActive: (args: { id: Id<"topics"> }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
 }
 
@@ -90,7 +85,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     periods$,
     createTopic,
     updateTopic,
-    toggleTopicActive,
     deleteTopic,
   } = deps
 
@@ -124,13 +118,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       key: topic._id,
       title: topic.title,
       description: topic.description,
-      statusDisplay: topic.isActive ? "Active" : "Inactive",
-      statusVariant: topic.isActive ? "default" : "secondary",
-      selectionsCount: 0,
       semesterId: topic.semesterId,
-      toggleActive: () => {
-        toggleTopicActive({ id: topic._id }).catch(console.error)
-      },
       remove: () => {
         deleteTopic({ id: topic._id }).catch((error) => {
           console.error("Failed to delete topic:", error)
