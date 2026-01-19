@@ -35,6 +35,9 @@ const formSchema = z.object({
     start_deadline: z.date(),
     end_deadline: z.date(),
     questionIds: z.array(z.string()),
+}).refine((data) => data.end_deadline > data.start_deadline, {
+    message: "End date must be after start date",
+    path: ["end_deadline"],
 });
 
 export type SelectionPeriodFormValues = z.infer<typeof formSchema>
@@ -63,13 +66,23 @@ export default function SelectionPeriodForm({
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
+    // Calculate default end date (3 days after start date)
+    const getDefaultEndDate = (startDate: Date) => {
+        const endDate = new Date(startDate)
+        endDate.setDate(endDate.getDate() + 3)
+        return endDate
+    }
+
+    const defaultStartDate = initialValues?.start_deadline ?? new Date()
+    const defaultEndDate = initialValues?.end_deadline ?? getDefaultEndDate(defaultStartDate)
+
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             title: initialValues?.title ?? "",
             selection_period_id: initialValues?.selection_period_id ?? "",
-            start_deadline: initialValues?.start_deadline ?? new Date(),
-            end_deadline: initialValues?.end_deadline ?? new Date(),
+            start_deadline: defaultStartDate,
+            end_deadline: defaultEndDate,
             questionIds: initialValues?.questionIds ?? [],
         },
     })
@@ -99,16 +112,30 @@ export default function SelectionPeriodForm({
             questionIdsLength: initialValues?.questionIds?.length ?? 0
         })
         if (initialValues) {
+            const startDate = initialValues.start_deadline ?? new Date()
+            const endDate = initialValues.end_deadline ?? getDefaultEndDate(startDate)
             form.reset({
                 title: initialValues.title ?? "",
                 selection_period_id: initialValues.selection_period_id ?? "",
-                start_deadline: initialValues.start_deadline ?? new Date(),
-                end_deadline: initialValues.end_deadline ?? new Date(),
+                start_deadline: startDate,
+                end_deadline: endDate,
                 questionIds: initialValues.questionIds ?? [],
             })
             console.log('[SelectionPeriodForm] Form reset with questionIds:', initialValues.questionIds)
         }
     }, [initialValuesKey, form])
+
+    // Watch start_deadline and auto-update end_deadline if it becomes invalid
+    const startDeadline = useWatch({ control: form.control, name: "start_deadline" })
+    const endDeadline = useWatch({ control: form.control, name: "end_deadline" })
+
+    useEffect(() => {
+        if (startDeadline && endDeadline && endDeadline <= startDeadline) {
+            // Auto-update end_deadline to be 3 days after start_deadline if it's invalid
+            const newEndDate = getDefaultEndDate(startDeadline)
+            form.setValue("end_deadline", newEndDate, { shouldValidate: true })
+        }
+    }, [startDeadline, endDeadline, form])
 
     const questionIds = useWatch({ control: form.control, name: "questionIds" })
 
@@ -305,7 +332,7 @@ export default function SelectionPeriodForm({
                     </div>
                 </div>
 
-                <Button type="submit">Submit</Button>
+                <Button type="submit">Apply</Button>
             </form>
         </Form>
     )

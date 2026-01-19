@@ -38,6 +38,7 @@ export interface PeriodRowVM {
   readonly openDateDisplay: string
   readonly closeDateDisplay: string
   readonly studentCountDisplay: string
+  readonly needsNames: boolean // Whether this period needs student names
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
@@ -48,6 +49,7 @@ export interface PeriodRowVM {
 export interface AssignmentRowVM {
   readonly key: string
   readonly studentId: string
+  readonly name?: string // Optional name (GDPR: only if provided by teacher)
   readonly topicTitle: string
   readonly preferenceRank: number
   readonly isMatched: boolean
@@ -198,6 +200,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     return assignmentsData.map((assignment, idx): AssignmentRowVM => ({
       key: `${assignment.studentId}-${assignment.topicTitle}-${idx}`,
       studentId: assignment.studentId,
+      name: (assignment as any).name, // Include name if available
       topicTitle: assignment.topicTitle,
       preferenceRank: assignment.preferenceRank,
       isMatched: assignment.isMatched,
@@ -246,6 +249,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         openDateDisplay: format(period.openDate, "MMM d, yyyy"),
         closeDateDisplay: format(period.closeDate, "MMM d, yyyy"),
         studentCountDisplay: String(period.studentCount || 0),
+        needsNames: false, // Will be set by component-level query
         onEdit: () => {
           batch(() => {
             editingPeriod$.value = Option.some(period)
@@ -339,7 +343,6 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
   // Form submission handlers
   const onCreateSubmit = (values: SelectionPeriodFormValues): void => {
-    let createdPeriodId: Id<"selectionPeriods">
     const periodTitle = values.title
 
     deps.createPeriod({
@@ -349,8 +352,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       openDate: values.start_deadline.getTime(),
       closeDate: values.end_deadline.getTime(),
     })
-      .then((result) => {
-        createdPeriodId = result.periodId
+      .then((result: { success: boolean; periodId: Id<"selectionPeriods"> }) => {
+        const createdPeriodId = result.periodId
 
         // Add selected questions to the period
         if (values.questionIds.length > 0) {
@@ -360,14 +363,18 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
               questionId: questionId as Id<"questions">,
             })
           )
-          return Promise.all(promises)
+          return Promise.all(promises).then(() => createdPeriodId)
         }
+        return createdPeriodId
       })
-      .then(() => {
+      .then((createdPeriodId: Id<"selectionPeriods">) => {
         // Show access codes panel instead of closing
         createdPeriod$.value = Option.some({ id: createdPeriodId, title: periodTitle })
       })
-      .catch(console.error)
+      .catch((error) => {
+        console.error("Failed to create period:", error)
+        // Optionally show error toast here
+      })
   }
 
   const onEditSubmit = (values: SelectionPeriodFormValues): void => {

@@ -201,10 +201,13 @@ export function useAssignmentDisplayVM(
       const students: StudentItemVM[] = topicData.students.map((student: any): StudentItemVM => {
         const isCurrentUser = student.studentId === studentId
         const hasRank = student.originalRank != null
+        // Use name if available, otherwise use code
+        const displayName = student.name || student.studentId
+        const displayText = isCurrentUser ? `${displayName} (You)` : displayName
 
         return {
           key: student.studentId,
-          studentIdDisplay: isCurrentUser ? `${student.studentId} (You)` : student.studentId,
+          studentIdDisplay: displayText,
           isCurrentUser,
           rankDisplay: hasRank ? `#${student.originalRank}` : null,
           rankBadgeVariant: student.originalRank === 1 ? "default" : "outline",

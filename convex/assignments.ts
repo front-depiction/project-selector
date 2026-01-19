@@ -209,14 +209,20 @@ export const getAssignments = query({
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
 
-    if (!period || !SelectionPeriod.isAssigned(period)) {
+    if (!period) {
       return null
     }
 
+    // Check if there are any assignments for this period (regardless of status)
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_period", (q) => q.eq("periodId", args.periodId))
       .collect()
+
+    // If no assignments exist, return null
+    if (assignments.length === 0) {
+      return null
+    }
 
     // Group by topic with topic details
     const topics = await ctx.db.query("topics").collect()
@@ -277,7 +283,7 @@ export const getAssignments = query({
 
     const byTopic: Record<string, { 
       topic: typeof topics[0] | undefined; 
-      students: Array<{ studentId: string; originalRank?: number; assignedAt: number }>;
+      students: Array<{ studentId: string; name?: string; originalRank?: number; assignedAt: number }>;
       qualityAverages: Record<string, number>;
     }> = {}
 
@@ -293,8 +299,15 @@ export const getAssignments = query({
         }
       }
 
+      // Get student name if available
+      const studentEntry = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_studentId", (q) => q.eq("studentId", assignment.studentId))
+        .first()
+
       byTopic[topicId].students.push({
         studentId: assignment.studentId,
+        name: studentEntry?.name,
         originalRank: assignment.originalRank,
         assignedAt: assignment.assignedAt
       })

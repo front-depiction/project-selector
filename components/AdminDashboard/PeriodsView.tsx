@@ -84,6 +84,15 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
   console.log('[PeriodsView] existingQuestionsForEdit:', existingQuestionsForEdit)
 
+  // Fetch names status for all periods using batch query
+  const periods = vm.periods$.value
+  const periodIds = periods.map(p => p.key as Id<"selectionPeriods">)
+  
+  const namesStatusMap = useQuery(
+    api.periodStudentAccessCodes.batchCheckPeriodsNeedNames,
+    periodIds.length > 0 ? { periodIds } : "skip"
+  ) ?? {}
+
   // Local state for managing access codes dialog
   const [accessCodesDialogOpen, setAccessCodesDialogOpen] = React.useState(false)
   const [selectedPeriodForCodes, setSelectedPeriodForCodes] = React.useState<{
@@ -141,33 +150,36 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vm.assignments$.value.map((assignment) => (
-                      <TableRow key={assignment.key}>
-                        <TableCell className="font-medium">{assignment.studentId}</TableCell>
-                        <TableCell>{assignment.topicTitle}</TableCell>
-                        <TableCell className="text-center">
-                          {assignment.isMatched ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
-                              ✓ Matched
+                    {vm.assignments$.value.map((assignment) => {
+                      const displayName = (assignment as any).name || assignment.studentId
+                      return (
+                        <TableRow key={assignment.key}>
+                          <TableCell className="font-medium">{displayName}</TableCell>
+                          <TableCell>{assignment.topicTitle}</TableCell>
+                          <TableCell className="text-center">
+                            {assignment.isMatched ? (
+                              <Badge variant="outline" className="text-green-600 border-green-600">
+                                ✓ Matched
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-orange-600 border-orange-600">
+                                Alternative
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={assignment.rankBadgeVariant}>
+                              #{assignment.preferenceRank}
                             </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-600">
-                              Alternative
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className="bg-purple-600 text-white">
+                              {assignment.statusDisplay}
                             </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={assignment.rankBadgeVariant}>
-                            #{assignment.preferenceRank}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge className="bg-purple-600 text-white">
-                            {assignment.statusDisplay}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -210,9 +222,20 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {vm.periods$.value.map((period) => (
+              {vm.periods$.value.map((period) => {
+                const needsNames = namesStatusMap[period.key] ?? false
+                return (
                 <TableRow key={period.key}>
-                  <TableCell className="font-medium">{period.title}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{period.title}</span>
+                      {needsNames && (
+                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-600">
+                          Names Needed
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-center">
                     <Badge className={period.statusColor}>
                       {period.statusDisplay}
@@ -261,7 +284,8 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>

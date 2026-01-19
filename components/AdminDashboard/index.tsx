@@ -67,6 +67,7 @@ export type { ViewType, PeriodFormData, TopicFormData, SelectionPeriodWithStats 
 
 export interface Assignment {
   readonly studentId: string
+  readonly name?: string // Optional name (GDPR: only if provided by teacher)
   readonly topicTitle: string
   readonly preferenceRank: number
   readonly isMatched: boolean
@@ -238,7 +239,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 )
 
 export interface MetricsGridProps {
-  readonly stats?: LandingStats | null | undefined
+  readonly stats?: (LandingStats & { matchRate?: number; topChoiceRate?: number }) | null | undefined
 }
 
 export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) => {
@@ -253,8 +254,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) =>
       totalStudents: statsProp.totalStudents,
       totalSelections: statsProp.totalSelections,
       averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
-      matchRate: 0, // Not in query result, would need assignments data
-      topChoiceRate: 0, // Not in query result
+      matchRate: statsProp.matchRate ?? 0, // Use provided matchRate from assignments
+      topChoiceRate: statsProp.topChoiceRate ?? 0, // Use provided topChoiceRate
       currentPeriodDisplay: statsProp.isActive ? (statsProp.title ?? "NONE") : "NONE",
       currentPeriodVariant: statsProp.isActive
         ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
@@ -348,9 +349,11 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assignments.map((assignment, idx) => (
+            {assignments.map((assignment, idx) => {
+              const displayName = assignment.name || assignment.studentId
+              return (
               <TableRow key={idx}>
-                <TableCell className="font-medium">{assignment.studentId}</TableCell>
+                <TableCell className="font-medium">{displayName}</TableCell>
                 <TableCell>{assignment.topicTitle}</TableCell>
                 <TableCell className="text-center">
                   {assignment.isMatched ? (
@@ -374,7 +377,8 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
                   </Badge>
                 </TableCell>
               </TableRow>
-            ))}
+              )
+            })}
           </TableBody>
         </Table>
       </div>

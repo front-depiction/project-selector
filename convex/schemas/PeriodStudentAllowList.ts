@@ -12,6 +12,7 @@ import type { Infer } from "convex/values"
 export const PeriodStudentAllowList = v.object({
   selectionPeriodId: v.id("selectionPeriods"),
   studentId: v.string(),        // Access code (not a real student ID)
+  name: v.optional(v.string()), // Student name (optional, GDPR: stored only if teacher provides it)
   note: v.optional(v.string()),
   addedAt: v.number(),
   addedBy: v.string(),          // Teacher's email who added
@@ -35,10 +36,12 @@ export const make = (params: {
   readonly selectionPeriodId: string
   readonly studentId: string
   readonly addedBy: string
+  readonly name?: string
   readonly note?: string
 }): PeriodStudentAllowList => ({
   selectionPeriodId: params.selectionPeriodId as any,
   studentId: params.studentId.trim().toUpperCase(),
+  name: params.name?.trim(),
   note: params.note,
   addedAt: Date.now(),
   addedBy: params.addedBy,
