@@ -10,6 +10,7 @@ import {
   Settings,
   ClipboardList,
   GraduationCap,
+  HelpCircle,
 } from "lucide-react"
 import { useSignals } from "@preact/signals-react/runtime"
 import * as AD from "./index"
@@ -74,6 +75,12 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       title: "Settings",
       icon: Settings,
       tooltip: "Dashboard settings",
+    },
+    {
+      id: "help" as AD.ViewType,
+      title: "Help",
+      icon: HelpCircle,
+      tooltip: "Help and user guide",
     },
   ]
 

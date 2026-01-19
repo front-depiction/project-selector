@@ -21,7 +21,7 @@ import { createStudentsViewVM } from "./StudentsViewVM"
 // View Model Types
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "questionnaires" | "settings"
+export type ViewType = "overview" | "periods" | "topics" | "students" | "analytics" | "questionnaires" | "settings" | "help"
 
 export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
   studentCount?: number

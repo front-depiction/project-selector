@@ -41,6 +41,7 @@ import { StudentsView } from "./StudentsView"
 import { AnalyticsView } from "./AnalyticsView"
 import { SettingsView } from "./SettingsView"
 import { QuestionnairesView } from "./QuestionnairesView"
+import { HelpView } from "./HelpView"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -431,6 +432,8 @@ const MainContent: React.FC = () => {
       return <AnalyticsView vm={vm.analyticsView} />
     case "settings":
       return <SettingsView vm={vm.settingsView} />
+    case "help":
+      return <HelpView />
     default:
       return <OverviewView />
   }
