@@ -209,21 +209,6 @@ export const deletePeriod = mutation({
       throw new Error("Period not found")
     }
 
-    // Don't allow deleting if already assigned
-    if (SelectionPeriod.isAssigned(period)) {
-      throw new Error("Cannot delete a period that has already been assigned")
-    }
-
-    // Check if there are any preferences for this period's semester
-    const preferences = await ctx.db
-      .query("preferences")
-      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
-      .first()
-
-    if (preferences) {
-      throw new Error("Cannot delete period with existing student selections")
-    }
-
     // Cancel scheduled function if exists
     if (SelectionPeriod.hasScheduledFunction(period)) {
       await ctx.scheduler.cancel(period.scheduledFunctionId)
@@ -231,6 +216,64 @@ export const deletePeriod = mutation({
       await ctx.scheduler.cancel(period.scheduledOpenFunctionId)
     }
 
+    // Cascade delete all related data
+
+    // 1. Delete assignments for this period
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_period", q => q.eq("periodId", args.periodId))
+      .collect()
+    for (const assignment of assignments) {
+      await ctx.db.delete(assignment._id)
+    }
+
+    // 2. Delete student answers for this period
+    // Note: by_student_period index requires both studentId and selectionPeriodId,
+    // so we query all and filter by period
+    const allStudentAnswers = await ctx.db.query("studentAnswers").collect()
+    const studentAnswers = allStudentAnswers.filter(a => a.selectionPeriodId === args.periodId)
+    for (const answer of studentAnswers) {
+      await ctx.db.delete(answer._id)
+    }
+
+    // 3. Delete period student allow list entries
+    const allowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+    for (const entry of allowListEntries) {
+      await ctx.db.delete(entry._id)
+    }
+
+    // 4. Delete selection questions for this period
+    const selectionQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+    for (const question of selectionQuestions) {
+      await ctx.db.delete(question._id)
+    }
+
+    // 5. Delete preferences for this period's semester
+    // Note: We delete by semesterId since preferences are linked to semester
+    const preferences = await ctx.db
+      .query("preferences")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+    for (const preference of preferences) {
+      await ctx.db.delete(preference._id)
+    }
+
+    // 6. Delete ranking events for this period's semester
+    const rankingEvents = await ctx.db
+      .query("rankingEvents")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+    for (const event of rankingEvents) {
+      await ctx.db.delete(event._id)
+    }
+
+    // Finally, delete the period itself
     await ctx.db.delete(args.periodId)
     return { success: true }
   }

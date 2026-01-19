@@ -11,12 +11,27 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Edit2, Users } from "lucide-react"
+import { Edit2, Users, ChevronDown, ChevronRight } from "lucide-react"
 import type { StudentsViewVM } from "./StudentsViewVM"
 import TeacherQuestionnaireForm from "@/components/forms/teacher-questionnaire-form"
 
 export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
   useSignals()
+
+  // Track which project assignments are expanded
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set())
+
+  const toggleGroup = (periodId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(periodId)) {
+        next.delete(periodId)
+      } else {
+        next.add(periodId)
+      }
+      return next
+    })
+  }
 
   // Query student answers when a student is selected
   // Note: We need to pass the period ID from the VM now
@@ -73,10 +88,22 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
     )
   }
 
-  const studentGroups = vm.studentGroups$.value
+  // Sort student groups: open periods first, then by closeDate descending
+  const studentGroups = React.useMemo(() => {
+    const groups = [...vm.studentGroups$.value]
+    return groups.sort((a, b) => {
+      const aIsOpen = SelectionPeriod.isOpen(a.period)
+      const bIsOpen = SelectionPeriod.isOpen(b.period)
+      if (aIsOpen && !bIsOpen) return -1
+      if (!aIsOpen && bIsOpen) return 1
+      return (b.period.closeDate || 0) - (a.period.closeDate || 0)
+    })
+  }, [vm.studentGroups$.value])
+
+  // Keep all sections collapsed by default
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <h2 className="text-2xl font-bold">Students</h2>
 
       {studentGroups.length === 0 ? (
@@ -88,67 +115,94 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
           </CardContent>
         </Card>
       ) : (
-        studentGroups.map((group) => (
-          <div key={group.period._id} className="space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">{group.period.title}</h3>
-              <Badge variant="outline" className="text-muted-foreground">
-                {group.students.length} Students
-              </Badge>
-              {!SelectionPeriod.isOpen(group.period) && (
-                <Badge variant="secondary" className="text-xs">
-                  {new Date(group.period.closeDate).toLocaleDateString()}
-                </Badge>
-              )}
-            </div>
+        <div className="space-y-4">
+          {studentGroups.map((group) => {
+            const periodId = group.period._id
+            const isExpanded = expandedGroups.has(periodId)
+            const isOpen = SelectionPeriod.isOpen(group.period)
 
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="pl-6">Access Code</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Progress</TableHead>
-                      <TableHead className="w-[100px] pr-6">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {group.students.map((student) => (
-                      <TableRow key={student.key}>
-                        <TableCell className="pl-6 font-medium">{student.studentIdDisplay}</TableCell>
-                        <TableCell>
-                          {student.isCompleted ? (
-                            <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                              Complete
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">
-                              Incomplete ({student.answeredCount}/{student.totalCount})
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={student.completionPercentage} className="h-2 w-24" />
-                            <span className="text-sm text-muted-foreground">
-                              {Math.round(student.completionPercentage)}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="pr-6">
-                          <Button variant="ghost" size="icon" onClick={student.edit} title="Edit questionnaire">
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        ))
+            return (
+              <div key={periodId} className="border rounded-lg">
+                {/* Clickable Section Header */}
+                <button
+                  onClick={() => toggleGroup(periodId)}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-semibold">{group.period.title}</h3>
+                      <Badge variant="outline" className="text-muted-foreground">
+                        {group.students.length} {group.students.length === 1 ? "Student" : "Students"}
+                      </Badge>
+                      {isOpen && (
+                        <Badge variant="default" className="bg-green-600 text-white">
+                          Open
+                        </Badge>
+                      )}
+                      {!isOpen && (
+                        <Badge variant="secondary" className="text-xs">
+                          {new Date(group.period.closeDate).toLocaleDateString()}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Collapsible Students Table */}
+                {isExpanded && (
+                  <div className="border-t">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="pl-6">Access Code</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Progress</TableHead>
+                          <TableHead className="w-[100px] pr-6">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.students.map((student) => (
+                          <TableRow key={student.key}>
+                            <TableCell className="pl-6 font-medium">{student.studentIdDisplay}</TableCell>
+                            <TableCell>
+                              {student.isCompleted ? (
+                                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                                  Complete
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary">
+                                  Incomplete ({student.answeredCount}/{student.totalCount})
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress value={student.completionPercentage} className="h-2 w-24" />
+                                <span className="text-sm text-muted-foreground">
+                                  {Math.round(student.completionPercentage)}%
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="pr-6">
+                              <Button variant="ghost" size="icon" onClick={student.edit} title="Edit questionnaire">
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       )}
 
       {/* Questionnaire Dialog */}

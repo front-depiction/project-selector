@@ -1,6 +1,8 @@
 import { v } from "convex/values"
-import { query, mutation } from "./_generated/server"
+import { query, mutation, internalMutation } from "./_generated/server"
+import { internal } from "./_generated/api"
 import * as StudentAnswer from "./schemas/StudentAnswer"
+import * as SelectionPeriod from "./schemas/SelectionPeriod"
 
 export const getAnswers = query({
   args: {
@@ -74,6 +76,11 @@ export const saveAnswers = mutation({
         await ctx.db.insert("studentAnswers", data)
       }
     }
+
+    // Check if all questionnaires are complete and close period if needed
+    await ctx.scheduler.runAfter(0, internal.studentAnswers.checkAndClosePeriodIfReady, {
+      periodId: args.selectionPeriodId
+    })
   }
 })
 
@@ -121,6 +128,11 @@ export const saveAnswersAsTeacher = mutation({
         await ctx.db.insert("studentAnswers", baseData)
       }
     }
+
+    // Check if all questionnaires are complete and close period if needed
+    await ctx.scheduler.runAfter(0, internal.studentAnswers.checkAndClosePeriodIfReady, {
+      periodId: args.selectionPeriodId
+    })
 
     return {
       success: true,
@@ -516,3 +528,83 @@ export function computeOverallWeightedAverage(categoryScores: Record<string, num
   const sum = categories.reduce((acc, category) => acc + categoryScores[category], 0)
   return sum / categories.length
 }
+
+/**
+ * Internal function to check if all questionnaires are complete for a period
+ * and automatically close it if ready for assignment.
+ */
+export const checkAndClosePeriodIfReady = internalMutation({
+  args: {
+    periodId: v.id("selectionPeriods")
+  },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return
+
+    // Only check if period is open (not already closed or assigned)
+    if (!SelectionPeriod.isOpen(period)) return
+
+    // Get all questions for this period
+    const periodQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+
+    const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+    const requiredCount = questionIds.size
+
+    // If no questions, can't be ready
+    if (requiredCount === 0) return
+
+    // Get all students for this period
+    const periodAllowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+
+    const studentIds = new Set<string>()
+    for (const entry of periodAllowListEntries) {
+      studentIds.add(entry.studentId)
+    }
+
+    // If no students, not ready
+    if (studentIds.size === 0) return
+
+    // Get all answers for this period
+    const allAnswers = await ctx.db.query("studentAnswers")
+      .filter(q => q.eq(q.field("selectionPeriodId"), args.periodId))
+      .collect()
+
+    // Group answers by student
+    const studentAnswerCounts = new Map<string, Set<string>>()
+    for (const answer of allAnswers) {
+      if (!studentAnswerCounts.has(answer.studentId)) {
+        studentAnswerCounts.set(answer.studentId, new Set())
+      }
+      if (questionIds.has(answer.questionId)) {
+        studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+      }
+    }
+
+    // Check if all students have completed all questions
+    let allComplete = true
+    for (const studentId of studentIds) {
+      const answeredCount = studentAnswerCounts.get(studentId)?.size ?? 0
+      if (answeredCount < requiredCount) {
+        allComplete = false
+        break
+      }
+    }
+
+    // If all questionnaires are complete, close the period
+    if (allComplete) {
+      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
+        semesterId: period.semesterId,
+        title: period.title,
+        description: period.description,
+        openDate: period.openDate,
+        closeDate: period.closeDate
+      }))
+    }
+  }
+})
