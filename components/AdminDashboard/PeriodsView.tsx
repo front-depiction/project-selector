@@ -28,44 +28,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Power, Trash2, MoreVertical, Key, PlayCircle, Users } from "lucide-react"
+import { Plus, Edit, Power, Trash2, MoreVertical, Key, Users } from "lucide-react"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
-import { useAssignNowButtonVM } from "@/components/admin/AssignNowButtonVM"
+import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import type { PeriodsViewVM } from "./PeriodsViewVM"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useSignals } from "@preact/signals-react/runtime"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
-
-// Component for Assign Now menu item
-const AssignNowMenuItem: React.FC<{ periodId: Id<"selectionPeriods">; status: "open" | "closed" }> = ({ periodId, status }) => {
-  useSignals()
-  const vm = useAssignNowButtonVM(periodId)
-  const canAssign = status === "closed" || status === "open"
-  const isDisabled = !canAssign || vm.isLoading$.value
-
-  return (
-    <DropdownMenuItem 
-      onClick={() => !isDisabled && vm.assignTopics()}
-      disabled={isDisabled}
-    >
-      {vm.isLoading$.value ? (
-        <>
-          <PlayCircle className="mr-2 h-4 w-4 animate-spin" />
-          Assigning...
-        </>
-      ) : (
-        <>
-          <PlayCircle className="mr-2 h-4 w-4" />
-          Assign Now (CP-SAT)
-        </>
-      )}
-    </DropdownMenuItem>
-  )
-}
 
 // ============================================================================
 // PERIODS VIEW - Clean table-based layout using View Model
@@ -87,7 +60,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
   // Fetch names status and questionnaire completion status for all periods using batch queries
   const periods = vm.periods$.value
   const periodIds = periods.map(p => p.key as Id<"selectionPeriods">)
-  
+
   const namesStatusMap = useQuery(
     api.periodStudentAccessCodes.batchCheckPeriodsNeedNames,
     periodIds.length > 0 ? { periodIds } : "skip"
@@ -124,75 +97,6 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
   return (
     <div className="space-y-6">
-      {/* Assignment Results - Clean data table format */}
-      {vm.showAssignmentResults$.value && (
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Assignment Results</CardTitle>
-            <CardDescription>
-              Students have been assigned to topics for {Option.match(vm.currentPeriod$.value, {
-                onNone: () => "Unknown Period",
-                onSome: (period) => period.title
-              })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Badge variant="outline" className="text-sm">
-                  Total Assignments: {vm.assignments$.value.length}
-                </Badge>
-              </div>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Assigned Topic</TableHead>
-                      <TableHead className="text-center">Preference Match</TableHead>
-                      <TableHead className="text-center">Rank</TableHead>
-                      <TableHead className="text-center">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vm.assignments$.value.map((assignment) => {
-                      const displayName = (assignment as any).name || assignment.studentId
-                      return (
-                      <TableRow key={assignment.key}>
-                          <TableCell className="font-medium">{displayName}</TableCell>
-                        <TableCell>{assignment.topicTitle}</TableCell>
-                          <TableCell className="text-center">
-                          {assignment.isMatched ? (
-                            <Badge variant="outline" className="text-green-600 border-green-600">
-                              ✓ Matched
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-600">
-                              Alternative
-                            </Badge>
-                          )}
-                        </TableCell>
-                          <TableCell className="text-center">
-                          <Badge variant={assignment.rankBadgeVariant}>
-                            #{assignment.preferenceRank}
-                          </Badge>
-                        </TableCell>
-                          <TableCell className="text-center">
-                          <Badge className="bg-purple-600 text-white">
-                            {assignment.statusDisplay}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Header with Create Button */}
       <div className="flex items-center justify-between">
         <div>
@@ -223,6 +127,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                 <TableHead className="text-center">Open Date</TableHead>
                 <TableHead className="text-center">Close Date</TableHead>
                 <TableHead className="text-center">Students</TableHead>
+                <TableHead className="text-center">Assign</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -231,7 +136,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                 const needsNames = namesStatusMap[period.key] ?? false
                 const readyForAssignment = readyForAssignmentMap[period.key] ?? false
                 const isOpenOrClosed = period.statusDisplay === "Open" || period.statusDisplay === "Closed"
-                
+
                 // Override status if all questionnaires are complete
                 let statusDisplay = period.statusDisplay
                 let statusColor = period.statusColor
@@ -239,67 +144,67 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                   statusDisplay = "Ready for Assignment"
                   statusColor = "bg-blue-600 text-white"
                 }
-                
+
                 return (
-                <TableRow key={period.key}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <span>{period.title}</span>
-                      {needsNames && (
-                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-600">
-                          Names Needed
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className={statusColor}>
-                      {statusDisplay}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">{period.openDateDisplay}</TableCell>
-                  <TableCell className="text-center">{period.closeDateDisplay}</TableCell>
-                  <TableCell className="text-center">{period.studentCountDisplay}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={period.onEdit}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
-                          <Key className="mr-2 h-4 w-4" />
-                          Manage Access Codes
-                        </DropdownMenuItem>
-                        {period.statusDisplay === "Assigned" && (
-                          <DropdownMenuItem onClick={() => handleViewGroups(period.key as Id<"selectionPeriods">, period.title)}>
-                            <Users className="mr-2 h-4 w-4" />
-                            View Groups
+                  <TableRow key={period.key}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{period.title}</span>
+                        {needsNames && (
+                          <Badge variant="outline" className="text-xs text-orange-600 border-orange-600">
+                            Names Needed
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge className={statusColor}>
+                        {statusDisplay}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">{period.openDateDisplay}</TableCell>
+                    <TableCell className="text-center">{period.closeDateDisplay}</TableCell>
+                    <TableCell className="text-center">{period.studentCountDisplay}</TableCell>
+                    <TableCell className="text-center">
+                      <AssignNowButton
+                        periodId={period.key as Id<"selectionPeriods">}
+                        status={(statusDisplay === "Ready for Assignment" ? "open" : statusDisplay.toLowerCase()) as "open" | "closed" | "assigned"}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={period.onEdit}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </DropdownMenuItem>
-                        )}
-                        {(statusDisplay === "Open" || statusDisplay === "Closed" || statusDisplay === "Ready for Assignment") && (
-                          <AssignNowMenuItem 
-                            periodId={period.key as Id<"selectionPeriods">} 
-                            status={(statusDisplay === "Ready for Assignment" ? "open" : statusDisplay.toLowerCase()) as "open" | "closed"} 
-                          />
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={period.onDelete}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                          <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
+                            <Key className="mr-2 h-4 w-4" />
+                            Manage Access Codes
+                          </DropdownMenuItem>
+                          {period.statusDisplay === "Assigned" && (
+                            <DropdownMenuItem onClick={() => handleViewGroups(period.key as Id<"selectionPeriods">, period.title)}>
+                              <Users className="mr-2 h-4 w-4" />
+                              View Groups
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={period.onDelete}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
             </TableBody>
@@ -471,8 +376,8 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             </DialogDescription>
           </DialogHeader>
           {selectedPeriodForAssignments && (
-            <AssignmentDisplay 
-              periodId={selectedPeriodForAssignments.id} 
+            <AssignmentDisplay
+              periodId={selectedPeriodForAssignments.id}
               showFullQualityNames={true}
             />
           )}

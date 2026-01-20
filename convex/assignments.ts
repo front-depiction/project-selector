@@ -67,6 +67,72 @@ async function assignPeriodInternal(
     return period.assignmentBatchId // Already assigned
   }
 
+  // Check if all questionnaires are complete before assigning
+  const periodQuestions = await ctx.db
+    .query("selectionQuestions")
+    .withIndex("by_selection_period", q => q.eq("selectionPeriodId", periodId))
+    .collect()
+
+  const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+  const requiredCount = questionIds.size
+
+  // Only check questionnaire completion if there are questions
+  if (requiredCount > 0) {
+    const periodAllowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", periodId))
+      .collect()
+
+    const studentIds = new Set<string>()
+    for (const entry of periodAllowListEntries) {
+      studentIds.add(entry.studentId)
+    }
+
+    if (studentIds.size > 0) {
+      // Get all answers for this period
+      const allAnswers = await ctx.db.query("studentAnswers")
+        .filter(q => q.eq(q.field("selectionPeriodId"), periodId))
+        .collect()
+
+      // Group answers by student
+      const studentAnswerCounts = new Map<string, Set<string>>()
+      for (const answer of allAnswers) {
+        if (!studentAnswerCounts.has(answer.studentId)) {
+          studentAnswerCounts.set(answer.studentId, new Set())
+        }
+        if (questionIds.has(answer.questionId)) {
+          studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+        }
+      }
+
+      // Check if all students have completed
+      let allComplete = true
+      for (const studentId of studentIds) {
+        const answeredCount = studentAnswerCounts.get(studentId)?.size ?? 0
+        if (answeredCount < requiredCount) {
+          allComplete = false
+          break
+        }
+      }
+
+      // If questionnaires are incomplete, close period without assignment
+      // The UI will show "Questionnaires Incomplete" badge
+      if (!allComplete) {
+        console.log(`[assignPeriod] Questionnaires incomplete for period ${periodId}. Closing period without assignment.`)
+
+        await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
+          semesterId: period.semesterId,
+          title: period.title,
+          description: period.description,
+          openDate: period.openDate,
+          closeDate: period.closeDate
+        }))
+
+        return null
+      }
+    }
+  }
+
   // Check if this is an experiment period (doesn't require topic preferences)
   const isExperiment = period.description.includes("EXCLUSIONS:")
 
