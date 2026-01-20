@@ -19,7 +19,7 @@ export interface SettingsViewVM {
   readonly isGeneratingAnswers$: ReadonlySignal<boolean>
   readonly experimentMapping$: ReadonlySignal<Array<{ name: string; accessCode: string; originalTeam: number }> | null>
   readonly experimentPeriodId$: ReadonlySignal<Id<"selectionPeriods"> | null>
-  readonly seedTestData: () => void
+  readonly seedTestData: (seedType?: "default" | "leadership-python" | "it-skills") => void
   readonly clearAllData: () => void
   readonly confirmClear: () => void
   readonly setupExperiment: () => void
@@ -31,7 +31,7 @@ export interface SettingsViewVM {
 // ============================================================================
 
 export interface SettingsViewVMDeps {
-  readonly seedTestDataMutation: (args: {}) => Promise<any>
+  readonly seedTestDataMutation: (args: { seedType?: "default" | "leadership-python" | "it-skills" }) => Promise<any>
   readonly clearAllDataMutation: (args: {}) => Promise<any>
   readonly setupExperimentMutation: (args: {}) => Promise<any>
   readonly generateRandomAnswersMutation: (args: { periodId: Id<"selectionPeriods"> }) => Promise<any>
@@ -65,9 +65,9 @@ export function createSettingsViewVM(deps: SettingsViewVMDeps): SettingsViewVM {
   }
 
   // Actions
-  const seedTestData = (): void => {
+  const seedTestData = (seedType?: "default" | "leadership-python" | "it-skills"): void => {
     isSeedingData$.value = true
-    seedTestDataMutation({})
+    seedTestDataMutation({ seedType })
       .then(() => {
         isSeedingData$.value = false
       })
