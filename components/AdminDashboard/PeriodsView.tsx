@@ -47,15 +47,7 @@ import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
   useSignals()
 
-  // Fetch existing questions for the period being edited
-  const existingQuestionsForEdit = useQuery(
-    api.selectionQuestions.getQuestionsForPeriod,
-    Option.isSome(vm.editDialog.editingPeriod$.value)
-      ? { selectionPeriodId: vm.editDialog.editingPeriod$.value.value._id }
-      : "skip"
-  )
-
-  console.log('[PeriodsView] existingQuestionsForEdit:', existingQuestionsForEdit)
+  // Topics are computed in the VM based on semesterId
 
   // Fetch names status and questionnaire completion status for all periods using batch queries
   const periods = vm.periods$.value
@@ -237,8 +229,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             </div>
           ) : (
             <SelectionPeriodForm
-              questions={vm.questions$.value}
-              templates={vm.templates$.value}
+              topics={vm.topics$.value}
               onSubmit={vm.onCreateSubmit}
             />
           )}
@@ -255,21 +246,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             </DialogDescription>
           </DialogHeader>
           {Option.isSome(vm.editDialog.editingPeriod$.value) && (() => {
-            if (existingQuestionsForEdit === undefined) {
-              return (
-                <div className="flex h-40 items-center justify-center">
-                  <div className="text-muted-foreground">Loading questions...</div>
-                </div>
-              )
-            }
             const editingPeriod = vm.editDialog.editingPeriod$.value.value
-            const existingQuestionIds = (existingQuestionsForEdit ?? []).map(sq => sq.questionId)
-            console.log('[PeriodsView] Rendering edit form with existingQuestionIds:', existingQuestionIds)
 
-            // Create a wrapper submit handler that performs question sync with correct old IDs
+            // Create a wrapper submit handler
             const handleSubmit = async (values: any) => {
-              console.log('[PeriodsView] handleSubmit called with:', { values, existingQuestionIds })
-
               // Update the period
               await vm.updatePeriod({
                 periodId: editingPeriod._id,
@@ -278,43 +258,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                 openDate: values.start_deadline.getTime(),
                 closeDate: values.end_deadline.getTime(),
               })
-              console.log('[PeriodsView] Update payload:', {
-                title: values.title,
-                openDate: values.start_deadline.getTime(),
-                closeDate: values.end_deadline.getTime(),
-                now: Date.now()
-              })
 
-              // Sync questions using the correct existing question IDs
-              const newQuestionIds = new Set(values.questionIds)
-              const oldQuestionIds = new Set(existingQuestionIds)
-
-              console.log('[PeriodsView] Syncing questions:', {
-                new: Array.from(newQuestionIds),
-                old: Array.from(oldQuestionIds)
-              })
-
-              const removePromises = existingQuestionIds
-                .filter((qId: string) => !newQuestionIds.has(qId))
-                .map((qId: string) => {
-                  console.log('[PeriodsView] Removing question:', qId)
-                  return vm.removeQuestion({
-                    selectionPeriodId: editingPeriod._id,
-                    questionId: qId as any,
-                  })
-                })
-
-              const addPromises = values.questionIds
-                .filter((qId: string) => !oldQuestionIds.has(qId as any))
-                .map((qId: string) => {
-                  console.log('[PeriodsView] Adding question:', qId)
-                  return vm.addQuestion({
-                    selectionPeriodId: editingPeriod._id,
-                    questionId: qId as any,
-                  })
-                })
-
-              await Promise.all([...removePromises, ...addPromises])
+              // Note: Topic selection is managed via semesterId - all topics for that semester
+              // are available. The topicIds in the form are for UI purposes only.
 
               // Close the dialog
               vm.editDialog.close()
@@ -322,14 +268,13 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
             return (
               <SelectionPeriodForm
-                questions={vm.questions$.value}
-                templates={vm.templates$.value}
+                topics={vm.topics$.value}
                 initialValues={{
                   title: editingPeriod.title,
                   selection_period_id: editingPeriod.semesterId,
                   start_deadline: new Date(editingPeriod.openDate),
                   end_deadline: new Date(editingPeriod.closeDate),
-                  questionIds: existingQuestionIds,
+                  topicIds: [...vm.existingTopicIds$.value],
                 }}
                 onSubmit={handleSubmit}
               />

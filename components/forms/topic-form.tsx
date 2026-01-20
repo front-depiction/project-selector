@@ -44,24 +44,24 @@ import {
 const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
-    selection_period_id: z.string().min(1, "Project Assignment is required"),
+    constraintId: z.string().min(1, "Constraint is required"),
     duplicateCount: z.number().int().min(1).max(100),
 });
 
 export type TopicFormValues = z.infer<typeof formSchema>
 
-export interface PeriodOption {
+export interface ConstraintOption {
     value: string
     label: string
-    id?: string // Optional unique ID for React key
+    id?: string
 }
 
 export default function TopicForm({
-    periods,
+    constraints,
     initialValues,
     onSubmit,
 }: {
-    periods: PeriodOption[]
+    constraints: ConstraintOption[]
     initialValues?: Partial<TopicFormValues>
     onSubmit: (values: TopicFormValues) => void | Promise<void>
 }) {
@@ -72,7 +72,7 @@ export default function TopicForm({
         defaultValues: {
             title: initialValues?.title ?? "",
             description: initialValues?.description ?? "",
-            selection_period_id: initialValues?.selection_period_id ?? "",
+            constraintId: initialValues?.constraintId ?? "",
             duplicateCount: initialValues?.duplicateCount ?? 1,
         }
     })
@@ -135,32 +135,31 @@ export default function TopicForm({
 
                 <FormField
                     control={form.control}
-                    name="selection_period_id"
+                    name="constraintId"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Project Assignment *</FormLabel>
+                            <FormLabel>Constraint *</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
                                 <FormControl>
                                     <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select a project assignment" />
+                                        <SelectValue placeholder="Select a constraint" />
                                     </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {periods.map((p, index) => {
-                                        // Ensure unique key by combining id, value, and index
-                                        const uniqueKey = p.id
-                                            ? `period-${p.id}`
-                                            : `period-${p.value}-${index}`;
+                                    {constraints.map((c, index) => {
+                                        const uniqueKey = c.id
+                                            ? `constraint-${c.id}`
+                                            : `constraint-${c.value}-${index}`;
 
                                         return (
-                                            <SelectItem key={uniqueKey} value={p.value}>
-                                                {p.label}
+                                            <SelectItem key={uniqueKey} value={c.value}>
+                                                {c.label}
                                             </SelectItem>
                                         )
                                     })}
                                 </SelectContent>
                             </Select>
-                            <FormDescription>The project assignment to associate this topic with</FormDescription>
+                            <FormDescription>The constraint to associate this topic with</FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}

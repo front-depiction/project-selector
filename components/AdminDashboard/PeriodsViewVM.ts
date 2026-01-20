@@ -1,6 +1,6 @@
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
-import type { SelectionPeriodFormValues, QuestionOption, TemplateOption } from "@/components/forms/selection-period-form"
+import type { SelectionPeriodFormValues, TopicOption } from "@/components/forms/selection-period-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { SelectionPeriodWithStats, Assignment } from "./index"
 import { format } from "date-fns"
@@ -83,14 +83,11 @@ export interface PeriodsViewVM {
   /** Edit dialog state with editing period */
   readonly editDialog: EditDialogVM
 
-  /** Available questions for form */
-  readonly questions$: ReadonlySignal<readonly QuestionOption[]>
+  /** Available topics for form */
+  readonly topics$: ReadonlySignal<readonly TopicOption[]>
 
-  /** Available templates for form */
-  readonly templates$: ReadonlySignal<readonly TemplateOption[]>
-
-  /** Questions already linked to editing period */
-  readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
+  /** Topics already linked to editing period */
+  readonly existingTopicIds$: ReadonlySignal<readonly string[]>
 
   /** ID and title of newly created period (for showing access codes) */
   readonly createdPeriod$: ReadonlySignal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>
@@ -124,14 +121,11 @@ export interface PeriodsViewVMDeps {
   /** Signal of assignments data from Convex */
   readonly assignmentsData$: ReadonlySignal<readonly Assignment[] | undefined>
 
-  /** Signal of questions data from Convex */
-  readonly questionsData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of topics data from Convex */
+  readonly topicsData$: ReadonlySignal<readonly any[] | undefined>
 
-  /** Signal of templates data from Convex */
-  readonly templatesData$: ReadonlySignal<readonly any[] | undefined>
-
-  /** Signal of existing questions for editing period */
-  readonly existingQuestionsData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of existing topics for editing period (filtered by semester) */
+  readonly existingTopicsData$: ReadonlySignal<readonly any[] | undefined>
 
   /** Mutation to create a period */
   readonly createPeriod: (args: {
@@ -267,38 +261,42 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     })
   })
 
-  // Computed: questions for form
-  const questions$ = computed((): readonly QuestionOption[] => {
-    const questionsData = deps.questionsData$.value
-    return (questionsData ?? []).map((q): QuestionOption => ({
-      id: q._id,
-      questionText: q.question,
-      category: q.category,
-      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
-      kindVariant: q.kind === "boolean" ? "secondary" : "outline",
-    }))
-  })
-
-  // Computed: templates for form
-  const templates$ = computed((): readonly TemplateOption[] => {
-    const templatesData = deps.templatesData$.value
-    return (templatesData ?? []).map((t): TemplateOption => ({
+  // Computed: topics for form (filtered by editing period's semester if editing)
+  const topics$ = computed((): readonly TopicOption[] => {
+    const topicsData = deps.topicsData$.value ?? []
+    const editingPeriod = editingPeriod$.value
+    
+    // If editing, filter topics by the period's semester
+    if (Option.isSome(editingPeriod)) {
+      const semesterId = editingPeriod.value.semesterId
+      return topicsData
+        .filter((t: any) => t.semesterId === semesterId)
+        .map((t: any): TopicOption => ({
+          id: t._id,
+          title: t.title,
+          description: t.description,
+        }))
+    }
+    
+    // If creating, show all topics (will be filtered by selected semester in form)
+    return topicsData.map((t: any): TopicOption => ({
       id: t._id,
       title: t.title,
-      questionIds: t.questionIds,
+      description: t.description,
     }))
   })
 
-  // Computed: existing question IDs
-  const existingQuestionIds$ = computed((): readonly string[] => {
-    const existingQuestionsData = deps.existingQuestionsData$.value
-    const ids = (existingQuestionsData ?? []).map((sq) => sq.questionId)
-    console.log('[PeriodsViewVM] existingQuestionIds$ computed:', {
-      existingQuestionsData,
-      ids,
-      length: ids.length
-    })
-    return ids
+  // Computed: existing topic IDs for editing period (all topics in the semester)
+  const existingTopicIds$ = computed((): readonly string[] => {
+    const editingPeriod = editingPeriod$.value
+    if (Option.isNone(editingPeriod)) return []
+    
+    const semesterId = editingPeriod.value.semesterId
+    const topicsData = deps.topicsData$.value ?? []
+    // Return all topic IDs for this semester (since topics are linked to semesters)
+    return topicsData
+      .filter((t: any) => t.semesterId === semesterId)
+      .map((t: any) => t._id)
   })
 
   // Create dialog
@@ -358,16 +356,9 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       .then((result: { success: boolean; periodId: Id<"selectionPeriods"> }) => {
         const createdPeriodId = result.periodId
 
-        // Add selected questions to the period
-        if (values.questionIds.length > 0) {
-          const promises = values.questionIds.map(questionId =>
-            deps.addQuestion({
-              selectionPeriodId: createdPeriodId,
-              questionId: questionId as Id<"questions">,
-            })
-          )
-          return Promise.all(promises).then(() => createdPeriodId)
-        }
+        // Note: Topic selection is stored via semesterId - all topics for that semester
+        // are available. The topicIds in the form are for UI purposes only.
+        // If we need to restrict topics per period, we'd need a linking table.
         return createdPeriodId
       })
       .then((createdPeriodId: Id<"selectionPeriods">) => {
@@ -434,9 +425,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     periodsData$: deps.periodsData$,
     createDialog,
     editDialog,
-    questions$,
-    templates$,
-    existingQuestionIds$,
+    topics$,
+    existingTopicIds$,
     createdPeriod$,
     onCreateSubmit,
     onEditSubmit,

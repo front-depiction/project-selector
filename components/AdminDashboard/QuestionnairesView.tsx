@@ -15,7 +15,6 @@ import {
 import { Edit, MoreVertical, Trash2 as Trash, Plus } from "lucide-react"
 import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
-import TemplateForm from "@/components/forms/template-form"
 import CategoryForm from "@/components/forms/category-form"
 import * as Option from "effect/Option"
 
@@ -24,73 +23,17 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
 
   return (
     <div className="space-y-8">
-      {/* Templates Section */}
+      {/* Constraints Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Templates</CardTitle>
-          <Button size="sm" onClick={vm.templateDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Template
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {vm.templates$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No templates yet. Add one to get started.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vm.templates$.value.map((t) => (
-                  <TableRow key={t.key}>
-                    <TableCell className="font-medium">{t.title}</TableCell>
-                    <TableCell>{t.description}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={t.edit}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={t.remove}
-                          >
-                            <Trash className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Categories Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Categories</CardTitle>
+          <CardTitle>Constraints</CardTitle>
           <Button size="sm" onClick={vm.categoryDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Category
+            <Plus className="h-4 w-4 mr-2" />Add Constraint
           </Button>
         </CardHeader>
         <CardContent>
           {vm.categories$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No categories yet. Add one to get started.</p>
+            <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
           ) : (
             <Table>
               <TableHeader>
@@ -209,26 +152,6 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
       </Card>
 
       {/* Dialogs */}
-      <Dialog open={vm.templateDialog.isOpen$.value} onOpenChange={(open) => !open && vm.templateDialog.close()}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {Option.isSome(vm.editingTemplate$.value) ? "Edit Template" : "Create Template"}
-            </DialogTitle>
-          </DialogHeader>
-          <TemplateForm
-            questions={vm.availableQuestions$.value}
-            onSubmit={vm.onTemplateSubmit}
-            initialValues={Option.getOrUndefined(Option.map(vm.editingTemplate$.value, t => ({
-              title: t.title,
-              description: t.description || "",
-              semester_id: "default",
-              questionIds: t.questions?.map(q => q._id) || []
-            })))}
-          />
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

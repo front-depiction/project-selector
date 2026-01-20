@@ -651,9 +651,8 @@ export function useDashboardVM(): DashboardVM {
           status: "assigned"
         }))
       }),
-      questionsData$: dataSignals.questionsData$,
-      templatesData$: dataSignals.templatesData$,
-      existingQuestionsData$: dataSignals.existingQuestionsData$,
+      topicsData$: dataSignals.topicsData$,
+      existingTopicsData$: computed(() => []), // Will be computed based on editing period's semester
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
@@ -663,7 +662,7 @@ export function useDashboardVM(): DashboardVM {
 
     const topicsView = createTopicsViewVM({
       topics$: dataSignals.topicsData$,
-      periods$: dataSignals.periodsData$,
+      categories$: dataSignals.categoriesData$,
       createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
