@@ -20,7 +20,6 @@ import {
   Calendar,
   FileText,
   Users,
-  BarChart3,
   Settings,
   Home,
   ArrowLeft,
@@ -599,7 +598,6 @@ export const TabNavigation: React.FC = () => {
     { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
     { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
     { id: "questionnaires", label: "Questionnaires", icon: <FileText className="h-4 w-4" /> },
-    { id: "analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }
   ]
 

@@ -40,11 +40,14 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select"
+import {
+    Checkbox
+} from "@/components/ui/checkbox"
 
 const formSchema = z.object({
     title: z.string().min(1).min(3),
     description: z.string().min(10),
-    constraintId: z.string().min(1, "Constraint is required"),
+    constraintIds: z.array(z.string()).optional(),
     duplicateCount: z.number().int().min(1).max(100),
 });
 
@@ -72,7 +75,7 @@ export default function TopicForm({
         defaultValues: {
             title: initialValues?.title ?? "",
             description: initialValues?.description ?? "",
-            constraintId: initialValues?.constraintId ?? "",
+            constraintIds: initialValues?.constraintIds ?? [],
             duplicateCount: initialValues?.duplicateCount ?? 1,
         }
     })
@@ -135,31 +138,54 @@ export default function TopicForm({
 
                 <FormField
                     control={form.control}
-                    name="constraintId"
+                    name="constraintIds"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Constraint *</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
-                                <FormControl>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select a constraint" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    {constraints.map((c, index) => {
-                                        const uniqueKey = c.id
-                                            ? `constraint-${c.id}`
-                                            : `constraint-${c.value}-${index}`;
+                            <FormLabel>Topic-Specific Criteria (Optional)</FormLabel>
+                            <FormDescription className="mb-2">
+                                Select categories with prerequisites or maximization criteria for this topic.
+                            </FormDescription>
+                            <div className="max-h-[200px] overflow-y-auto rounded-md border p-2">
+                                {constraints.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground py-4 text-center">
+                                        No topic-specific categories available. Create categories in the Questionnaires tab first.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {constraints.map((c, index) => {
+                                            const uniqueKey = c.id
+                                                ? `constraint-${c.id}`
+                                                : `constraint-${c.value}-${index}`;
+                                            const isChecked = field.value?.includes(c.value) ?? false;
 
-                                        return (
-                                            <SelectItem key={uniqueKey} value={c.value}>
-                                                {c.label}
-                                            </SelectItem>
-                                        )
-                                    })}
-                                </SelectContent>
-                            </Select>
-                            <FormDescription>The constraint to associate this topic with</FormDescription>
+                                            return (
+                                                <label
+                                                    key={uniqueKey}
+                                                    htmlFor={uniqueKey}
+                                                    className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                                >
+                                                    <Checkbox
+                                                        id={uniqueKey}
+                                                        checked={isChecked}
+                                                        onCheckedChange={(checked: boolean) => {
+                                                            const current = field.value ?? [];
+                                                            const next = checked
+                                                                ? [...current, c.value]
+                                                                : current.filter((id: string) => id !== c.value);
+                                                            field.onChange(next);
+                                                        }}
+                                                    />
+                                                    <div className="flex-1 space-y-1">
+                                                        <p className="text-sm font-medium leading-none">
+                                                            {c.label}
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                             <FormMessage />
                         </FormItem>
                     )}

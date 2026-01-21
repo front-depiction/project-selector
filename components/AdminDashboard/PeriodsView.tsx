@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Plus, Edit, Power, Trash2, MoreVertical, Key, Users } from "lucide-react"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
+import type { TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { AssignNowButton } from "@/components/admin/AssignNowButton"
@@ -39,6 +40,46 @@ import { useSignals } from "@preact/signals-react/runtime"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
+
+// Helper component to avoid IIFE signal reactivity issues
+const EditPeriodFormWrapper: React.FC<{
+  editingPeriod: any
+  topics: readonly TopicOption[]
+  categories: readonly CategoryOption[]
+  existingTopicIds: readonly string[]
+  existingMinimizeCategoryIds: readonly string[]
+  updatePeriod: PeriodsViewVM["updatePeriod"]
+  closeDialog: () => void
+}> = ({ editingPeriod, topics, categories, existingTopicIds, existingMinimizeCategoryIds, updatePeriod, closeDialog }) => {
+  const handleSubmit = async (values: any) => {
+    await updatePeriod({
+      periodId: editingPeriod._id,
+      title: values.title,
+      description: values.description,
+      openDate: values.start_deadline.getTime(),
+      closeDate: values.end_deadline.getTime(),
+      minimizeCategoryIds: values.minimizeCategoryIds,
+    })
+    closeDialog()
+  }
+
+  return (
+    <SelectionPeriodForm
+      topics={topics}
+      categories={categories}
+      initialValues={{
+        title: editingPeriod.title,
+        selection_period_id: editingPeriod.semesterId,
+        start_deadline: new Date(editingPeriod.openDate),
+        end_deadline: new Date(editingPeriod.closeDate),
+        topicIds: [...existingTopicIds],
+        minimizeCategoryIds: [...existingMinimizeCategoryIds],
+        rankingsEnabled: editingPeriod.rankingsEnabled ?? true,
+      }}
+      onSubmit={handleSubmit}
+    />
+  )
+}
 
 // ============================================================================
 // PERIODS VIEW - Clean table-based layout using View Model
@@ -230,6 +271,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           ) : (
             <SelectionPeriodForm
               topics={vm.topics$.value}
+              categories={vm.categories$.value}
               onSubmit={vm.onCreateSubmit}
             />
           )}
@@ -245,41 +287,17 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               Update the details of this project assignment.
             </DialogDescription>
           </DialogHeader>
-          {Option.isSome(vm.editDialog.editingPeriod$.value) && (() => {
-            const editingPeriod = vm.editDialog.editingPeriod$.value.value
-
-            // Create a wrapper submit handler
-            const handleSubmit = async (values: any) => {
-              // Update the period
-              await vm.updatePeriod({
-                periodId: editingPeriod._id,
-                title: values.title,
-                description: values.description,
-                openDate: values.start_deadline.getTime(),
-                closeDate: values.end_deadline.getTime(),
-              })
-
-              // Note: Topic selection is managed via semesterId - all topics for that semester
-              // are available. The topicIds in the form are for UI purposes only.
-
-              // Close the dialog
-              vm.editDialog.close()
-            }
-
-            return (
-              <SelectionPeriodForm
-                topics={vm.topics$.value}
-                initialValues={{
-                  title: editingPeriod.title,
-                  selection_period_id: editingPeriod.semesterId,
-                  start_deadline: new Date(editingPeriod.openDate),
-                  end_deadline: new Date(editingPeriod.closeDate),
-                  topicIds: [...vm.existingTopicIds$.value],
-                }}
-                onSubmit={handleSubmit}
-              />
-            )
-          })()}
+          {Option.isSome(vm.editDialog.editingPeriod$.value) && (
+            <EditPeriodFormWrapper
+              editingPeriod={vm.editDialog.editingPeriod$.value.value}
+              topics={vm.topics$.value}
+              categories={vm.categories$.value}
+              existingTopicIds={vm.existingTopicIds$.value}
+              existingMinimizeCategoryIds={vm.existingMinimizeCategoryIds$.value}
+              updatePeriod={vm.updatePeriod}
+              closeDialog={vm.editDialog.close}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

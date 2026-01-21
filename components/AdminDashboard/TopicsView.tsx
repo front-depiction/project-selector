@@ -156,7 +156,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                constraintId: "" // TODO: Get constraintId from topic if stored
+                constraintIds: [] // TODO: Get constraintIds from topic if stored
               }}
               onSubmit={vm.onEditTopicSubmit}
             />

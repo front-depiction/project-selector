@@ -38,7 +38,6 @@ import TopicForm from "@/components/forms/topic-form"
 import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
 import { StudentsView } from "./StudentsView"
-import { AnalyticsView } from "./AnalyticsView"
 import { SettingsView } from "./SettingsView"
 import { QuestionnairesView } from "./QuestionnairesView"
 import { HelpView } from "./HelpView"
@@ -252,12 +251,12 @@ const OverviewView: React.FC = () => {
       )}
 
       {/* Metrics Grid - Clean, no nesting */}
-      <AD.MetricsGrid 
+      <AD.MetricsGrid
         stats={selectedPeriodStats ? {
           ...selectedPeriodStats,
           matchRate,
           topChoiceRate
-        } : undefined} 
+        } as any : undefined}
       />
 
       {/* Topics with Groups - Show for selected period */}
@@ -372,9 +371,10 @@ const OverviewView: React.FC = () => {
                 selection_period_id: vm.editPeriodDialog.editingPeriod$.value.value.semesterId,
                 start_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.openDate),
                 end_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.closeDate),
-                questionIds: [...vm.existingQuestionIds$.value]
+                topicIds: [],
+                minimizeCategoryIds: []
               }}
-              onSubmit={vm.updatePeriodFromForm}
+              onSubmit={vm.updatePeriodFromForm as any}
             />
           )}
         </DialogContent>
@@ -391,13 +391,14 @@ const OverviewView: React.FC = () => {
           </DialogHeader>
           {Option.isSome(vm.editTopicDialog.editingTopic$.value) && (
             <TopicForm
-              periods={[...vm.periodOptions$.value]}
+              constraints={[...vm.constraintOptions$.value]}
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
+                constraintIds: [], // TODO: Get constraintIds from topic if stored
+                duplicateCount: 1
               }}
-              onSubmit={vm.updateTopicFromForm}
+              onSubmit={vm.updateTopicFromForm as any}
             />
           )}
         </DialogContent>

@@ -47,16 +47,18 @@ export type CategoryFormValues = z.infer<typeof formSchema>
 export default function CategoryForm({
     initialValues,
     onSubmit,
+    mode,
 }: {
     initialValues?: Partial<CategoryFormValues>
     onSubmit: (values: CategoryFormValues) => void | Promise<void>
+    mode?: "minimize" | "constraint" | null
 }) {
     const form = useForm<CategoryFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             name: initialValues?.name ?? "",
             description: initialValues?.description ?? "",
-            criterionType: initialValues?.criterionType ?? undefined,
+            criterionType: initialValues?.criterionType ?? (mode === "minimize" ? "minimize" : undefined),
             minRatio: initialValues?.minRatio,
             target: initialValues?.target,
         },
@@ -96,79 +98,68 @@ export default function CategoryForm({
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="criterionType"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Criterion Type <span className="text-red-500">*</span></FormLabel>
-                            <Select
-                                value={field.value}
-                                onValueChange={(value) => {
-                                    field.onChange(value as "prerequisite" | "minimize" | "pull")
-                                }}
-                            >
-                                <FormControl>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="How should this category be used when making groups?" />
-                                    </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="prerequisite">
-                                        <div className="flex flex-col py-1">
-                                            <span className="font-medium">Required Minimum</span>
-                                            <span className="text-xs text-muted-foreground">
-                                                Some students MUST have this skill in every group
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="minimize">
-                                        <div className="flex flex-col py-1">
-                                            <span className="font-medium">Balance Evenly</span>
-                                            <span className="text-xs text-muted-foreground">
-                                                Make sure all groups have about the same amount of people
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="pull">
-                                        <div className="flex flex-col py-1">
-                                            <span className="font-medium">Maximize in Groups</span>
-                                            <span className="text-xs text-muted-foreground">
-                                                Try to put students with lots of skill from this category together
-                                            </span>
-                                        </div>
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormDescription>
-                                {selectedCriterionType === "prerequisite" && (
-                                    <span className="text-sm">
-                                        <strong>Example:</strong> If you need at least 40% of students in each group to speak French,
-                                        pick this and enter 40. Students who don't speak French won't be put in groups that need it.
-                                    </span>
-                                )}
-                                {selectedCriterionType === "minimize" && (
-                                    <span className="text-sm">
-                                        <strong>Example:</strong> If some students are really good at coding and others aren't,
-                                        this makes sure each group gets a mix. No group gets all the best coders or all the beginners.
-                                    </span>
-                                )}
-                                {selectedCriterionType === "pull" && (
-                                    <span className="text-sm">
-                                        <strong>Example:</strong> If you want groups with lots of leadership skills,
-                                        this tries to put the best leaders together in each group.
-                                    </span>
-                                )}
-                                {!selectedCriterionType && (
-                                    <span className="text-sm">
-                                        Pick how this category should be used when the computer makes groups for you.
-                                    </span>
-                                )}
-                            </FormDescription>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
+                {mode !== "minimize" && (
+                    <FormField
+                        control={form.control}
+                        name="criterionType"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Criterion Type <span className="text-red-500">*</span></FormLabel>
+                                <Select
+                                    value={field.value}
+                                    onValueChange={(value) => {
+                                        field.onChange(value as "prerequisite" | "minimize" | "pull")
+                                    }}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="How should this category be used when making groups?" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="prerequisite">
+                                            <div className="flex flex-col py-1">
+                                                <span className="font-medium">Required Minimum</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    Some students MUST have this skill in every group
+                                                </span>
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="pull">
+                                            <div className="flex flex-col py-1">
+                                                <span className="font-medium">Maximize in Groups</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    Try to put students with lots of skill from this category together
+                                                </span>
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                    {selectedCriterionType === "prerequisite" && (
+                                        <span className="text-sm">
+                                            <strong>Example:</strong> If you need at least 40% of students in each group to speak French,
+                                            pick this and enter 40. Students who don't speak French won't be put in groups that need it.
+                                        </span>
+                                    )}
+                                    {selectedCriterionType === "pull" && (
+                                        <span className="text-sm">
+                                            <strong>Example:</strong> If you want groups with lots of leadership skills,
+                                            this tries to put the best leaders together in each group.
+                                        </span>
+                                    )}
+                                    {!selectedCriterionType && (
+                                        <span className="text-sm">
+                                            Pick how this category should be used when the computer makes groups for you.
+                                        </span>
+                                    )}
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
+                
 
                 {selectedCriterionType === "prerequisite" && (
                     <FormField
@@ -202,36 +193,6 @@ export default function CategoryForm({
                     />
                 )}
 
-                {selectedCriterionType === "minimize" && (
-                    <FormField
-                        control={form.control}
-                        name="target"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Target Value (Optional)</FormLabel>
-                                <FormControl>
-                                    <Input
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        placeholder="Leave blank to use overall average"
-                                        {...field}
-                                        onChange={(e) => {
-                                            const value = e.target.value === "" ? undefined : Number(e.target.value)
-                                            field.onChange(value)
-                                        }}
-                                        value={field.value ?? ""}
-                                    />
-                                </FormControl>
-                                <FormDescription>
-                                    You can leave this blank! If you do, the computer will figure out the average automatically.
-                                    Or enter a number from 0 to 100 if you want each group to aim for a specific average.
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                )}
 
                 <FormField
                     control={form.control}

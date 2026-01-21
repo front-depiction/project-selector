@@ -55,6 +55,14 @@ import type {
   FunctionReference,
 } from "convex/server";
 
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
@@ -97,30 +105,14 @@ declare const fullApi: ApiFromModules<{
   topics: typeof topics;
   users: typeof users;
 }>;
+declare const fullApiWithMounts: typeof fullApi;
 
-/**
- * A utility for referencing Convex functions in your app's public API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 export declare const api: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "public">
 >;
-
-/**
- * A utility for referencing Convex functions in your app's internal API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = internal.myModule.myFunction;
- * ```
- */
 export declare const internal: FilterApi<
-  typeof fullApi,
+  typeof fullApiWithMounts,
   FunctionReference<any, "internal">
 >;
 
@@ -253,17 +245,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      delete_: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        null
-      >;
       deleteIfExists: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         any
+      >;
+      delete_: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        null
       >;
       init: FunctionReference<
         "mutation",

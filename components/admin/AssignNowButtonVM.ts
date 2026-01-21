@@ -1,9 +1,10 @@
 "use client"
 import * as React from "react"
 import { signal, ReadonlySignal } from "@preact/signals-react"
-import { useAction, useMutation } from "convex/react"
+import { useAction } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import { toast } from "sonner"
 
 // ============================================================================
 // View Model Types
@@ -11,7 +12,13 @@ import type { Id } from "@/convex/_generated/dataModel"
 
 export interface AssignNowButtonVM {
   readonly isLoading$: ReadonlySignal<boolean>
-  readonly assignTopics: () => void
+  readonly assignTopics: (settings: AssignNowSettings) => void
+}
+
+export interface AssignNowSettings {
+  readonly rankingPercentage?: number
+  readonly maxTimeInSeconds: number
+  readonly groupSizes: Array<{ topicId: Id<"topics">; size: number }>
 }
 
 // ============================================================================
@@ -22,32 +29,25 @@ export function useAssignNowButtonVM(periodId: Id<"selectionPeriods">): AssignNo
   // Reactive state - stable signal created once per component lifecycle
   const isLoading$ = React.useMemo(() => signal(false), [])
 
-  // Try CP-SAT action first, fallback to mutation
+  // CP-SAT action for assignment
   const assignWithCPSATAction = useAction(api.assignWithCPSAT.assignWithCPSAT)
-  const assignNowMutation = useMutation(api.assignments.assignNow)
 
-  // Action: assign topics (tries CP-SAT, falls back to simple distribution)
-  const assignTopics = (): void => {
+  // Action: assign topics using CP-SAT solver
+  const assignTopics = (settings: AssignNowSettings): void => {
     if (isLoading$.value) return
 
     isLoading$.value = true
     
-    // Try CP-SAT first, fallback to simple assignment if it fails
-    assignWithCPSATAction({ periodId })
+    // Call CP-SAT solver - errors will show as toast
+    assignWithCPSATAction({ periodId, settings })
       .then(() => {
         isLoading$.value = false
+        toast.success("Students assigned successfully!")
       })
       .catch((error) => {
-        console.warn("CP-SAT assignment failed, trying simple distribution:", error)
-        // Fallback to simple distribution
-        return assignNowMutation({ periodId })
-      })
-      .then(() => {
+        console.error("CP-SAT assignment failed:", error)
         isLoading$.value = false
-      })
-      .catch((error) => {
-        console.error("Failed to assign:", error)
-        isLoading$.value = false
+        toast.error("Assignment failed: " + (error?.message || "Unknown error. Please check that the CP-SAT service is running."))
       })
   }
 

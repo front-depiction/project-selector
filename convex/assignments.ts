@@ -48,6 +48,54 @@ export const assignNow = mutation({
 })
 
 /**
+ * Returns assignment setup data for a period (topics + student count).
+ *
+ * @category Queries
+ * @since 0.3.0
+ */
+export const getAssignmentSetup = query({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return null
+
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+
+    const isExperiment = period.description.includes("EXCLUSIONS:")
+    const rankingsEnabled = period.rankingsEnabled !== false
+
+    let studentCount = 0
+    if (isExperiment || !rankingsEnabled) {
+      const accessList = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+        .collect()
+      studentCount = accessList.length
+    } else {
+      const preferences = await ctx.db
+        .query("preferences")
+        .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+        .collect()
+      const studentIds = new Set(preferences.map(p => p.studentId))
+      studentCount = studentIds.size
+    }
+
+    return {
+      topics: topics.map(topic => ({
+        _id: topic._id,
+        title: topic.title
+      })),
+      studentCount,
+      rankingsEnabled: period.rankingsEnabled ?? true,
+    }
+  }
+})
+
+/**
  * Internal function to perform the actual assignment.
  * 
  * @category Internal Functions
@@ -135,12 +183,15 @@ async function assignPeriodInternal(
 
   // Check if this is an experiment period (doesn't require topic preferences)
   const isExperiment = period.description.includes("EXCLUSIONS:")
+  const rankingsEnabled = period.rankingsEnabled !== false
 
   // Get all preferences for this semester
-  const preferences = await ctx.db
-    .query("preferences")
-    .withIndex("by_semester", (q) => q.eq("semesterId", period.semesterId))
-    .collect()
+  const preferences = rankingsEnabled
+    ? await ctx.db
+      .query("preferences")
+      .withIndex("by_semester", (q) => q.eq("semesterId", period.semesterId))
+      .collect()
+    : []
 
   // Get all active topics for this semester
   const topics = await ctx.db
@@ -151,7 +202,7 @@ async function assignPeriodInternal(
 
   // For experiment periods, get students from access list instead of preferences
   let studentIds: string[]
-  if (isExperiment) {
+  if (isExperiment || !rankingsEnabled) {
     const accessList = await ctx.db
       .query("periodStudentAllowList")
       .withIndex("by_period", (q) => q.eq("selectionPeriodId", periodId))

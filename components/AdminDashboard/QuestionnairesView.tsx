@@ -23,16 +23,88 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
 
   return (
     <div className="space-y-8">
-      {/* Constraints Section */}
+      {/* Balanced Distribution Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Constraints</CardTitle>
-          <Button size="sm" onClick={vm.categoryDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Constraint
+          <div>
+            <CardTitle>Balanced Distribution</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              These criteria are applied to the entire project assignment and all topics to ensure even distribution across groups.
+            </p>
+          </div>
+          <Button size="sm" onClick={vm.openMinimizeCategoryDialog}>
+            <Plus className="h-4 w-4 mr-2" />Add Category
           </Button>
         </CardHeader>
         <CardContent>
-          {vm.categories$.value.length === 0 ? (
+          {vm.minimizeCategories$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No balanced distribution criteria yet. Add one to get started.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Criterion</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {vm.minimizeCategories$.value.map((c) => (
+                  <TableRow key={c.key}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.criterionBadgeVariant}>
+                        {c.criterionDisplay}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={c.edit}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={c.remove}
+                          >
+                            <Trash className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Constraints Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Topic-Specific Criteria</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Prerequisites and maximization criteria that can be assigned to specific topics.
+            </p>
+          </div>
+          <Button size="sm" onClick={vm.openConstraintCategoryDialog}>
+            <Plus className="h-4 w-4 mr-2" />Add Category
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {vm.constraintCategories$.value.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
           ) : (
             <Table>
@@ -45,7 +117,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vm.categories$.value.map((c) => (
+                {vm.constraintCategories$.value.map((c) => (
                   <TableRow key={c.key}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.description}</TableCell>
@@ -161,6 +233,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
           </DialogHeader>
           <CategoryForm
             onSubmit={vm.onCategorySubmit}
+            mode={vm.categoryDialogMode$.value}
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",

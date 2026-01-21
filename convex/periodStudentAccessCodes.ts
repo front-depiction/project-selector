@@ -3,6 +3,73 @@ import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
 
 /**
+ * Helper function to get question IDs for a period based on linked categories.
+ * 
+ * Questions are derived from categories linked to:
+ * 1. The period via `minimizeCategoryIds` (Balance Distribution - minimize criterion)
+ * 2. Any topic in the period's semester via `constraintIds` (Topic-Specific - prerequisite/pull criteria)
+ */
+async function getQuestionIdsForPeriod(
+  ctx: QueryCtx,
+  selectionPeriodId: Id<"selectionPeriods">
+): Promise<Set<Id<"questions">>> {
+  // Get the period
+  const period = await ctx.db.get(selectionPeriodId)
+  if (!period) return new Set()
+
+  // Get all topics for this semester
+  const topics = await ctx.db
+    .query("topics")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  // Collect all category IDs from period and topics
+  const categoryIds = new Set<Id<"categories">>()
+  
+  // From period (balance distribution - minimize categories)
+  if (period.minimizeCategoryIds) {
+    period.minimizeCategoryIds.forEach(id => categoryIds.add(id))
+  }
+  
+  // From topics (topic-specific criteria - prerequisite and pull categories)
+  for (const topic of topics) {
+    if (topic.constraintIds) {
+      topic.constraintIds.forEach(id => categoryIds.add(id))
+    }
+  }
+
+  // If no categories are linked, return empty set
+  if (categoryIds.size === 0) return new Set()
+
+  // Get category names from those IDs
+  const categoryNames = new Set<string>()
+  for (const categoryId of categoryIds) {
+    const category = await ctx.db.get(categoryId)
+    if (category) {
+      categoryNames.add(category.name)
+    }
+  }
+
+  // If no valid category names found, return empty set
+  if (categoryNames.size === 0) return new Set()
+
+  // Get questions matching those category names (same semester)
+  const allQuestions = await ctx.db
+    .query("questions")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  const matchingQuestionIds = new Set<Id<"questions">>()
+  for (const q of allQuestions) {
+    if (categoryNames.has(q.category)) {
+      matchingQuestionIds.add(q._id)
+    }
+  }
+
+  return matchingQuestionIds
+}
+
+/**
  * Character set for generating access codes.
  * Excludes confusing characters: 0, O, 1, I, L
  * 32 characters ^ 6 positions = ~1 billion combinations
@@ -259,13 +326,8 @@ export const batchCheckPeriodsReadyForAssignment = query({
     const result: Record<string, boolean> = {}
     
     for (const periodId of args.periodIds) {
-      // Get all questions for this period
-      const periodQuestions = await ctx.db
-        .query("selectionQuestions")
-        .withIndex("by_selection_period", q => q.eq("selectionPeriodId", periodId))
-        .collect()
-
-      const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+      // Get all question IDs for this period (derived from linked categories)
+      const questionIds = await getQuestionIdsForPeriod(ctx, periodId)
       const requiredCount = questionIds.size
 
       // If no questions, skip (can't be ready)

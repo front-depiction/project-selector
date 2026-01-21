@@ -28,6 +28,9 @@ export const savePreferences = mutation({
     if (!SelectionPeriod.isOpen(activePeriod)) {
       throw new Error("Selection period is closed")
     }
+    if (activePeriod.rankingsEnabled === false) {
+      return { success: true, rankingsDisabled: true }
+    }
 
     // Save preferences (keeping existing system)
     const existing = await ctx.db
@@ -50,13 +53,15 @@ export const savePreferences = mutation({
       await ctx.db.insert("preferences", newPreference)
     }
 
-    // Create ranking events and update aggregate
-    await createRankingEventsAndUpdateAggregate(ctx, {
-      studentId: args.studentId,
-      semesterId: activePeriod.semesterId,
-      topicOrder: args.topicOrder,
-      existingTopicOrder: existing?.topicOrder
-    })
+    // Create ranking events and update aggregate (enabled by default if undefined)
+    if (activePeriod.rankingsEnabled ?? true) {
+      await createRankingEventsAndUpdateAggregate(ctx, {
+        studentId: args.studentId,
+        semesterId: activePeriod.semesterId,
+        topicOrder: args.topicOrder,
+        existingTopicOrder: existing?.topicOrder
+      })
+    }
 
     return { success: true }
   }
@@ -77,6 +82,7 @@ export const getPreferences = query({
     const activePeriod = await getActiveSelectionPeriod(ctx)
 
     if (!activePeriod) return null
+    if (activePeriod.rankingsEnabled === false) return null
 
     // Get preferences for this student and semester
     return await ctx.db

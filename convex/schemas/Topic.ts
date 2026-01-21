@@ -1,5 +1,6 @@
 import { v } from "convex/values"
 import type { Infer } from "convex/values"
+import type { Id } from "../_generated/dataModel"
 
 /**
  * Convex validator for Topic objects.
@@ -12,7 +13,8 @@ export const Topic = v.object({
   description: v.string(),
   semesterId: v.string(),
   isActive: v.boolean(),
-  requiresAllowList: v.optional(v.boolean())
+  requiresAllowList: v.optional(v.boolean()),
+  constraintIds: v.optional(v.array(v.id("categories")))
 })
 
 /**
@@ -43,11 +45,13 @@ export const make = (params: {
   readonly description: string
   readonly semesterId: string
   readonly isActive?: boolean
+  readonly constraintIds?: string[]
 }): Topic => ({
   title: params.title,
   description: params.description,
   semesterId: params.semesterId,
   isActive: params.isActive ?? true,
+  constraintIds: params.constraintIds as Id<"categories">[] | undefined,
 } as const)
 
 /**

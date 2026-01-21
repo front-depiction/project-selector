@@ -26,7 +26,9 @@ async function seedLeadershipPython(ctx: any) {
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
   // Create selection period
-  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow)
+  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+    rankingsEnabled: true,
+  })
 
   // Create 10 topics with different titles and descriptions
   const topicData = [
@@ -240,17 +242,34 @@ async function seedLeadershipPython(ctx: any) {
     await ctx.db.insert("preferences", preference)
 
     // Create ranking events (topics can be ranked)
-    await createRankingEventsAndUpdateAggregate(ctx, {
-      studentId,
-      semesterId,
-      topicOrder,
-    })
+    try {
+      await createRankingEventsAndUpdateAggregate(ctx, {
+        studentId,
+        semesterId,
+        topicOrder,
+      })
+    } catch (error) {
+      console.warn("Failed to update rankings aggregate (likely due to missing component in test environment):", error)
+    }
   }
 
-  // Configure groups: 10 groups of 7 students each
-  // Groups 0 and 1: prerequisite "did you pass calculus?"
-  // Groups 2 and 3: pull "How would you rate your python skills"
-  // All groups: minimize leadership category and printer access
+  // Configure groups and constraints
+  // 1. All groups: minimize leadership category and printer access
+  await ctx.db.patch(periodId, {
+    minimizeCategoryIds: [leadershipCategoryId, printerCategoryId]
+  })
+
+  // 2. Groups 0 and 1: prerequisite "did you pass calculus?"
+  await Promise.all([
+    ctx.db.patch(topicIds[0], { constraintIds: [calculusCategoryId] }),
+    ctx.db.patch(topicIds[1], { constraintIds: [calculusCategoryId] }),
+  ])
+
+  // 3. Groups 2 and 3: pull "How would you rate your python skills"
+  await Promise.all([
+    ctx.db.patch(topicIds[2], { constraintIds: [pythonCategoryId] }),
+    ctx.db.patch(topicIds[3], { constraintIds: [pythonCategoryId] }),
+  ])
 
   return {
     periodId,
@@ -273,7 +292,9 @@ async function seedITSkills(ctx: any) {
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
   // Create selection period
-  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow)
+  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+    rankingsEnabled: false,
+  })
 
   // Create 5 topics with different titles and descriptions
   const topicData = [
@@ -390,6 +411,11 @@ async function seedITSkills(ctx: any) {
     // Note: NOT calling createRankingEventsAndUpdateAggregate - topics can't be ranked
   }
 
+  // Link category to selection period (minimize IT skills)
+  await ctx.db.patch(periodId, {
+    minimizeCategoryIds: [itCategoryId]
+  })
+
   return {
     periodId,
     topicCount: topicIds.length,
@@ -430,14 +456,17 @@ export const seedTestData = mutation({
 
     // Create selection period and topics
     const [periodId, closedPeriodId, topicIds] = await Promise.all([
-      createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
+      createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+        rankingsEnabled: true,
+      }),
       // Create a closed period for testing
       ctx.db.insert("selectionPeriods", SelectionPeriod.makeClosed({
         semesterId,
         title: "Closed Test Period",
         description: "This is a closed period for testing closed session behavior",
         openDate: oneWeekAgo,
-        closeDate: oneDayAgo
+        closeDate: oneDayAgo,
+        rankingsEnabled: true,
       })),
       createTestTopics(ctx, semesterId)
     ])
@@ -451,6 +480,7 @@ export const seedTestData = mutation({
       description: "An open period where all students have completed their questionnaires",
       openDate: openWithQuestionnairesOpenDate,
       closeDate: thirtyDaysFromNow,
+      rankingsEnabled: true,
     })
     const openWithQuestionnairesPeriodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
 
@@ -512,6 +542,24 @@ export const seedTestData = mutation({
         })
       )
     )
+
+    // Link categories to selection period and topics
+    const minimizeCategoryIds = categoryIds.filter((_, i) => categoryNames[i].criterionType === "minimize")
+    const pullCategoryIds = categoryIds.filter((_, i) => categoryNames[i].criterionType === "pull")
+    const prerequisiteCategoryIds = categoryIds.filter((_, i) => categoryNames[i].criterionType === "prerequisite")
+
+    await Promise.all([
+      // 1. Link minimize categories to the selection periods
+      ctx.db.patch(periodId, { minimizeCategoryIds }),
+      ctx.db.patch(closedPeriodId, { minimizeCategoryIds }),
+      ctx.db.patch(openWithQuestionnairesPeriodId, { minimizeCategoryIds }),
+
+      // 2. Link pull/prerequisite categories to some topics
+      // Topic 0: first pull and first prerequisite
+      ctx.db.patch(topicIds[0], { constraintIds: [pullCategoryIds[0], prerequisiteCategoryIds[0]] }),
+      // Topic 1: second pull
+      ctx.db.patch(topicIds[1], { constraintIds: [pullCategoryIds[1]] }),
+    ])
 
     // Create 10 questions across categories
     const questionsData = [
@@ -847,6 +895,7 @@ export const createTopic = mutation({
     description: v.string(),
     semesterId: v.string(),
     duplicateCount: v.optional(v.number()),
+    constraintIds: v.optional(v.array(v.id("categories"))),
   },
   handler: async (ctx, args) => {
     const count = args.duplicateCount ?? 1
@@ -855,6 +904,7 @@ export const createTopic = mutation({
       description: args.description,
       semesterId: args.semesterId,
       isActive: true,
+      constraintIds: args.constraintIds,
     })
 
     // Create multiple copies of the topic
@@ -879,6 +929,7 @@ export const updateTopic = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
+    constraintIds: v.optional(v.array(v.id("categories"))),
   },
   handler: async (ctx, args) => {
     await ctx.db.get(args.id).then(maybeTopic =>
@@ -889,6 +940,7 @@ export const updateTopic = mutation({
     if (args.title !== undefined) updates.title = args.title
     if (args.description !== undefined) updates.description = args.description
     if (args.isActive !== undefined) updates.isActive = args.isActive
+    if (args.constraintIds !== undefined) updates.constraintIds = args.constraintIds
 
     await ctx.db.patch(args.id, updates)
   }
@@ -956,15 +1008,30 @@ export const createSelectionPeriod = mutation({
     description: v.string(),
     openDate: v.number(),
     closeDate: v.number(),
-    isActive: v.boolean()
+    isActive: v.boolean(),
+    minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
+    rankingsEnabled: v.optional(v.boolean()),
+    topicIds: v.optional(v.array(v.id("topics"))),
   },
   handler: async (ctx, args) => {
+    // Update selected topics' semesterId to link them to this period
+    if (args.topicIds && args.topicIds.length > 0) {
+      for (const topicId of args.topicIds) {
+        const topic = await ctx.db.get(topicId)
+        if (topic) {
+          await ctx.db.patch(topicId, { semesterId: args.semesterId })
+        }
+      }
+    }
+
     const period = SelectionPeriod.makeInactive({
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
       openDate: args.openDate,
-      closeDate: args.closeDate
+      closeDate: args.closeDate,
+      minimizeCategoryIds: args.minimizeCategoryIds,
+      rankingsEnabled: args.rankingsEnabled,
     })
 
     const periodId = await ctx.db.insert("selectionPeriods", period)
@@ -1263,6 +1330,7 @@ export const setupExperiment = mutation({
       description: periodDescription,
       openDate: now,
       closeDate: thirtyDaysFromNow,
+      rankingsEnabled: true,
     })
 
     const periodId = await ctx.db.insert("selectionPeriods", period)

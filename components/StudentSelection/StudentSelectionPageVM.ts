@@ -32,6 +32,7 @@ export interface QuestionnaireStateVM {
   readonly hasQuestions: boolean
   readonly isCompleted: boolean
   readonly needsCompletion: boolean
+  readonly isEditMode: boolean  // true if all questions already answered (editing existing answers)
 }
 
 /**
@@ -44,6 +45,7 @@ export interface PeriodDisplayVM {
   readonly closeDateDisplay: string
   readonly daysRemaining: string
   readonly isOpen: boolean
+  readonly rankingsEnabled: boolean
 }
 
 /**
@@ -89,6 +91,8 @@ export interface StudentSelectionPageVM {
   readonly updateSelection: (newItems: Item[] | ((prev: Item[]) => Item[])) => void
   readonly toggleTopicExpanded: (topicId: string | number) => void
   readonly handleQuestionnaireComplete: () => void
+  readonly openQuestionnaire: () => void
+  readonly closeQuestionnaire: () => void
   readonly navigateToEntry: () => void
 }
 
@@ -101,7 +105,9 @@ export interface StudentSelectionPageVMDeps {
   readonly preferences$: ReadonlySignal<FunctionReturnType<typeof api.preferences.getPreferences> | undefined>
   readonly currentPeriod$: ReadonlySignal<FunctionReturnType<typeof api.admin.getCurrentPeriod> | undefined>
   readonly periodQuestions$: ReadonlySignal<FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod> | undefined>
-  readonly hasCompletedQuestionnaire$: ReadonlySignal<boolean | undefined>
+  readonly existingAnswers$: ReadonlySignal<FunctionReturnType<typeof api.studentAnswers.getAnswers> | undefined>
+  readonly questionnaireOpen$: ReadonlySignal<boolean>
+  readonly setQuestionnaireOpen: (open: boolean) => void
   readonly savePreferences: (args: { studentId: string; topicOrder: Id<"topics">[] }) => Promise<any>
   readonly initialStudentId?: string
   readonly questionnaireVM$: ReadonlySignal<StudentQuestionPresentationVM | null>
@@ -117,7 +123,9 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     preferences$: preferencesData$,
     currentPeriod$: currentPeriodData$,
     periodQuestions$: periodQuestionsData$,
-    hasCompletedQuestionnaire$: hasCompletedQuestionnaireData$,
+    existingAnswers$: existingAnswersData$,
+    questionnaireOpen$: questionnaireOpenData$,
+    setQuestionnaireOpen,
     savePreferences,
     initialStudentId = typeof window !== "undefined" ? localStorage.getItem("studentId") || "" : "",
     questionnaireVM$
@@ -126,7 +134,6 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
   // Local signals for UI state - created once in factory
   const studentId$ = signal<string>(initialStudentId)
   const expandedTopicIds$ = signal<Set<string | number>>(new Set())
-  const questionnaireCompleted$ = signal(false)
   const error$ = signal<Option.Option<string>>(Option.none())
 
   // ============================================================================
@@ -136,11 +143,9 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
   const isLoading$ = computed((): boolean => {
     const topics = topicsData$.value
     const periodQuestions = periodQuestionsData$.value
-    const hasCompletedQuestionnaire = hasCompletedQuestionnaireData$.value
 
     if (!topics) return true
-    const hasQuestions = periodQuestions && periodQuestions.length > 0
-    if (hasQuestions && hasCompletedQuestionnaire === undefined) return true
+    if (periodQuestions === undefined) return true
     return false
   })
 
@@ -150,16 +155,23 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
 
   const questionnaireState$ = computed((): QuestionnaireStateVM => {
     const periodQuestions = periodQuestionsData$.value
-    const hasCompletedQuestionnaire = hasCompletedQuestionnaireData$.value
+    const existingAnswers = existingAnswersData$.value
 
     const hasQuestions = periodQuestions ? periodQuestions.length > 0 : false
-    const isCompleted = hasCompletedQuestionnaire === true || questionnaireCompleted$.value
-    const needsCompletion = hasQuestions && !isCompleted
+    const isOpen = questionnaireOpenData$.value
+    const isCompleted = hasQuestions && !isOpen
+    const needsCompletion = hasQuestions && isOpen
+
+    // Check if all questions have been answered (edit mode)
+    const totalQuestions = periodQuestions?.length ?? 0
+    const answeredCount = existingAnswers?.length ?? 0
+    const isEditMode = hasQuestions && answeredCount >= totalQuestions && totalQuestions > 0
 
     return {
       hasQuestions,
       isCompleted,
-      needsCompletion
+      needsCompletion,
+      isEditMode
     }
   })
 
@@ -201,7 +213,8 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
       description: currentPeriod.description,
       closeDateDisplay: closeDate.toLocaleDateString(),
       daysRemaining: daysRemaining > 0 ? `${daysRemaining} days` : "Closed",
-      isOpen: currentPeriod.kind === "open"
+      isOpen: currentPeriod.kind === "open",
+      rankingsEnabled: currentPeriod.rankingsEnabled ?? true,
     })
   })
 
@@ -306,6 +319,10 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
       error$.value = Option.some("This project assignment is closed. You cannot modify your rankings.")
       return
     }
+    if (currentPeriod && currentPeriod.rankingsEnabled === false) {
+      error$.value = Option.some("Rankings are disabled for this project assignment.")
+      return
+    }
 
     error$.value = Option.none()
 
@@ -334,7 +351,15 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
   }
 
   const handleQuestionnaireComplete = (): void => {
-    questionnaireCompleted$.value = true
+    setQuestionnaireOpen(false)
+  }
+
+  const openQuestionnaire = (): void => {
+    setQuestionnaireOpen(true)
+  }
+
+  const closeQuestionnaire = (): void => {
+    setQuestionnaireOpen(false)
   }
 
   const navigateToEntry = (): void => {
@@ -366,6 +391,8 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     updateSelection,
     toggleTopicExpanded,
     handleQuestionnaireComplete,
+    openQuestionnaire,
+    closeQuestionnaire,
     navigateToEntry
   }
 }

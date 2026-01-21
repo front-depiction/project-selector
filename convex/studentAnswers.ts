@@ -1,8 +1,132 @@
 import { v } from "convex/values"
-import { query, mutation, internalMutation } from "./_generated/server"
+import { query, mutation, internalMutation, QueryCtx, MutationCtx } from "./_generated/server"
 import { internal } from "./_generated/api"
 import * as StudentAnswer from "./schemas/StudentAnswer"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
+import type { Id, Doc } from "./_generated/dataModel"
+
+/**
+ * Helper function to get question IDs for a period based on linked categories.
+ * 
+ * Questions are derived from categories linked to:
+ * 1. The period via `minimizeCategoryIds` (Balance Distribution - minimize criterion)
+ * 2. Any topic in the period's semester via `constraintIds` (Topic-Specific - prerequisite/pull criteria)
+ */
+async function getQuestionIdsForPeriod(
+  ctx: QueryCtx | MutationCtx,
+  selectionPeriodId: Id<"selectionPeriods">
+): Promise<Set<Id<"questions">>> {
+  // Get the period
+  const period = await ctx.db.get(selectionPeriodId)
+  if (!period) return new Set()
+
+  // Get all topics for this semester
+  const topics = await ctx.db
+    .query("topics")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  // Collect all category IDs from period and topics
+  const categoryIds = new Set<Id<"categories">>()
+  
+  // From period (balance distribution - minimize categories)
+  if (period.minimizeCategoryIds) {
+    period.minimizeCategoryIds.forEach(id => categoryIds.add(id))
+  }
+  
+  // From topics (topic-specific criteria - prerequisite and pull categories)
+  for (const topic of topics) {
+    if (topic.constraintIds) {
+      topic.constraintIds.forEach(id => categoryIds.add(id))
+    }
+  }
+
+  // If no categories are linked, return empty set
+  if (categoryIds.size === 0) return new Set()
+
+  // Get category names from those IDs
+  const categoryNames = new Set<string>()
+  for (const categoryId of categoryIds) {
+    const category = await ctx.db.get(categoryId)
+    if (category) {
+      categoryNames.add(category.name)
+    }
+  }
+
+  // If no valid category names found, return empty set
+  if (categoryNames.size === 0) return new Set()
+
+  // Get questions matching those category names (same semester)
+  const allQuestions = await ctx.db
+    .query("questions")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  const matchingQuestionIds = new Set<Id<"questions">>()
+  for (const q of allQuestions) {
+    if (categoryNames.has(q.category)) {
+      matchingQuestionIds.add(q._id)
+    }
+  }
+
+  return matchingQuestionIds
+}
+
+/**
+ * Helper function to get full question documents for a period based on linked categories.
+ */
+async function getQuestionsForPeriodHelper(
+  ctx: QueryCtx | MutationCtx,
+  selectionPeriodId: Id<"selectionPeriods">
+): Promise<Doc<"questions">[]> {
+  // Get the period
+  const period = await ctx.db.get(selectionPeriodId)
+  if (!period) return []
+
+  // Get all topics for this semester
+  const topics = await ctx.db
+    .query("topics")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  // Collect all category IDs from period and topics
+  const categoryIds = new Set<Id<"categories">>()
+  
+  // From period (balance distribution - minimize categories)
+  if (period.minimizeCategoryIds) {
+    period.minimizeCategoryIds.forEach(id => categoryIds.add(id))
+  }
+  
+  // From topics (topic-specific criteria - prerequisite and pull categories)
+  for (const topic of topics) {
+    if (topic.constraintIds) {
+      topic.constraintIds.forEach(id => categoryIds.add(id))
+    }
+  }
+
+  // If no categories are linked, return empty array
+  if (categoryIds.size === 0) return []
+
+  // Get category names from those IDs
+  const categoryNames = new Set<string>()
+  for (const categoryId of categoryIds) {
+    const category = await ctx.db.get(categoryId)
+    if (category) {
+      categoryNames.add(category.name)
+    }
+  }
+
+  // If no valid category names found, return empty array
+  if (categoryNames.size === 0) return []
+
+  // Get questions matching those category names (same semester)
+  const allQuestions = await ctx.db
+    .query("questions")
+    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+    .collect()
+
+  return allQuestions.filter(q => categoryNames.has(q.category))
+}
 
 export const getAnswers = query({
   args: {
@@ -25,14 +149,11 @@ export const hasCompletedQuestionnaire = query({
     selectionPeriodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
-    // Get all questions for this period
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
-      .collect()
+    // Get all question IDs for this period (derived from linked categories)
+    const questionIds = await getQuestionIdsForPeriod(ctx, args.selectionPeriodId)
 
     // No questions means questionnaire is complete (nothing to answer)
-    if (periodQuestions.length === 0) return true
+    if (questionIds.size === 0) return true
 
     // Get all answers for this student/period
     const answers = await ctx.db.query("studentAnswers")
@@ -43,8 +164,13 @@ export const hasCompletedQuestionnaire = query({
       .collect()
 
     // Check if every question has been answered
-    const answeredQuestionIds = new Set(answers.map(a => a.questionId))
-    return periodQuestions.every(pq => answeredQuestionIds.has(pq.questionId))
+    const answeredQuestionIds = new Set(answers.map(a => a.questionId as string))
+    for (const questionId of questionIds) {
+      if (!answeredQuestionIds.has(questionId)) {
+        return false
+      }
+    }
+    return true
   }
 })
 
@@ -151,16 +277,12 @@ export const getIncompleteStudents = query({
     selectionPeriodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
-    // Get all questions for this period
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
-      .collect()
+    // Get all question IDs for this period (derived from linked categories)
+    const questionIds = await getQuestionIdsForPeriod(ctx, args.selectionPeriodId)
 
     // If no questions, everyone is "complete"
-    if (periodQuestions.length === 0) return []
+    if (questionIds.size === 0) return []
 
-    const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
     const requiredCount = questionIds.size
 
     // Get all answers for this period
@@ -205,17 +327,8 @@ export const getAllStudentsWithCompletionStatus = query({
     selectionPeriodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
-    // Get the period to access semesterId
-    const period = await ctx.db.get(args.selectionPeriodId)
-    if (!period) return []
-
-    // Get all questions for this period
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
-      .collect()
-
-    const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+    // Get all question IDs for this period (derived from linked categories)
+    const questionIds = await getQuestionIdsForPeriod(ctx, args.selectionPeriodId)
     const requiredCount = questionIds.size
 
     // Get all unique student IDs from periodStudentAllowList for this period
@@ -230,7 +343,7 @@ export const getAllStudentsWithCompletionStatus = query({
     }
 
     // If no questions, all students are "complete"
-    if (periodQuestions.length === 0) {
+    if (questionIds.size === 0) {
       return Array.from(studentIds).map(studentId => ({
         studentId,
         isCompleted: true,
@@ -289,13 +402,8 @@ export const getAllPeriodsStudentsWithCompletionStatus = query({
     // 2. For each period, calculate student stats
     // Note: This could be optimized but works for moderate scale
     const results = await Promise.all(periods.map(async (period) => {
-      // Get all questions for this period
-      const periodQuestions = await ctx.db
-        .query("selectionQuestions")
-        .withIndex("by_selection_period", q => q.eq("selectionPeriodId", period._id))
-        .collect()
-
-      const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+      // Get all question IDs for this period (derived from linked categories)
+      const questionIds = await getQuestionIdsForPeriod(ctx, period._id)
       const requiredCount = questionIds.size
 
       // Get all unique student IDs from periodStudentAllowList for this period
@@ -318,7 +426,7 @@ export const getAllPeriodsStudentsWithCompletionStatus = query({
       }
 
       // If no questions, all students are "complete"
-      if (periodQuestions.length === 0) {
+      if (questionIds.size === 0) {
         return {
           period,
           students: Array.from(studentIds).sort().map(studentId => {
@@ -399,22 +507,8 @@ export const getStudentAnswersForTeacher = query({
       throw new Error("Must be authenticated to view student answers")
     }
 
-    // Get the questions for context
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
-      .collect()
-
-    // Get full question data
-    const questionsWithDetails = await Promise.all(
-      periodQuestions.map(async (pq) => {
-        const question = await ctx.db.get(pq.questionId)
-        return {
-          ...pq,
-          question
-        }
-      })
-    )
+    // Get questions for this period (derived from linked categories)
+    const questions = await getQuestionsForPeriodHelper(ctx, args.selectionPeriodId)
 
     // Get student's answers
     const answers = await ctx.db.query("studentAnswers")
@@ -427,18 +521,66 @@ export const getStudentAnswersForTeacher = query({
     // Create a map of questionId -> answer
     const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
 
+    // Sort questions by category then createdAt for consistent ordering
+    const sortedQuestions = [...questions].sort((a, b) => {
+      const catCompare = a.category.localeCompare(b.category)
+      if (catCompare !== 0) return catCompare
+      return a.createdAt - b.createdAt
+    })
+
     // Combine questions with answers
-    return questionsWithDetails
-      .filter(q => q.question !== null)
-      .sort((a, b) => a.order - b.order)
-      .map(q => ({
-        questionId: q.questionId,
-        order: q.order,
-        questionText: q.question!.question,
-        kind: q.question!.kind,
-        category: (q.question as any)?.category,
-        answer: answerMap.get(q.questionId as string) ?? null
-      }))
+    return sortedQuestions.map((q, index) => ({
+      questionId: q._id,
+      order: index,
+      questionText: q.question,
+      kind: q.kind,
+      category: q.category,
+      answer: answerMap.get(q._id as string) ?? null
+    }))
+  }
+})
+
+/**
+ * Get all questions with answers for a specific student (for student edit form).
+ * Similar to getStudentAnswersForTeacher but without authentication requirement.
+ * Student identity is verified via their access code.
+ */
+export const getQuestionsWithAnswersForStudent = query({
+  args: {
+    studentId: v.string(),
+    selectionPeriodId: v.id("selectionPeriods")
+  },
+  handler: async (ctx, args) => {
+    // Get questions for this period (derived from linked categories)
+    const questions = await getQuestionsForPeriodHelper(ctx, args.selectionPeriodId)
+
+    // Get student's answers
+    const answers = await ctx.db.query("studentAnswers")
+      .withIndex("by_student_period", q =>
+        q.eq("studentId", args.studentId)
+          .eq("selectionPeriodId", args.selectionPeriodId)
+      )
+      .collect()
+
+    // Create a map of questionId -> answer
+    const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
+
+    // Sort questions by category then createdAt for consistent ordering
+    const sortedQuestions = [...questions].sort((a, b) => {
+      const catCompare = a.category.localeCompare(b.category)
+      if (catCompare !== 0) return catCompare
+      return a.createdAt - b.createdAt
+    })
+
+    // Combine questions with answers
+    return sortedQuestions.map((q, index) => ({
+      questionId: q._id,
+      order: index,
+      questionText: q.question,
+      kind: q.kind,
+      category: q.category,
+      answer: answerMap.get(q._id as string) ?? null
+    }))
   }
 })
 
@@ -456,22 +598,8 @@ export const getCategoryAveragedScores = query({
     selectionPeriodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
-    // Get all questions for this period
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
-      .collect()
-
-    // Get full question data with categories
-    const questionsWithDetails = await Promise.all(
-      periodQuestions.map(async (pq) => {
-        const question = await ctx.db.get(pq.questionId)
-        return {
-          questionId: pq.questionId,
-          category: (question as any)?.category as string | undefined
-        }
-      })
-    )
+    // Get questions for this period (derived from linked categories)
+    const questions = await getQuestionsForPeriodHelper(ctx, args.selectionPeriodId)
 
     // Get student's answers
     const answers = await ctx.db.query("studentAnswers")
@@ -487,8 +615,8 @@ export const getCategoryAveragedScores = query({
     // Group answers by category and compute averages
     const categoryScores = new Map<string, number[]>()
 
-    for (const q of questionsWithDetails) {
-      const normalizedAnswer = answerMap.get(q.questionId as string)
+    for (const q of questions) {
+      const normalizedAnswer = answerMap.get(q._id as string)
       if (normalizedAnswer === undefined) continue // Skip unanswered questions
 
       const category = q.category ?? "uncategorized"
@@ -543,14 +671,11 @@ export const checkAndClosePeriodIfReady = internalMutation({
 
     // Only check if period is open (not already closed or assigned)
     if (!SelectionPeriod.isOpen(period)) return
+    // Auto-close only when rankings are disabled (questionnaire-only periods).
+    if (period.rankingsEnabled ?? true) return
 
-    // Get all questions for this period
-    const periodQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.periodId))
-      .collect()
-
-    const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+    // Get all question IDs for this period (derived from linked categories)
+    const questionIds = await getQuestionIdsForPeriod(ctx, args.periodId)
     const requiredCount = questionIds.size
 
     // If no questions, can't be ready

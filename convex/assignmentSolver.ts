@@ -13,9 +13,14 @@ import type { Doc } from "./_generated/dataModel"
 const GA_SERVICE_URL =
   process.env.GA_SERVICE_URL ||
   process.env.CP_SAT_SERVICE_URL ||
-  "https://ga-production-2d99.up.railway.app"
+  "https://assignment-cpsat-production.up.railway.app"
 
 type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
+type SolverSettings = {
+  rankingPercentage?: number
+  maxTimeInSeconds?: number
+  groupSizes?: Array<{ topicId: Id<"topics">; size: number }>
+}
 
 /**
  * Solves assignment using CP-SAT algorithm.
@@ -26,6 +31,14 @@ type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?:
 export const solveAssignment = internalAction({
   args: {
     periodId: v.id("selectionPeriods"),
+    settings: v.optional(v.object({
+      rankingPercentage: v.optional(v.number()),
+      maxTimeInSeconds: v.optional(v.number()),
+      groupSizes: v.optional(v.array(v.object({
+        topicId: v.id("topics"),
+        size: v.number()
+      })))
+    }))
   },
   handler: async (ctx, args): Promise<AssignmentResult> => {
     // Fetch all data needed for the solver
@@ -34,7 +47,10 @@ export const solveAssignment = internalAction({
       throw new Error("Period not found")
     }
 
-    const preferences: Array<Doc<"preferences">> = await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
+    const rankingsEnabled = period.rankingsEnabled !== false
+    const preferences: Array<Doc<"preferences">> = rankingsEnabled
+      ? await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
+      : []
     const topics: Array<Doc<"topics">> = await ctx.runQuery(internal.assignments.getTopicsForSolver, { periodId: args.periodId })
     const studentAnswers: Array<Doc<"studentAnswers">> = await ctx.runQuery(internal.assignments.getStudentAnswersForSolver, { periodId: args.periodId })
     const questions: Array<Doc<"questions"> | null> = await ctx.runQuery(internal.assignments.getQuestionsForSolver, { periodId: args.periodId })
@@ -48,7 +64,7 @@ export const solveAssignment = internalAction({
 
     // Get unique student IDs - either from preferences or from access list for experiments
     let studentIds: string[]
-    if (isExperiment) {
+    if (isExperiment || !rankingsEnabled) {
       // For experiment periods, get students from access list
       const accessList = await ctx.runQuery(internal.assignments.getAccessListForSolver, { periodId: args.periodId })
       studentIds = accessList.map((a: any) => a.studentId)
@@ -67,6 +83,12 @@ export const solveAssignment = internalAction({
     })
 
     // Transform to CP-SAT format
+    const solverSettings = rankingsEnabled
+      ? args.settings
+      : args.settings
+        ? { ...args.settings, rankingPercentage: undefined }
+        : undefined
+
     const cpSatInput = transformToCPSATFormat({
       period,
       preferences,
@@ -74,7 +96,8 @@ export const solveAssignment = internalAction({
       studentAnswers,
       questions,
       studentIds,
-      categories: allCategories
+      categories: allCategories,
+      settings: solverSettings
     })
 
     // Call GA service
@@ -114,8 +137,9 @@ function transformToCPSATFormat(data: {
   questions: Array<Doc<"questions"> | null>
   studentIds: string[]
   categories: Array<Doc<"categories">>
+  settings?: SolverSettings
 }) {
-  const { preferences, topics, studentAnswers, questions, studentIds, categories } = data
+  const { period, preferences, topics, studentAnswers, questions, studentIds, categories, settings } = data
 
   // Map student IDs to indices
   const studentIdMap = new Map<string, number>()
@@ -177,71 +201,71 @@ function transformToCPSATFormat(data: {
   }
 
   // Build groups (topics) with criteria
-  // Calculate target group size (even distribution)
-  const targetGroupSize = Math.ceil(studentIds.length / topics.length)
+  // Calculate target group sizes (even distribution with remainder)
+  const numTopics = topics.length
+  const baseSize = numTopics > 0 ? Math.floor(studentIds.length / numTopics) : 0
+  let remainder = numTopics > 0 ? studentIds.length % numTopics : 0
+  const sizeOverrides = new Map<Id<"topics">, number>()
+  if (settings?.groupSizes) {
+    for (const entry of settings.groupSizes) {
+      sizeOverrides.set(entry.topicId, entry.size)
+    }
+  }
   type CriterionConfig = { type: string; min_ratio?: number; target?: number }
   const groups = topics.map((topic, index) => ({
     id: index,
-    size: targetGroupSize,
+    size: sizeOverrides.get(topic._id) ?? (baseSize + (remainder-- > 0 ? 1 : 0)),
     criteria: {} as Record<string, CriterionConfig[]>
   }))
 
-  // Add criteria based on question categories and their criterion types
-  // Collect all unique categories from questions
-  const categoryNames = new Set<string>()
-  for (const question of questions) {
-    if (question && question.category) {
-      categoryNames.add(question.category)
-    }
-  }
-
-  // Build category map by name
+  // Build category map by ID and name for lookup
   const categoryMap = new Map<string, typeof categories[0]>()
+  const categoryByName = new Map<string, typeof categories[0]>()
   for (const cat of categories) {
-    categoryMap.set(cat.name, cat)
+    categoryMap.set(cat._id, cat)
+    categoryByName.set(cat.name, cat)
   }
 
-  // Add criteria based on category criterion types
-  for (const categoryName of categoryNames) {
-    const category = categoryMap.get(categoryName)
-    
-    // Skip if category doesn't exist or has no criterion type
-    if (!category || !category.criterionType) {
-      continue
-    }
+  // 1. Apply balance distribution (minimize) categories from the selection period
+  // These are stored in period.minimizeCategoryIds and apply to ALL groups
+  if (period.minimizeCategoryIds && period.minimizeCategoryIds.length > 0) {
+    for (const categoryId of period.minimizeCategoryIds) {
+      const category = categoryMap.get(categoryId)
+      if (!category) continue
 
-    // Build criterion config based on type
-    const criterionConfig: CriterionConfig = { type: "" }
-    
-    if (category.criterionType === "prerequisite") {
-      criterionConfig.type = "constraint"
-      if (category.minRatio !== undefined) {
-        criterionConfig.min_ratio = category.minRatio
-      } else {
-        // Default to 0.4 if not specified
-        criterionConfig.min_ratio = 0.4
-      }
-    } else if (category.criterionType === "minimize") {
-      criterionConfig.type = "minimize"
-      if (category.target !== undefined) {
-        criterionConfig.target = category.target
-      } else {
-        // Default to 0 to balance evenly
-        criterionConfig.target = 0
-      }
-    } else if (category.criterionType === "pull") {
-      criterionConfig.type = "maximize"
-      if (category.target !== undefined) {
-        criterionConfig.target = category.target
-      } else {
-        // Default to 1.0 to maximize
-        criterionConfig.target = 1.0
+      const criterionConfig: CriterionConfig = { type: "minimize", target: 0 }
+
+      // Apply minimize criteria to all groups
+      for (const group of groups) {
+        group.criteria[category.name] = [criterionConfig]
       }
     }
+  }
 
-    // Apply to all groups
-    for (const group of groups) {
-      group.criteria[categoryName] = [criterionConfig]
+  // 2. Apply topic-specific criteria (prerequisite and pull) from each topic
+  // These are stored in topic.constraintIds and only apply to that specific topic
+  for (let topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+    const topic = topics[topicIndex]
+    if (!topic.constraintIds || topic.constraintIds.length === 0) continue
+
+    for (const categoryId of topic.constraintIds) {
+      const category = categoryMap.get(categoryId)
+      if (!category || !category.criterionType) continue
+
+      const group = groups[topicIndex]
+
+      if (category.criterionType === "prerequisite") {
+        const criterionConfig: CriterionConfig = {
+          type: "prerequisite",
+          min_ratio: category.minRatio ?? 0.5
+        }
+        group.criteria[category.name] = [criterionConfig]
+      } else if (category.criterionType === "pull") {
+        const criterionConfig: CriterionConfig = {
+          type: "pull"
+        }
+        group.criteria[category.name] = [criterionConfig]
+      }
     }
   }
 
@@ -308,12 +332,26 @@ function transformToCPSATFormat(data: {
     }
   }
 
+  const totalGroupSize = groups.reduce((sum, group) => sum + group.size, 0)
+  if (settings?.groupSizes && totalGroupSize !== studentIds.length) {
+    throw new Error(`Group sizes (${totalGroupSize}) must sum to ${studentIds.length}`)
+  }
+
+  const clampedRankingPercentage = settings?.rankingPercentage !== undefined
+    ? Math.min(Math.max(settings.rankingPercentage, 0), 99.99)
+    : undefined
+  const clampedMaxTimeInSeconds = settings?.maxTimeInSeconds !== undefined
+    ? Math.min(Math.max(settings.maxTimeInSeconds, 15), 540)
+    : undefined
+
   return {
     num_students: studentIds.length,
     num_groups: topics.length,
     exclude: exclusions,
     groups,
-    students
+    students,
+    ...(clampedRankingPercentage !== undefined ? { ranking_percentage: clampedRankingPercentage } : {}),
+    ...(clampedMaxTimeInSeconds !== undefined ? { max_time_in_seconds: clampedMaxTimeInSeconds } : {})
   }
 }
 

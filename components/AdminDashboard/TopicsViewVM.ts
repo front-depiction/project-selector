@@ -57,7 +57,7 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
     semesterId: string
-    constraintId: string
+    constraintIds?: string[]
     duplicateCount?: number
   }) => Promise<any>
   readonly updateTopic: (args: {
@@ -88,17 +88,19 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     id: Id<"topics">
     title: string
     description: string
+    semesterId: string
   }>>(Option.none())
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
-    const fullTopic = topics$.value?.find(t => t._id === topicId)
+    const fullTopic = topics$.value?.find(topic => topic._id === topicId)
     if (!fullTopic) return
 
     editingTopic$.value = Option.some({
       id: fullTopic._id,
       title: fullTopic.title,
       description: fullTopic.description,
+      semesterId: fullTopic.semesterId
     })
     editTopicDialogOpen$.value = true
   }
@@ -131,14 +133,16 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   })
 
 
-  // Computed: constraint options for form
+  // Computed: constraint options for form (topic-specific: pull and prerequisite only)
   const constraintOptions$ = computed((): readonly ConstraintOptionVM[] => {
     const categories = categories$.value ?? []
-    return categories.map((cat: any): ConstraintOptionVM => ({
-      value: cat._id,
-      label: cat.name,
-      id: cat._id,
-    }))
+    return categories
+      .filter((cat: any) => cat.criterionType === "pull" || cat.criterionType === "prerequisite")
+      .map((cat: any): ConstraintOptionVM => ({
+        value: cat._id,
+        label: cat.name,
+        id: cat._id,
+      }))
   })
 
   // Create topic dialog
@@ -174,7 +178,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         title: values.title,
         description: values.description,
         semesterId: "default", // Use default semesterId since we removed it from the form
-        constraintId: values.constraintId,
+        constraintIds: values.constraintIds,
         duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()

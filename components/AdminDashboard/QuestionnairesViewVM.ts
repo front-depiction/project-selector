@@ -48,12 +48,17 @@ export interface QuestionnairesViewVM {
   readonly questions$: ReadonlySignal<readonly QuestionItemVM[]>
   readonly templates$: ReadonlySignal<readonly TemplateItemVM[]>
   readonly categories$: ReadonlySignal<readonly CategoryItemVM[]>
+  readonly minimizeCategories$: ReadonlySignal<readonly CategoryItemVM[]>
+  readonly constraintCategories$: ReadonlySignal<readonly CategoryItemVM[]>
   readonly editingQuestion$: ReadonlySignal<EffectOption.Option<Question>>
   readonly editingTemplate$: ReadonlySignal<EffectOption.Option<Template & { questions?: Question[] }>>
   readonly editingCategory$: ReadonlySignal<EffectOption.Option<Category>>
+  readonly categoryDialogMode$: ReadonlySignal<"minimize" | "constraint" | null>
   readonly questionDialog: DialogVM
   readonly templateDialog: DialogVM
   readonly categoryDialog: DialogVM
+  readonly openMinimizeCategoryDialog: () => void
+  readonly openConstraintCategoryDialog: () => void
   readonly availableQuestions$: ReadonlySignal<readonly QuestionOption[]>
   readonly existingCategories$: ReadonlySignal<readonly string[]>
   readonly onQuestionSubmit: (values: QuestionFormValues) => void
@@ -134,6 +139,9 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
   const editingQuestion$ = signal<EffectOption.Option<Question>>(EffectOption.none())
   const editingTemplate$ = signal<EffectOption.Option<Template & { questions?: Question[] }>>(EffectOption.none())
   const editingCategory$ = signal<EffectOption.Option<Category>>(EffectOption.none())
+  
+  // Track which section is opening the category dialog
+  const categoryDialogMode$ = signal<"minimize" | "constraint" | null>(null)
 
   // Computed: questions list for table
   const questions$ = computed((): readonly QuestionItemVM[] =>
@@ -156,44 +164,61 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
   // Computed: existing categories (for question form dropdown)
   const existingCategories$ = computed(() => deps.existingCategories$.value ?? [])
 
-  // Computed: categories list for table
+  // Helper function to map category to CategoryItemVM
+  const mapCategoryToVM = (c: Category): CategoryItemVM => {
+    const criterionType = c.criterionType
+    let criterionDisplay = "None"
+    let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
+    
+    if (criterionType === "prerequisite") {
+      criterionDisplay = c.minRatio !== undefined 
+        ? `Required Min: ${Math.round(c.minRatio * 100)}%`
+        : "Required Minimum"
+      criterionBadgeVariant = "default"
+    } else if (criterionType === "minimize") {
+      criterionDisplay = c.target !== undefined
+        ? `Balance: Target ${Math.round(c.target * 100)}%`
+        : "Balance Evenly"
+      criterionBadgeVariant = "secondary"
+    } else if (criterionType === "pull") {
+      criterionDisplay = "Maximize"
+      criterionBadgeVariant = "default"
+    }
+    
+    return {
+      key: c._id,
+      name: c.name,
+      description: c.description ?? "—",
+      criterionType: c.criterionType,
+      criterionDisplay,
+      criterionBadgeVariant,
+      remove: () => {
+        deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+      },
+      edit: () => {
+        editingCategory$.value = EffectOption.some(c)
+        categoryDialogOpen$.value = true
+      }
+    }
+  }
+
+  // Computed: categories list for table (all categories)
   const categories$ = computed((): readonly CategoryItemVM[] =>
-    (deps.categories$.value ?? []).map((c): CategoryItemVM => {
-      const criterionType = c.criterionType
-      let criterionDisplay = "None"
-      let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
-      
-      if (criterionType === "prerequisite") {
-        criterionDisplay = c.minRatio !== undefined 
-          ? `Required Min: ${Math.round(c.minRatio * 100)}%`
-          : "Required Minimum"
-        criterionBadgeVariant = "default"
-      } else if (criterionType === "minimize") {
-        criterionDisplay = c.target !== undefined
-          ? `Balance: Target ${Math.round(c.target * 100)}%`
-          : "Balance Evenly"
-        criterionBadgeVariant = "secondary"
-      } else if (criterionType === "pull") {
-        criterionDisplay = "Maximize"
-        criterionBadgeVariant = "default"
-      }
-      
-      return {
-        key: c._id,
-        name: c.name,
-        description: c.description ?? "—",
-        criterionType: c.criterionType,
-        criterionDisplay,
-        criterionBadgeVariant,
-        remove: () => {
-          deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
-        },
-        edit: () => {
-          editingCategory$.value = EffectOption.some(c)
-          categoryDialogOpen$.value = true
-        }
-      }
-    })
+    (deps.categories$.value ?? []).map(mapCategoryToVM)
+  )
+
+  // Computed: minimize categories (balanced distribution)
+  const minimizeCategories$ = computed((): readonly CategoryItemVM[] =>
+    (deps.categories$.value ?? [])
+      .filter(c => c.criterionType === "minimize")
+      .map(mapCategoryToVM)
+  )
+
+  // Computed: constraint categories (prerequisite and pull)
+  const constraintCategories$ = computed((): readonly CategoryItemVM[] =>
+    (deps.categories$.value ?? [])
+      .filter(c => c.criterionType === "prerequisite" || c.criterionType === "pull")
+      .map(mapCategoryToVM)
   )
 
   // Computed: templates list for table
@@ -257,12 +282,28 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     isOpen$: categoryDialogOpen$,
     open: () => {
       editingCategory$.value = EffectOption.none()
+      categoryDialogMode$.value = null
       categoryDialogOpen$.value = true
     },
     close: () => {
       categoryDialogOpen$.value = false
       editingCategory$.value = EffectOption.none()
+      categoryDialogMode$.value = null
     },
+  }
+
+  // Open category dialog for minimize section
+  const openMinimizeCategoryDialog = () => {
+    editingCategory$.value = EffectOption.none()
+    categoryDialogMode$.value = "minimize"
+    categoryDialogOpen$.value = true
+  }
+
+  // Open category dialog for constraint section
+  const openConstraintCategoryDialog = () => {
+    editingCategory$.value = EffectOption.none()
+    categoryDialogMode$.value = "constraint"
+    categoryDialogOpen$.value = true
   }
 
   // Form submission handlers
@@ -338,13 +379,19 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
   }
 
   const onCategorySubmit = (values: CategoryFormValues): void => {
+    // Auto-set criterion type based on dialog mode if not editing
+    let criterionType = values.criterionType
+    if (EffectOption.isNone(editingCategory$.value) && categoryDialogMode$.value) {
+      criterionType = categoryDialogMode$.value === "minimize" ? "minimize" : values.criterionType
+    }
+
     EffectOption.match(editingCategory$.value, {
       onNone: () => {
         deps.createCategory({
           name: values.name,
           description: values.description || undefined,
           semesterId: "default",
-          criterionType: values.criterionType ?? undefined,
+          criterionType: criterionType ?? undefined,
           minRatio: values.minRatio,
           target: values.target,
         })
@@ -358,7 +405,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           id: editingCategory._id as Id<"categories">,
           name: values.name,
           description: values.description || undefined,
-          criterionType: values.criterionType ?? undefined,
+          criterionType: criterionType ?? undefined,
           minRatio: values.minRatio,
           target: values.target,
         })
@@ -375,12 +422,17 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     questions$,
     templates$,
     categories$,
+    minimizeCategories$,
+    constraintCategories$,
     editingQuestion$,
     editingTemplate$,
     editingCategory$,
+    categoryDialogMode$,
     questionDialog,
     templateDialog,
     categoryDialog,
+    openMinimizeCategoryDialog,
+    openConstraintCategoryDialog,
     availableQuestions$,
     existingCategories$,
     onQuestionSubmit,

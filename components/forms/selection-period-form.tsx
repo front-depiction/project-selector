@@ -35,6 +35,8 @@ const formSchema = z.object({
     start_deadline: z.date(),
     end_deadline: z.date(),
     topicIds: z.array(z.string()).min(1, "Select at least one topic"),
+    minimizeCategoryIds: z.array(z.string()).optional(),
+    rankingsEnabled: z.boolean().default(true),
 }).refine((data) => data.end_deadline > data.start_deadline, {
     message: "End date must be after start date",
     path: ["end_deadline"],
@@ -48,12 +50,20 @@ export interface TopicOption {
     description: string
 }
 
+export interface CategoryOption {
+    id: string
+    name: string
+    description?: string
+}
+
 export default function SelectionPeriodForm({
     topics = [],
+    categories = [],
     initialValues,
     onSubmit,
 }: {
     topics?: readonly TopicOption[]
+    categories?: readonly CategoryOption[]
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
@@ -75,6 +85,8 @@ export default function SelectionPeriodForm({
             start_deadline: defaultStartDate,
             end_deadline: defaultEndDate,
             topicIds: initialValues?.topicIds ?? [],
+            minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
+            rankingsEnabled: initialValues?.rankingsEnabled ?? true,
         },
     })
 
@@ -88,6 +100,7 @@ export default function SelectionPeriodForm({
             start_deadline: initialValues.start_deadline?.getTime(),
             end_deadline: initialValues.end_deadline?.getTime(),
             topicIds: initialValues.topicIds,
+            rankingsEnabled: initialValues.rankingsEnabled,
         })
         return key
     }, [initialValues])
@@ -103,6 +116,8 @@ export default function SelectionPeriodForm({
                 start_deadline: startDate,
                 end_deadline: endDate,
                 topicIds: initialValues.topicIds ?? [],
+                minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
+                rankingsEnabled: initialValues.rankingsEnabled ?? true,
             })
         }
     }, [initialValuesKey, form])
@@ -120,6 +135,7 @@ export default function SelectionPeriodForm({
     }, [startDeadline, endDeadline, form])
 
     const topicIds = useWatch({ control: form.control, name: "topicIds" })
+    const minimizeCategoryIds = useWatch({ control: form.control, name: "minimizeCategoryIds" })
     const semesterId = useWatch({ control: form.control, name: "selection_period_id" })
 
     // Filter topics by selected semester (if semesterId is provided)
@@ -136,6 +152,14 @@ export default function SelectionPeriodForm({
             ? current.filter((id: string) => id !== topicId)
             : [...current, topicId]
         form.setValue("topicIds", next)
+    }
+
+    const toggleCategory = (categoryId: string) => {
+        const current = form.getValues("minimizeCategoryIds") ?? []
+        const next = current.includes(categoryId)
+            ? current.filter((id: string) => id !== categoryId)
+            : [...current, categoryId]
+        form.setValue("minimizeCategoryIds", next)
     }
 
     async function handleSubmit(values: z.infer<typeof formSchema>) {
@@ -239,6 +263,27 @@ export default function SelectionPeriodForm({
                     )}
                 />
 
+                <FormField
+                    control={form.control}
+                    name="rankingsEnabled"
+                    render={({ field }) => (
+                        <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-base">Enable topic rankings</FormLabel>
+                                <FormDescription>
+                                    When disabled, students can view topics but cannot rank them.
+                                </FormDescription>
+                            </div>
+                            <FormControl>
+                                <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
+
 
                 {/* Topics Section */}
                 <div className="space-y-4">
@@ -283,6 +328,58 @@ export default function SelectionPeriodForm({
                                                 {topic.description && (
                                                     <p className="text-xs text-muted-foreground line-clamp-2">
                                                         {topic.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Balance Distribution Categories Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base">Balance Distribution (Optional)</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Select categories to balance evenly across all groups in this project assignment.
+                                {minimizeCategoryIds && minimizeCategoryIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{minimizeCategoryIds.length} selected</Badge>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
+                        {categories.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-8 text-center">
+                                No balance distribution categories available. Create categories with "Balance Evenly" criterion in the Questionnaires tab first.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {categories.map((category) => {
+                                    const isChecked = minimizeCategoryIds?.includes(category.id)
+                                    return (
+                                        <label
+                                            key={category.id}
+                                            htmlFor={`sp-category-${category.id}`}
+                                            className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                        >
+                                            <Checkbox
+                                                id={`sp-category-${category.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleCategory(category.id)}
+                                            />
+                                            <div className="flex-1 space-y-1">
+                                                <p className="text-sm font-medium leading-none">
+                                                    {category.name}
+                                                </p>
+                                                {category.description && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {category.description}
                                                     </p>
                                                 )}
                                             </div>
