@@ -16,6 +16,7 @@ import type * as assignments from "../assignments.js";
 import type * as categories from "../categories.js";
 import type * as http from "../http.js";
 import type * as lib_congestion from "../lib/congestion.js";
+import type * as lib_slugGenerator from "../lib/slugGenerator.js";
 import type * as lib_utils from "../lib/utils.js";
 import type * as periodStudentAccessCodes from "../periodStudentAccessCodes.js";
 import type * as preferences from "../preferences.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   categories: typeof categories;
   http: typeof http;
   "lib/congestion": typeof lib_congestion;
+  "lib/slugGenerator": typeof lib_slugGenerator;
   "lib/utils": typeof lib_utils;
   periodStudentAccessCodes: typeof periodStudentAccessCodes;
   preferences: typeof preferences;

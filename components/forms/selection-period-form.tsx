@@ -37,6 +37,7 @@ const formSchema = z.object({
     topicIds: z.array(z.string()).min(1, "Select at least one topic"),
     minimizeCategoryIds: z.array(z.string()).optional(),
     rankingsEnabled: z.boolean(),
+    accessMode: z.enum(["code", "student_id"]),
 }).refine((data) => data.end_deadline > data.start_deadline, {
     message: "End date must be after start date",
     path: ["end_deadline"],
@@ -87,6 +88,7 @@ export default function SelectionPeriodForm({
             topicIds: initialValues?.topicIds ?? [],
             minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
             rankingsEnabled: initialValues?.rankingsEnabled ?? true,
+            accessMode: initialValues?.accessMode ?? "code",
         },
     })
 
@@ -101,6 +103,7 @@ export default function SelectionPeriodForm({
             end_deadline: initialValues.end_deadline?.getTime(),
             topicIds: initialValues.topicIds,
             rankingsEnabled: initialValues.rankingsEnabled,
+            accessMode: initialValues.accessMode,
         })
         return key
     }, [initialValues])
@@ -118,6 +121,7 @@ export default function SelectionPeriodForm({
                 topicIds: initialValues.topicIds ?? [],
                 minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
                 rankingsEnabled: initialValues.rankingsEnabled ?? true,
+                accessMode: initialValues.accessMode ?? "code",
             })
         }
     }, [initialValuesKey, form])
@@ -284,6 +288,29 @@ export default function SelectionPeriodForm({
                     )}
                 />
 
+                <FormField
+                    control={form.control}
+                    name="accessMode"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Access Mode</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select access mode" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="code">Access Codes (teacher generates codes)</SelectItem>
+                                    <SelectItem value="student_id">Student ID (students enter their own ID)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormDescription>
+                                Code mode requires pre-generated codes. Student ID mode lets students enter any ID.
+                            </FormDescription>
+                        </FormItem>
+                    )}
+                />
 
                 {/* Topics Section */}
                 <div className="space-y-4">

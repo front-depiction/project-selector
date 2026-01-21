@@ -17,6 +17,7 @@ const BaseSelectionPeriod = {
   isExperiment: v.optional(v.boolean()),
   excludePairs: v.optional(v.array(v.array(v.string()))),
   minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
+  accessMode: v.optional(v.union(v.literal("code"), v.literal("student_id"))),
 }
 
 /**
@@ -107,6 +108,7 @@ export const makeInactive = (params: {
   readonly excludePairs?: string[][]
   readonly scheduledOpenFunctionId?: Id<"_scheduled_functions">
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
 }): InactivePeriod => ({
   semesterId: params.semesterId,
   title: params.title,
@@ -118,6 +120,7 @@ export const makeInactive = (params: {
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
   kind: "inactive" as const,
   scheduledOpenFunctionId: params.scheduledOpenFunctionId,
 })
@@ -140,6 +143,7 @@ export const makeOpen = (params: {
   readonly excludePairs?: string[][]
   readonly scheduledFunctionId: Id<"_scheduled_functions">
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
 }): OpenPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
@@ -151,6 +155,7 @@ export const makeOpen = (params: {
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
   kind: "open" as const,
   scheduledFunctionId: params.scheduledFunctionId,
 })
@@ -172,6 +177,7 @@ export const makeClosed = (params: {
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
 }): ClosedPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
@@ -183,6 +189,7 @@ export const makeClosed = (params: {
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
   kind: "closed" as const,
 })
 
@@ -204,6 +211,7 @@ export const makeAssigned = (params: {
   readonly excludePairs?: string[][]
   readonly assignmentBatchId: string
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
 }): AssignedPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
@@ -215,6 +223,7 @@ export const makeAssigned = (params: {
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
   kind: "assigned" as const,
   assignmentBatchId: params.assignmentBatchId,
 })
@@ -727,6 +736,7 @@ export const getBase = (period: SelectionPeriod) => ({
   isExperiment: period.isExperiment,
   excludePairs: period.excludePairs,
   minimizeCategoryIds: period.minimizeCategoryIds,
+  accessMode: period.accessMode,
 })
 
 /**

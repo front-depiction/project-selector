@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Loader2, AlertCircle, KeyRound, Sparkles } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Loader2, AlertCircle, KeyRound, Sparkles, User } from "lucide-react"
 import type { PeriodJoinPageVM } from "./PeriodJoinPageVM"
 
 // ============================================================================
@@ -114,47 +116,95 @@ interface CodeEntryFormProps {
   readonly accessCode: string
   readonly isValidating: boolean
   readonly codeError: Option.Option<string>
+  readonly accessMode: "code" | "student_id"
   readonly onCodeChange: (code: string) => void
+  readonly onSubmit: () => void
 }
 
 const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
   accessCode,
   isValidating,
   codeError,
+  accessMode,
   onCodeChange,
+  onSubmit,
 }) => (
   <CardContent className="space-y-6">
     <div className="space-y-2">
       <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-4">
-        <KeyRound className="h-4 w-4" />
-        <span>Enter Your Access Code</span>
+        {accessMode === "code" ? (
+          <>
+            <KeyRound className="h-4 w-4" />
+            <span>Enter your access code</span>
+          </>
+        ) : (
+          <>
+            <User className="h-4 w-4" />
+            <span>Enter your student ID</span>
+          </>
+        )}
       </div>
 
-      <div className="flex justify-center">
-        <InputOTP
-          maxLength={6}
-          value={accessCode}
-          onChange={onCodeChange}
-          disabled={isValidating}
-          containerClassName="justify-center"
-          className="text-2xl sm:text-3xl"
-          pattern="[A-Za-z0-9]*"
+      {accessMode === "code" ? (
+        <>
+          <div className="flex justify-center">
+            <InputOTP
+              maxLength={6}
+              value={accessCode}
+              onChange={onCodeChange}
+              disabled={isValidating}
+              containerClassName="justify-center"
+              className="text-2xl sm:text-3xl"
+              pattern="[A-Za-z0-9]*"
+            >
+              <InputOTPGroup>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <InputOTPSlot key={i} index={i} className="uppercase h-12 w-10 text-lg" />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Letters & numbers only - 6 characters
+          </p>
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            onSubmit()
+          }}
+          className="space-y-4"
         >
-          <InputOTPGroup>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <InputOTPSlot key={i} index={i} className="uppercase h-12 w-10 text-lg" />
-            ))}
-          </InputOTPGroup>
-        </InputOTP>
-      </div>
-
-      <p className="text-xs text-muted-foreground text-center mt-2">
-        Letters & numbers only - 6 characters
-      </p>
+          <Input
+            type="text"
+            value={accessCode}
+            onChange={(e) => onCodeChange(e.target.value)}
+            placeholder="Enter your student ID"
+            className="text-center text-lg uppercase"
+            disabled={isValidating}
+          />
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isValidating || accessCode.length === 0}
+          >
+            {isValidating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Continuing...
+              </>
+            ) : (
+              "Continue"
+            )}
+          </Button>
+        </form>
+      )}
     </div>
 
-    {/* Validation Loading State */}
-    {isValidating && (
+    {/* Validation Loading State (only for code mode) */}
+    {accessMode === "code" && isValidating && (
       <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         <span>Validating your code...</span>
@@ -211,7 +261,9 @@ export function PeriodJoinPage({ vm }: PeriodJoinPageProps): React.ReactElement 
             accessCode={vm.accessCode$.value}
             isValidating={vm.isValidating$.value}
             codeError={vm.codeError$.value}
+            accessMode={period.accessMode}
             onCodeChange={vm.setAccessCode}
+            onSubmit={vm.submitCode}
           />
         </Card>
       </Frame>

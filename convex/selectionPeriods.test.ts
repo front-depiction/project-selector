@@ -212,11 +212,11 @@ test("getPeriodBySlug: should return period for valid slug when period is open",
   })
 
   expect(period).not.toBeNull()
+  expect(period!._id).toBeDefined()
   expect(period!.title).toBe("Open Period")
   expect(period!.description).toBe("An open selection period")
-  expect(period!.semesterId).toBe("2024-spring")
-  expect(period!.kind).toBe("open")
   expect(period!.shareableSlug).toBe(createResult.shareableSlug)
+  expect(period!.accessMode).toBeDefined()
 
   vi.useRealTimers()
 })

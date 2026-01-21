@@ -25,6 +25,7 @@ export const createPeriod = mutation({
     minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
     rankingsEnabled: v.optional(v.boolean()),
     topicIds: v.optional(v.array(v.id("topics"))),
+    accessMode: v.optional(v.union(v.literal("code"), v.literal("student_id"))),
   },
   handler: async (ctx, args) => {
     // Validate dates
@@ -58,8 +59,9 @@ export const createPeriod = mutation({
         shareableSlug,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
+        accessMode: args.accessMode,
       }))
-      return { success: true, periodId, shareableSlug }
+      return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
     // CASE 2: Period should be open now
@@ -74,6 +76,7 @@ export const createPeriod = mutation({
         shareableSlug,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
+        accessMode: args.accessMode,
       }))
 
       // 2. Schedule closing
@@ -94,9 +97,10 @@ export const createPeriod = mutation({
         scheduledFunctionId: closeScheduleId,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
+        accessMode: args.accessMode,
       }))
 
-      return { success: true, periodId, shareableSlug }
+      return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
     // CASE 3: FUTURE (inactive, but scheduled to open)
@@ -109,6 +113,7 @@ export const createPeriod = mutation({
       shareableSlug,
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
+      accessMode: args.accessMode,
     }))
 
     // Schedule open
@@ -129,9 +134,10 @@ export const createPeriod = mutation({
       scheduledOpenFunctionId: openScheduleId,
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
+      accessMode: args.accessMode,
     }))
 
-    return { success: true, periodId, shareableSlug }
+    return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
   }
 })
 
@@ -467,7 +473,13 @@ export const getAllPeriodsWithStats = query({
  */
 export const getPeriodBySlug = query({
   args: { slug: v.string() },
-  handler: async (ctx, args): Promise<(SelectionPeriod.SelectionPeriod & { _id: Id<"selectionPeriods"> }) | null> => {
+  handler: async (ctx, args): Promise<{
+    _id: Id<"selectionPeriods">
+    title: string
+    description: string
+    shareableSlug: string
+    accessMode: "code" | "student_id"
+  } | null> => {
     // Validate slug format
     if (!isShareableSlug(args.slug)) {
       return null
@@ -488,7 +500,13 @@ export const getPeriodBySlug = query({
       return null
     }
 
-    return period
+    return {
+      _id: period._id,
+      title: period.title,
+      description: period.description,
+      shareableSlug: period.shareableSlug,
+      accessMode: period.accessMode ?? "code",
+    }
   }
 })
 

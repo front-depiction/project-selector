@@ -18,6 +18,7 @@ export interface PeriodInfo {
   readonly title: string
   readonly description: string
   readonly shareableSlug: string
+  readonly accessMode: "code" | "student_id"
 }
 
 export interface PeriodJoinPageVM {
@@ -105,7 +106,19 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
 
   // Action: Set access code with alphanumeric validation
   const setAccessCode = (newValue: string): void => {
-    // Remove non-alphanumeric characters and convert to uppercase
+    const periodInfo = periodInfo$.value
+    const accessMode = Option.isSome(periodInfo) ? periodInfo.value.accessMode : "code"
+
+    // For student_id mode, accept any input without length restrictions
+    if (accessMode === "student_id") {
+      batch(() => {
+        codeError$.value = Option.none()
+        accessCode$.value = newValue.toUpperCase()
+      })
+      return
+    }
+
+    // Code mode: Remove non-alphanumeric characters and convert to uppercase
     const cleaned = newValue.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
 
     if (cleaned.length > ACCESS_CODE_LENGTH) {
@@ -122,7 +135,7 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
       })
     }
 
-    // Auto-submit when valid length is reached
+    // Auto-submit when valid length is reached (code mode only)
     if (cleaned.length === ACCESS_CODE_LENGTH && ALPHANUMERIC.test(cleaned)) {
       submitCode()
     }
@@ -133,6 +146,30 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     const currentCode = accessCode$.value.toUpperCase()
     const periodInfo = periodInfo$.value
 
+    // Ensure period info is available
+    if (Option.isNone(periodInfo)) {
+      codeError$.value = Option.some("Period information not available")
+      return
+    }
+
+    const accessMode = periodInfo.value.accessMode
+
+    // For student_id mode, just validate non-empty and save
+    if (accessMode === "student_id") {
+      if (currentCode.length === 0) {
+        codeError$.value = Option.some("Please enter your student ID")
+        return
+      }
+
+      // Save to localStorage
+      localStorage.setItem("studentId", currentCode)
+
+      // Execute success callback
+      onSuccess(currentCode)
+      return
+    }
+
+    // Code mode validation
     // Validate code length
     if (currentCode.length !== ACCESS_CODE_LENGTH) {
       codeError$.value = Option.some(
@@ -144,12 +181,6 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     // Validate alphanumeric
     if (!ALPHANUMERIC.test(currentCode)) {
       codeError$.value = Option.some("Only letters and numbers are allowed")
-      return
-    }
-
-    // Ensure period info is available
-    if (Option.isNone(periodInfo)) {
-      codeError$.value = Option.some("Period information not available")
       return
     }
 
