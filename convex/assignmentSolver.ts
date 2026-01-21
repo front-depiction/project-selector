@@ -16,9 +16,6 @@ const GA_SERVICE_URL =
   process.env.GA_SERVICE_URL ||
   process.env.CP_SAT_SERVICE_URL ||
   "https://assignment-cpsat-production.up.railway.app"
-function logGaService(...args: Array<unknown>) {
-  console.log("[ga-service]", ...args)
-}
 
 type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
 type SolverSettings = {
@@ -108,11 +105,6 @@ export const solveAssignment = internalAction({
     // Call GA service
     try {
       const requestBody = JSON.stringify(cpSatInput)
-      logGaService("POST", `${GA_SERVICE_URL}/solve`, {
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cpSatInput, null, 2)
-      })
-
       const response = await fetch(`${GA_SERVICE_URL}/solve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,16 +112,6 @@ export const solveAssignment = internalAction({
       })
 
       const responseText = await response.text()
-      let parsedResponse: unknown = responseText
-      try {
-        parsedResponse = JSON.parse(responseText)
-      } catch {
-        // keep raw text
-      }
-      logGaService("Response", {
-        status: response.status,
-        body: typeof parsedResponse === "string" ? parsedResponse : JSON.stringify(parsedResponse, null, 2)
-      })
 
       if (!response.ok) {
         throw new Error(`GA service error (${response.status}): ${responseText}`)
