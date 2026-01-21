@@ -12,6 +12,7 @@ const BaseSelectionPeriod = {
   description: v.string(),
   openDate: v.number(),
   closeDate: v.number(),
+  shareableSlug: v.string(),
   rankingsEnabled: v.optional(v.boolean()),
   isExperiment: v.optional(v.boolean()),
   excludePairs: v.optional(v.array(v.array(v.string()))),
@@ -100,6 +101,7 @@ export const makeInactive = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
@@ -111,6 +113,7 @@ export const makeInactive = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
@@ -131,6 +134,7 @@ export const makeOpen = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
@@ -142,6 +146,7 @@ export const makeOpen = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
@@ -162,6 +167,7 @@ export const makeClosed = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
@@ -172,6 +178,7 @@ export const makeClosed = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
@@ -191,6 +198,7 @@ export const makeAssigned = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
@@ -202,6 +210,7 @@ export const makeAssigned = (params: {
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
@@ -249,6 +258,7 @@ export const close = (period: OpenPeriod): ClosedPeriod => ({
   description: period.description,
   openDate: period.openDate,
   closeDate: period.closeDate,
+  shareableSlug: period.shareableSlug,
   kind: "closed" as const,
 })
 
@@ -265,6 +275,7 @@ export const assign = (assignmentBatchId: string) =>
     description: period.description,
     openDate: period.openDate,
     closeDate: period.closeDate,
+    shareableSlug: period.shareableSlug,
     kind: "assigned" as const,
     assignmentBatchId,
   })
@@ -711,6 +722,7 @@ export const getBase = (period: SelectionPeriod) => ({
   description: period.description,
   openDate: period.openDate,
   closeDate: period.closeDate,
+  shareableSlug: period.shareableSlug,
   rankingsEnabled: period.rankingsEnabled,
   isExperiment: period.isExperiment,
   excludePairs: period.excludePairs,

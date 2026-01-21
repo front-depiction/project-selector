@@ -25,7 +25,8 @@ export default defineSchema({
 
   selectionPeriods: defineTable(SelectionPeriod.SelectionPeriod)
     .index("by_kind", ["kind"])
-    .index("by_semester", ["semesterId"]),
+    .index("by_semester", ["semesterId"])
+    .index("by_slug", ["shareableSlug"]),
 
   rankingEvents: defineTable(RankingEvent.RankingEvent)
     .index("by_student", ["studentId"])

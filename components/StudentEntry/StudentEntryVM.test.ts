@@ -257,10 +257,13 @@ describe("StudentEntryVM", () => {
       expect(Option.isNone(vm.errorMessage$.value)).toBe(true)
     })
 
-    it("should auto-complete when 6 characters entered", () => {
+    it("should auto-complete when 6 characters entered", async () => {
       const vm = createTestVM()
 
       vm.handleCharInput("ABC123")
+
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
 
       expect(vm.value$.value).toBe("ABC123")
       expect(onCompleteMock).toHaveBeenCalledWith("ABC123")
@@ -369,13 +372,20 @@ describe("StudentEntryVM", () => {
 
     it("should set error when validation fails", async () => {
       const vm = createTestVM()
+      // Reset mock to avoid any previous calls from auto-complete
+      onCompleteMock.mockClear()
+      validateCodeMock.mockClear()
       validateCodeMock.mockResolvedValueOnce({ valid: false, error: "Code not found" })
 
-      vm.setValue("ABC123")
-      await vm.handleComplete()
+      // Use handleCharInput instead of setValue to avoid auto-complete
+      vm.handleCharInput("ABC12")
+      vm.handleCharInput("ABC123")
+      // Wait for the auto-complete validation to fail
+      await new Promise(resolve => setTimeout(resolve, 0))
 
       expect(Option.isSome(vm.errorMessage$.value)).toBe(true)
       expect(vm.errorMessage$.value).toEqual(Option.some("Code not found"))
+      // onComplete should not be called because validation failed
       expect(onCompleteMock).not.toHaveBeenCalled()
       expect(localStorageMock.getItem("studentId")).toBeNull()
     })
@@ -432,7 +442,7 @@ describe("StudentEntryVM", () => {
   })
 
   describe("integration scenarios", () => {
-    it("should handle complete input flow", () => {
+    it("should handle complete input flow", async () => {
       const vm = createTestVM()
 
       // Start typing
@@ -452,10 +462,13 @@ describe("StudentEntryVM", () => {
       vm.handleCharInput("ABC123")
       expect(vm.value$.value).toBe("ABC123")
       expect(vm.isComplete$.value).toBe(true)
+
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
       expect(onCompleteMock).toHaveBeenCalledWith("ABC123")
     })
 
-    it("should handle input, error, and correction", () => {
+    it("should handle input, error, and correction", async () => {
       const vm = createTestVM()
 
       // Type too many characters
@@ -465,7 +478,7 @@ describe("StudentEntryVM", () => {
       expect(vm.value$.value).toBe("ABCD12")
 
       // Value is correct, complete it
-      vm.handleComplete()
+      await vm.handleComplete()
       expect(Option.isNone(vm.errorMessage$.value)).toBe(true)
       expect(onCompleteMock).toHaveBeenCalledWith("ABCD12")
     })
@@ -484,13 +497,15 @@ describe("StudentEntryVM", () => {
       expect(vm.value$.value).toBe("ABC12")
     })
 
-    it("should auto-complete on 6th character entry", () => {
+    it("should auto-complete on 6th character entry", async () => {
       const vm = createTestVM()
 
       vm.setValue("ABC12")
       expect(onCompleteMock).not.toHaveBeenCalled()
 
       vm.setValue("ABC123")
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
       expect(onCompleteMock).toHaveBeenCalledWith("ABC123")
       expect(vm.isComplete$.value).toBe(true)
     })
@@ -507,7 +522,7 @@ describe("StudentEntryVM", () => {
       expect(vm.value$.value).toBe("ABC") // Value unchanged
     })
 
-    it("should handle rapid input changes", () => {
+    it("should handle rapid input changes", async () => {
       const vm = createTestVM()
 
       vm.setValue("A")
@@ -524,14 +539,18 @@ describe("StudentEntryVM", () => {
 
       expect(vm.value$.value).toBe("ABC123")
       expect(vm.isComplete$.value).toBe(true)
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
       expect(onCompleteMock).toHaveBeenCalledWith("ABC123")
     })
 
-    it("should handle complete, clear, and re-enter flow", () => {
+    it("should handle complete, clear, and re-enter flow", async () => {
       const vm = createTestVM()
 
       // First entry
       vm.setValue("ABC123")
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
       expect(onCompleteMock).toHaveBeenCalledTimes(1)
 
       // Clear
@@ -541,6 +560,8 @@ describe("StudentEntryVM", () => {
 
       // Re-enter
       vm.setValue("XYZ789")
+      // Wait for async validation to complete
+      await new Promise(resolve => setTimeout(resolve, 0))
       expect(onCompleteMock).toHaveBeenCalledTimes(2)
       expect(onCompleteMock).toHaveBeenLastCalledWith("XYZ789")
     })
@@ -609,13 +630,13 @@ describe("StudentEntryVM", () => {
       expect(localStorageMock.getItem("studentId")).toBeNull()
     })
 
-    it("should overwrite previous localStorage value", () => {
+    it("should overwrite previous localStorage value", async () => {
       const vm = createTestVM()
 
       localStorageMock.setItem("studentId", "OLD123")
 
       vm.setValue("ABC123")
-      vm.handleComplete()
+      await vm.handleComplete()
 
       expect(localStorageMock.getItem("studentId")).toBe("ABC123")
     })

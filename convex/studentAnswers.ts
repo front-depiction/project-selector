@@ -728,7 +728,8 @@ export const checkAndClosePeriodIfReady = internalMutation({
         title: period.title,
         description: period.description,
         openDate: period.openDate,
-        closeDate: period.closeDate
+        closeDate: period.closeDate,
+        shareableSlug: period.shareableSlug
       }))
     }
   }

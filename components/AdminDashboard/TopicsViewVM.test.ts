@@ -85,14 +85,16 @@ describe("TopicsViewVM", () => {
       expect(topics$.value).toEqual([])
     })
 
-    it("should provide toggleActive callback for each topic", () => {
+    it("should provide remove and edit callbacks for each topic", () => {
       const mockTopics = [
         { _id: "t1" as any, title: "Test Topic", description: "Test description", isActive: true, semesterId: "2024-spring" },
       ]
 
       const topics$ = createMockTopicsSignal(mockTopics)
-      expect(topics$.value[0].toggleActive).toBeDefined()
-      expect(typeof topics$.value[0].toggleActive).toBe("function")
+      expect(topics$.value[0].remove).toBeDefined()
+      expect(typeof topics$.value[0].remove).toBe("function")
+      expect(topics$.value[0].edit).toBeDefined()
+      expect(typeof topics$.value[0].edit).toBe("function")
     })
 
     it("should map both active and inactive statuses correctly", () => {
@@ -267,14 +269,11 @@ describe("TopicsViewVM", () => {
       const topics$ = createMockTopicsSignal(mockTopics)
       const topics = topics$.value
 
+      // All topics are shown (no status filtering)
       expect(topics).toHaveLength(3)
-
-      // Status filtering removed - all topics are shown
-      const activeTopics = topics
-      const inactiveTopics: typeof topics = []
-
-      expect(activeTopics).toHaveLength(2)
-      expect(inactiveTopics).toHaveLength(1)
+      expect(topics[0].title).toBe("Active 1")
+      expect(topics[1].title).toBe("Inactive 1")
+      expect(topics[2].title).toBe("Active 2")
     })
 
     it("should handle empty state across all data sources", () => {

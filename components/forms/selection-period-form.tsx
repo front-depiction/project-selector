@@ -36,7 +36,7 @@ const formSchema = z.object({
     end_deadline: z.date(),
     topicIds: z.array(z.string()).min(1, "Select at least one topic"),
     minimizeCategoryIds: z.array(z.string()).optional(),
-    rankingsEnabled: z.boolean().default(true),
+    rankingsEnabled: z.boolean(),
 }).refine((data) => data.end_deadline > data.start_deadline, {
     message: "End date must be after start date",
     path: ["end_deadline"],

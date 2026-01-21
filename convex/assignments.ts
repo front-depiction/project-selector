@@ -173,7 +173,8 @@ async function assignPeriodInternal(
           title: period.title,
           description: period.description,
           openDate: period.openDate,
-          closeDate: period.closeDate
+          closeDate: period.closeDate,
+          shareableSlug: period.shareableSlug
         }))
 
         return null
@@ -222,7 +223,8 @@ async function assignPeriodInternal(
       title: period.title,
       description: period.description,
       openDate: period.openDate,
-      closeDate: period.closeDate
+      closeDate: period.closeDate,
+      shareableSlug: period.shareableSlug
     }))
 
     return null
@@ -264,7 +266,8 @@ async function assignPeriodInternal(
         title: period.title,
         description: period.description,
         openDate: period.openDate,
-        closeDate: period.closeDate
+        closeDate: period.closeDate,
+        shareableSlug: period.shareableSlug
       })
   ))
 
@@ -688,7 +691,8 @@ export const saveCPSATAssignments = internalMutation({
           title: period.title,
           description: period.description,
           openDate: period.openDate,
-          closeDate: period.closeDate
+          closeDate: period.closeDate,
+          shareableSlug: period.shareableSlug
         })
     ))
 

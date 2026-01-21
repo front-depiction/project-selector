@@ -40,6 +40,8 @@ export interface PeriodRowVM {
   readonly studentCountDisplay: string
   readonly needsNames: boolean // Whether this period needs student names
   readonly readyForAssignment: boolean // Whether all questionnaires are complete
+  readonly shareableSlug: string
+  readonly shareableLink: string // Full URL for student join page
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
@@ -96,7 +98,11 @@ export interface PeriodsViewVM {
   readonly existingMinimizeCategoryIds$: ReadonlySignal<readonly string[]>
 
   /** ID and title of newly created period (for showing access codes) */
-  readonly createdPeriod$: ReadonlySignal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>
+  readonly createdPeriod$: ReadonlySignal<Option.Option<{
+    id: Id<"selectionPeriods">
+    title: string
+    shareableSlug: string
+  }>>
 
   /** Handle create period submission */
   readonly onCreateSubmit: (values: SelectionPeriodFormValues) => void
@@ -106,6 +112,9 @@ export interface PeriodsViewVM {
 
   /** Finish creation flow and close dialog */
   readonly finishCreation: () => void
+
+  /** Copy shareable link to clipboard */
+  readonly copyShareableLink: (slug: string) => void
 
   /** Exposed mutations for manual question sync */
   readonly updatePeriod: PeriodsViewVMDeps["updatePeriod"]
@@ -185,7 +194,11 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const createDialogOpen$ = signal(false)
   const editDialogOpen$ = signal(false)
   const editingPeriod$ = signal<Option.Option<SelectionPeriodWithStats>>(Option.none())
-  const createdPeriod$ = signal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>(Option.none())
+  const createdPeriod$ = signal<Option.Option<{
+    id: Id<"selectionPeriods">
+    title: string
+    shareableSlug: string
+  }>>(Option.none())
 
   // Computed: current period (may be open or assigned)
   const currentPeriod$ = computed((): Option.Option<SelectionPeriodWithStats> => {
@@ -260,6 +273,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         studentCountDisplay: String(period.studentCount || 0),
         needsNames: false, // Will be set by component-level query
         readyForAssignment: false, // Will be set by component-level query
+        shareableSlug: period.shareableSlug,
+        shareableLink: `${typeof window !== 'undefined' ? window.location.origin : ''}/student/join/${period.shareableSlug}`,
         onEdit: () => {
           batch(() => {
             editingPeriod$.value = Option.some(period)
@@ -356,6 +371,14 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     createDialog.close()
   }
 
+  // Copy shareable link to clipboard
+  const copyShareableLink = (slug: string): void => {
+    const link = `${typeof window !== 'undefined' ? window.location.origin : ''}/student/join/${slug}`
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(link).catch(console.error)
+    }
+  }
+
   // Edit dialog
   const editDialog: EditDialogVM = {
     isOpen$: editDialogOpen$,
@@ -394,11 +417,13 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     })
       .then((result) => {
         const createdPeriodId = result.periodId
-        return createdPeriodId
-      })
-      .then((createdPeriodId: Id<"selectionPeriods">) => {
+        const shareableSlug = (result as any).shareableSlug ?? ""
         // Show access codes panel instead of closing
-        createdPeriod$.value = Option.some({ id: createdPeriodId, title: periodTitle })
+        createdPeriod$.value = Option.some({
+          id: createdPeriodId,
+          title: periodTitle,
+          shareableSlug,
+        })
       })
       .catch((error) => {
         console.error("Failed to create period:", error)
@@ -445,6 +470,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     onCreateSubmit,
     onEditSubmit,
     finishCreation,
+    copyShareableLink,
     updatePeriod: deps.updatePeriod,
     addQuestion: deps.addQuestion,
     removeQuestion: deps.removeQuestion,
@@ -517,6 +543,7 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     const existingQuestionsData$ = computed(() => existingQuestionsData)
     const topicsData$ = computed(() => [])
     const existingTopicsData$ = computed(() => [])
+    const categoriesData$ = computed(() => [])
 
     return {
       periodsData$,
@@ -527,6 +554,7 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       existingQuestionsData$,
       topicsData$,
       existingTopicsData$,
+      categoriesData$,
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,

@@ -143,3 +143,154 @@ test("selectionPeriods: multiple periods can exist", async () => {
   // Reset to normal timers
   vi.useRealTimers()
 })
+
+// ========================================
+// getPeriodBySlug tests
+// ========================================
+
+test("getPeriodBySlug: should return null for invalid slug format", async () => {
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+
+  // Test various invalid slug formats
+  const result1 = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: "not-a-valid-uuid"
+  })
+  expect(result1).toBeNull()
+
+  const result2 = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: ""
+  })
+  expect(result2).toBeNull()
+
+  const result3 = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: "12345"
+  })
+  expect(result3).toBeNull()
+
+  // UUID v3 format (wrong version)
+  const result4 = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: "a1b2c3d4-e5f6-3a7b-8c9d-0e1f2a3b4c5d"
+  })
+  expect(result4).toBeNull()
+})
+
+test("getPeriodBySlug: should return null for non-existent slug", async () => {
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+
+  // Valid UUID v4 format but doesn't exist in database
+  const result = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+  })
+
+  expect(result).toBeNull()
+})
+
+test("getPeriodBySlug: should return period for valid slug when period is open", async () => {
+  vi.useFakeTimers()
+
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+
+  const now = Date.now()
+  // Create an open period (openDate in past, closeDate in future)
+  const pastOpen = now - (24 * 60 * 60 * 1000) // 1 day ago
+  const futureClose = now + (30 * 24 * 60 * 60 * 1000) // 30 days from now
+
+  const createResult = await t.mutation(api.selectionPeriods.createPeriod, {
+    title: "Open Period",
+    description: "An open selection period",
+    semesterId: "2024-spring",
+    openDate: pastOpen,
+    closeDate: futureClose,
+  })
+
+  expect(createResult.success).toBe(true)
+  expect(createResult.shareableSlug).toBeDefined()
+
+  // Query the period by its slug
+  const period = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: createResult.shareableSlug!
+  })
+
+  expect(period).not.toBeNull()
+  expect(period!.title).toBe("Open Period")
+  expect(period!.description).toBe("An open selection period")
+  expect(period!.semesterId).toBe("2024-spring")
+  expect(period!.kind).toBe("open")
+  expect(period!.shareableSlug).toBe(createResult.shareableSlug)
+
+  vi.useRealTimers()
+})
+
+test("getPeriodBySlug: should return null for valid slug when period is not open (inactive)", async () => {
+  vi.useFakeTimers()
+
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+
+  const now = Date.now()
+  // Create a future/inactive period (openDate in future)
+  const futureOpen = now + (24 * 60 * 60 * 1000) // 1 day from now
+  const futureClose = now + (30 * 24 * 60 * 60 * 1000) // 30 days from now
+
+  const createResult = await t.mutation(api.selectionPeriods.createPeriod, {
+    title: "Future Period",
+    description: "A future selection period",
+    semesterId: "2024-fall",
+    openDate: futureOpen,
+    closeDate: futureClose,
+  })
+
+  expect(createResult.success).toBe(true)
+  expect(createResult.shareableSlug).toBeDefined()
+
+  // The period should exist but getPeriodBySlug should return null
+  // because the period is not open (it's inactive)
+  const period = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: createResult.shareableSlug!
+  })
+
+  expect(period).toBeNull()
+
+  // Verify the period does exist via getAllPeriodsWithStats
+  const allPeriods = await t.query(api.selectionPeriods.getAllPeriodsWithStats, {})
+  expect(allPeriods.length).toBe(1)
+  expect(allPeriods[0].kind).toBe("inactive")
+
+  vi.useRealTimers()
+})
+
+test("getPeriodBySlug: should return null for valid slug when period is closed", async () => {
+  vi.useFakeTimers()
+
+  const t = convexTest(schema, import.meta.glob("./**/*.*s"))
+
+  const now = Date.now()
+  // Create a closed period (both openDate and closeDate in past)
+  const pastOpen = now - (30 * 24 * 60 * 60 * 1000) // 30 days ago
+  const pastClose = now - (1 * 24 * 60 * 60 * 1000) // 1 day ago
+
+  const createResult = await t.mutation(api.selectionPeriods.createPeriod, {
+    title: "Closed Period",
+    description: "A closed selection period",
+    semesterId: "2023-fall",
+    openDate: pastOpen,
+    closeDate: pastClose,
+  })
+
+  expect(createResult.success).toBe(true)
+  expect(createResult.shareableSlug).toBeDefined()
+
+  // The period should exist but getPeriodBySlug should return null
+  // because the period is closed
+  const period = await t.query(api.selectionPeriods.getPeriodBySlug, {
+    slug: createResult.shareableSlug!
+  })
+
+  expect(period).toBeNull()
+
+  // Verify the period does exist via getAllPeriodsWithStats
+  const allPeriods = await t.query(api.selectionPeriods.getAllPeriodsWithStats, {})
+  expect(allPeriods.length).toBe(1)
+  expect(allPeriods[0].kind).toBe("closed")
+
+  vi.useRealTimers()
+})

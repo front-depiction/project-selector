@@ -206,6 +206,52 @@ export const validateAccessCode = query({
 })
 
 /**
+ * Validate an access code for a specific selection period.
+ * Ensures the code belongs to the specified period and the period is open.
+ *
+ * @category Mutations
+ * @since 0.3.0
+ */
+export const validateAccessCodeForPeriod = mutation({
+  args: {
+    code: v.string(),
+    periodId: v.id("selectionPeriods"),
+  },
+  handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
+    // Normalize code
+    const normalizedCode = args.code.toUpperCase().trim()
+
+    // Check format: 6 characters, alphanumeric
+    if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) {
+      return { valid: false, error: "Code must be 6 alphanumeric characters" }
+    }
+
+    // Find the access code entry
+    const entry = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_studentId", (q) => q.eq("studentId", normalizedCode))
+      .first()
+
+    if (!entry) {
+      return { valid: false, error: "Invalid access code" }
+    }
+
+    // Check if code belongs to the specified period
+    if (entry.selectionPeriodId !== args.periodId) {
+      return { valid: false, error: "This code is not valid for this selection period" }
+    }
+
+    // Check period is open
+    const period = await ctx.db.get(args.periodId)
+    if (!period || period.kind !== "open") {
+      return { valid: false, error: "This selection period is not currently accepting applications" }
+    }
+
+    return { valid: true }
+  },
+})
+
+/**
  * Get period info for a valid access code (for student entry)
  */
 export const getPeriodForAccessCode = query({

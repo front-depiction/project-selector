@@ -28,7 +28,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Power, Trash2, MoreVertical, Key, Users } from "lucide-react"
+import { Plus, Edit, Power, Trash2, MoreVertical, Key, Users, Link, Copy } from "lucide-react"
+import { toast } from "sonner"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
 import type { TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
@@ -216,6 +217,13 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            vm.copyShareableLink(period.shareableSlug)
+                            toast.success("Invite link copied to clipboard")
+                          }}>
+                            <Link className="mr-2 h-4 w-4" />
+                            Copy Invite Link
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
                             <Key className="mr-2 h-4 w-4" />
                             Manage Access Codes
@@ -258,10 +266,40 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           </DialogHeader>
           {Option.isSome(vm.createdPeriod$.value) ? (
             <div className="space-y-4">
-              <PeriodStudentAllowListManager
-                selectionPeriodId={vm.createdPeriod$.value.value.id}
-                periodTitle={vm.createdPeriod$.value.value.title}
-              />
+              {/* Shareable Link Section */}
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-sm">Share with Students</h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const createdPeriod = vm.createdPeriod$.value
+                      if (Option.isSome(createdPeriod)) {
+                        vm.copyShareableLink(createdPeriod.value.shareableSlug)
+                        toast.success("Link copied!")
+                      }
+                    }}
+                  >
+                    <Copy className="mr-2 h-3 w-3" />
+                    Copy Link
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Students can use this link to access this selection period directly
+                </p>
+                <code className="block p-2 bg-background rounded border text-xs break-all">
+                  {Option.isSome(vm.createdPeriod$.value) && `${window.location.origin}/student/join/${vm.createdPeriod$.value.value.shareableSlug}`}
+                </code>
+              </div>
+
+              {/* Existing PeriodStudentAllowListManager */}
+              {Option.isSome(vm.createdPeriod$.value) && (
+                <PeriodStudentAllowListManager
+                  selectionPeriodId={vm.createdPeriod$.value.value.id}
+                  periodTitle={vm.createdPeriod$.value.value.title}
+                />
+              )}
               <div className="flex justify-end pt-4 border-t">
                 <Button onClick={vm.finishCreation}>
                   Done

@@ -14,6 +14,7 @@ import {
   cancelAllScheduled
 } from "./share/admin_helpers"
 import { createRankingEventsAndUpdateAggregate } from "./share/rankings"
+import { generateShareableSlug } from "./lib/slugGenerator"
 
 /**
  * Seed generator: 70 students, 10 groups, leadership category with 4 questions,
@@ -461,6 +462,7 @@ export const seedTestData = mutation({
         description: "This is a closed period for testing closed session behavior",
         openDate: oneWeekAgo,
         closeDate: oneDayAgo,
+        shareableSlug: generateShareableSlug(),
         rankingsEnabled: true,
       })),
       createTestTopics(ctx, semesterId)
@@ -469,12 +471,14 @@ export const seedTestData = mutation({
     // Create an open period with all questionnaires completed
     // Since it's already open (opened 3 days ago), create as inactive then convert to open
     const openWithQuestionnairesOpenDate = now - (3 * 24 * 60 * 60 * 1000) // Opened 3 days ago
+    const openWithQuestionnairesSlug = generateShareableSlug()
     const inactivePeriod = SelectionPeriod.makeInactive({
       semesterId,
       title: "Open Period - All Questionnaires Complete",
       description: "An open period where all students have completed their questionnaires",
       openDate: openWithQuestionnairesOpenDate,
       closeDate: thirtyDaysFromNow,
+      shareableSlug: openWithQuestionnairesSlug,
       rankingsEnabled: true,
     })
     const openWithQuestionnairesPeriodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
@@ -846,6 +850,7 @@ export const seedTestData = mutation({
         description: closedPeriod.description,
         openDate: closedPeriod.openDate,
         closeDate: closedPeriod.closeDate,
+        shareableSlug: closedPeriod.shareableSlug,
         assignmentBatchId
       }))
     }
@@ -1014,12 +1019,14 @@ export const createSelectionPeriod = mutation({
       }
     }
 
+    const shareableSlug = generateShareableSlug()
     const period = SelectionPeriod.makeInactive({
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
       openDate: args.openDate,
       closeDate: args.closeDate,
+      shareableSlug,
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
     })
@@ -1314,12 +1321,14 @@ export const setupExperiment = mutation({
     const exclusionsJson = JSON.stringify(exclusions)
     const periodDescription = `User test experiment - Team assignment based on student qualities. EXCLUSIONS:${exclusionsJson}`
 
+    const experimentSlug = generateShareableSlug()
     const period = SelectionPeriod.makeInactive({
       semesterId,
       title: "Experiment: Team Assignment",
       description: periodDescription,
       openDate: now,
       closeDate: thirtyDaysFromNow,
+      shareableSlug: experimentSlug,
       rankingsEnabled: true,
     })
 

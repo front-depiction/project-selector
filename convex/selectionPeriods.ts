@@ -3,6 +3,7 @@ import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import * as SelectionPeriod from "./schemas/SelectionPeriod"
 import type { Id } from "./_generated/dataModel"
+import { generateShareableSlug, isShareableSlug } from "./lib/slugGenerator"
 
 /**
  * Creates a new selection period.
@@ -31,6 +32,9 @@ export const createPeriod = mutation({
       throw new Error("Open date must be before close date")
     }
 
+    // Generate a unique shareable slug for this period
+    const shareableSlug = generateShareableSlug()
+
     // Update selected topics' semesterId to link them to this period
     if (args.topicIds && args.topicIds.length > 0) {
       for (const topicId of args.topicIds) {
@@ -51,10 +55,11 @@ export const createPeriod = mutation({
         description: args.description,
         openDate: args.openDate,
         closeDate: args.closeDate,
+        shareableSlug,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
       }))
-      return { success: true, periodId }
+      return { success: true, periodId, shareableSlug }
     }
 
     // CASE 2: Period should be open now
@@ -66,6 +71,7 @@ export const createPeriod = mutation({
         description: args.description,
         openDate: args.openDate,
         closeDate: args.closeDate,
+        shareableSlug,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
       }))
@@ -84,12 +90,13 @@ export const createPeriod = mutation({
         description: args.description,
         openDate: args.openDate,
         closeDate: args.closeDate,
+        shareableSlug,
         scheduledFunctionId: closeScheduleId,
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
       }))
 
-      return { success: true, periodId }
+      return { success: true, periodId, shareableSlug }
     }
 
     // CASE 3: FUTURE (inactive, but scheduled to open)
@@ -99,6 +106,7 @@ export const createPeriod = mutation({
       description: args.description,
       openDate: args.openDate,
       closeDate: args.closeDate,
+      shareableSlug,
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
     }))
@@ -117,12 +125,13 @@ export const createPeriod = mutation({
       description: args.description,
       openDate: args.openDate,
       closeDate: args.closeDate,
+      shareableSlug,
       scheduledOpenFunctionId: openScheduleId,
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
     }))
 
-    return { success: true, periodId }
+    return { success: true, periodId, shareableSlug }
   }
 })
 
@@ -175,6 +184,8 @@ export const updatePeriod = mutation({
     }
 
     // Re-evaluate state based on new dates
+    // Preserve the existing shareableSlug
+    const shareableSlug = existing.shareableSlug
 
     // State: CLOSED
     if (closeDate <= now) {
@@ -184,6 +195,7 @@ export const updatePeriod = mutation({
         description,
         openDate,
         closeDate,
+        shareableSlug,
         minimizeCategoryIds,
         rankingsEnabled,
       }))
@@ -201,6 +213,7 @@ export const updatePeriod = mutation({
         description,
         openDate,
         closeDate,
+        shareableSlug,
         scheduledFunctionId: closeScheduleId,
         minimizeCategoryIds,
         rankingsEnabled,
@@ -219,6 +232,7 @@ export const updatePeriod = mutation({
         description,
         openDate,
         closeDate,
+        shareableSlug,
         scheduledOpenFunctionId: openScheduleId,
         minimizeCategoryIds,
         rankingsEnabled,
@@ -345,13 +359,14 @@ export const setActivePeriod = mutation({
         internal.assignments.assignPeriod,
         { periodId: args.periodId }
       )
-      // Update to Open
+      // Update to Open (preserve existing shareableSlug)
       await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
         semesterId: period.semesterId,
         title: period.title,
         description: period.description,
         openDate: period.openDate,
         closeDate: period.closeDate,
+        shareableSlug: period.shareableSlug,
         scheduledFunctionId: closeScheduleId
       }))
     }
@@ -438,5 +453,66 @@ export const getAllPeriodsWithStats = query({
 
     // Sort by close date (most recent first)
     return periodsWithStats.sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))
+  }
+})
+
+/**
+ * Gets a selection period by its shareable slug.
+ * Only returns periods that are in "open" state (joinable by students).
+ *
+ * This is a public query intended for student access via shareable links.
+ *
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getPeriodBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args): Promise<(SelectionPeriod.SelectionPeriod & { _id: Id<"selectionPeriods"> }) | null> => {
+    // Validate slug format
+    if (!isShareableSlug(args.slug)) {
+      return null
+    }
+
+    // Query by index
+    const period = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_slug", q => q.eq("shareableSlug", args.slug))
+      .first()
+
+    if (!period) {
+      return null
+    }
+
+    // Only return if period is open (joinable)
+    if (period.kind !== "open") {
+      return null
+    }
+
+    return period
+  }
+})
+
+/**
+ * Gets a selection period by its shareable slug regardless of state.
+ * Intended for admin use where access to any period state is required.
+ *
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getPeriodBySlugAnyState = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args): Promise<(SelectionPeriod.SelectionPeriod & { _id: Id<"selectionPeriods"> }) | null> => {
+    // Validate slug format
+    if (!isShareableSlug(args.slug)) {
+      return null
+    }
+
+    // Query by index
+    const period = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_slug", q => q.eq("shareableSlug", args.slug))
+      .first()
+
+    return period ?? null
   }
 })

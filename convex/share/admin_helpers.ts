@@ -8,6 +8,7 @@ import { pipe } from "effect/Function"
 import * as Array from "effect/Array"
 import { shuffleArray } from "../lib/utils"
 import { createRankingEventsAndUpdateAggregate } from "./rankings"
+import { generateShareableSlug } from "../lib/slugGenerator"
 
 /**
  * Sample topics for seeding test data.
@@ -68,12 +69,14 @@ export async function createTestSelectionPeriod(
     rankingsEnabled?: boolean
   }
 ) {
+  const shareableSlug = generateShareableSlug()
   const inactivePeriod = SelectionPeriod.makeInactive({
     semesterId,
     openDate: now,
     closeDate,
     title: "Test Period",
     description: "This is an auto generated test period",
+    shareableSlug,
     rankingsEnabled: options?.rankingsEnabled,
   })
   const periodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
