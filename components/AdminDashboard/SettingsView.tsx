@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { SettingsViewVM } from "./SettingsViewVM"
 import { useSignals } from "@preact/signals-react/runtime"
+import { ExperimentComparisonsView } from "./ExperimentComparisonsView"
 
 export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
   useSignals()
@@ -124,6 +125,22 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Experiment Comparisons */}
+      <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <Beaker className="h-6 w-6 text-muted-foreground" />
+            <div>
+              <CardTitle>Experiment Comparisons</CardTitle>
+              <CardDescription>Compare assignment algorithm results to demonstrate consistency</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ExperimentComparisonsView />
         </CardContent>
       </Card>
 

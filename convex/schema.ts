@@ -13,6 +13,7 @@ import * as User from "./schemas/User"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Category from "./schemas/Category"
+import * as ExperimentComparison from "./schemas/ExperimentComparison"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -79,4 +80,10 @@ export default defineSchema({
     .index("by_period", ["selectionPeriodId"])
     .index("by_period_studentId", ["selectionPeriodId", "studentId"])
     .index("by_studentId", ["studentId"]),
+
+  // Experiment comparisons between assignment batches
+  experimentComparisons: defineTable(ExperimentComparison.ExperimentComparison)
+    .index("by_period", ["periodId"])
+    .index("by_original_batch", ["originalBatchId"])
+    .index("by_new_batch", ["newBatchId"]),
 })

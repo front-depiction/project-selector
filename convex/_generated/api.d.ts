@@ -14,6 +14,7 @@ import type * as assignWithCPSAT from "../assignWithCPSAT.js";
 import type * as assignmentSolver from "../assignmentSolver.js";
 import type * as assignments from "../assignments.js";
 import type * as categories from "../categories.js";
+import type * as experimentComparisons from "../experimentComparisons.js";
 import type * as http from "../http.js";
 import type * as lib_congestion from "../lib/congestion.js";
 import type * as lib_utils from "../lib/utils.js";
@@ -24,6 +25,7 @@ import type * as questions from "../questions.js";
 import type * as rankings from "../rankings.js";
 import type * as schemas_Assignment from "../schemas/Assignment.js";
 import type * as schemas_Category from "../schemas/Category.js";
+import type * as schemas_ExperimentComparison from "../schemas/ExperimentComparison.js";
 import type * as schemas_PeriodStudentAllowList from "../schemas/PeriodStudentAllowList.js";
 import type * as schemas_Preference from "../schemas/Preference.js";
 import type * as schemas_Question from "../schemas/Question.js";
@@ -55,14 +57,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   analytics: typeof analytics;
@@ -70,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   assignmentSolver: typeof assignmentSolver;
   assignments: typeof assignments;
   categories: typeof categories;
+  experimentComparisons: typeof experimentComparisons;
   http: typeof http;
   "lib/congestion": typeof lib_congestion;
   "lib/utils": typeof lib_utils;
@@ -80,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   rankings: typeof rankings;
   "schemas/Assignment": typeof schemas_Assignment;
   "schemas/Category": typeof schemas_Category;
+  "schemas/ExperimentComparison": typeof schemas_ExperimentComparison;
   "schemas/PeriodStudentAllowList": typeof schemas_PeriodStudentAllowList;
   "schemas/Preference": typeof schemas_Preference;
   "schemas/Question": typeof schemas_Question;
@@ -105,14 +101,30 @@ declare const fullApi: ApiFromModules<{
   topics: typeof topics;
   users: typeof users;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
@@ -245,17 +257,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",

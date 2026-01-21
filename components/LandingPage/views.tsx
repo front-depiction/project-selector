@@ -171,19 +171,19 @@ export const AllAssignmentsView: React.FC<AllAssignmentsViewProps> = ({ vm, peri
   const currentPeriod = vm.currentPeriod$.value
   
   return (
-    <LP.Frame>
-      <LP.Header>
-        <LP.HeaderDescription>
+  <LP.Frame>
+    <LP.Header>
+      <LP.HeaderDescription>
           {currentPeriod 
             ? `Topics have been assigned for "${currentPeriod.title}"`
             : "Topics have been assigned to all students"
           }
-        </LP.HeaderDescription>
-      </LP.Header>
-      <LP.AllAssignmentsDisplay vm={vm} periodId={periodId} />
-      <LP.Footer />
-    </LP.Frame>
-  )
+      </LP.HeaderDescription>
+    </LP.Header>
+    <LP.AllAssignmentsDisplay vm={vm} periodId={periodId} />
+    <LP.Footer />
+  </LP.Frame>
+)
 }
 
 // ============================================================================
