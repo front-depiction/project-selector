@@ -15,33 +15,33 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
   const now = Date.now()
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
-  return await t.run(async (ctx: any) => {
-    const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow)
-
-    // Create test questions - using Question.make pattern
-    const question1Id = await ctx.db.insert("questions", {
-      semesterId,
-      question: "Do you enjoy working in teams?",
-      kind: "boolean" as const,
-      createdAt: Date.now()
-    })
-
-    const question2Id = await ctx.db.insert("questions", {
-      semesterId,
-      question: "Rate your interest in this topic",
-      kind: "0to6" as const,
-      createdAt: Date.now()
-    })
-
-    const question3Id = await ctx.db.insert("questions", {
-      semesterId,
-      question: "Do you have prior experience?",
-      kind: "boolean" as const,
-      createdAt: Date.now()
-    })
-
-    return { periodId, semesterId, question1Id, question2Id, question3Id }
+  const periodId = await t.run(async (ctx: any) => {
+    return await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow)
   })
+
+  // Create test questions using API mutation
+  const question1Id = await t.mutation(api.questions.createQuestion, {
+    question: "Do you enjoy working in teams?",
+    kind: "boolean",
+    semesterId,
+    category: "Test Category"
+  })
+
+  const question2Id = await t.mutation(api.questions.createQuestion, {
+    question: "Rate your interest in this topic",
+    kind: "0to6",
+    semesterId,
+    category: "Test Category"
+  })
+
+  const question3Id = await t.mutation(api.questions.createQuestion, {
+    question: "Do you have prior experience?",
+    kind: "boolean",
+    semesterId,
+    category: "Test Category"
+  })
+
+  return { periodId, semesterId, question1Id, question2Id, question3Id }
 }
 
 test("studentAnswers: getAnswers returns empty array when no answers exist", async () => {
@@ -64,11 +64,21 @@ test("studentAnswers: getAnswers returns empty array when no answers exist", asy
   vi.useRealTimers()
 })
 
-test("studentAnswers: hasCompletedQuestionnaire returns false when no answers exist", async () => {
+test("studentAnswers: hasCompletedQuestionnaire returns false when no answers exist but questions exist", async () => {
   vi.useFakeTimers()
   const t = convexTest(schema, import.meta.glob("./**/*.*s"))
 
-  const { periodId } = await seedTestData(t)
+  const { periodId, semesterId } = await seedTestData(t)
+
+  // Link a category to the period so questions are derived
+  const categoryId = await t.mutation(api.categories.createCategory, {
+    name: "Test Category",
+    semesterId
+  })
+
+  await t.run(async (ctx: any) => {
+    await ctx.db.patch(periodId, { minimizeCategoryIds: [categoryId] })
+  })
 
   const studentId = "student-new"
 
@@ -215,8 +225,8 @@ test("studentAnswers: saveAnswers creates new 0to6 answer with normalization", a
   expect(answers).toHaveLength(1)
   expect(answers[0].studentId).toBe(studentId)
   expect(answers[0].questionId).toBe(question2Id)
-  expect(answers[0].rawAnswer).toEqual({ kind: "0to6", value: 7 })
-  expect(answers[0].normalizedAnswer).toBe(0.7)
+  expect(answers[0].rawAnswer).toEqual({ kind: "0to6", value: 5 })
+  expect(answers[0].normalizedAnswer).toBeCloseTo(5 / 6, 5)
 
   vi.useRealTimers()
 })
@@ -489,20 +499,20 @@ test("studentAnswers: answers are isolated per selection period", async () => {
   const now = Date.now()
   const futureClose = now + (30 * 24 * 60 * 60 * 1000)
 
-  const { period1Id, period2Id, questionId } = await t.run(async (ctx: any) => {
+  const { period1Id, period2Id } = await t.run(async (ctx: any) => {
     // Create two selection periods
     const period1Id = await createTestSelectionPeriod(ctx, semesterId, now, futureClose)
     const period2Id = await createTestSelectionPeriod(ctx, semesterId, now + 1000, futureClose + 1000)
 
-    // Create a question
-    const questionId = await ctx.db.insert("questions", {
-      semesterId,
-      question: "Test question",
-      kind: "boolean" as const,
-      createdAt: Date.now()
-    })
+    return { period1Id, period2Id }
+  })
 
-    return { period1Id, period2Id, questionId }
+  // Create a question using API mutation
+  const questionId = await t.mutation(api.questions.createQuestion, {
+    question: "Test question",
+    kind: "boolean",
+    semesterId,
+    category: "Test Category"
   })
 
   const studentId = "student-isolation"

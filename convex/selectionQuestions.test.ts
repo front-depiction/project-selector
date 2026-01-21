@@ -36,21 +36,19 @@ async function createTestQuestions(
   semesterId: string,
   count: number = 3
 ): Promise<Id<"questions">[]> {
-  return await t.run(async (ctx: any) => {
-    const questionIds: Id<"questions">[] = []
+  const questionIds: Id<"questions">[] = []
 
-    for (let i = 0; i < count; i++) {
-      const questionId = await ctx.db.insert("questions", {
-        question: `Test question ${i + 1}`,
-        kind: i % 2 === 0 ? "boolean" : "0to10",
-        semesterId,
-        createdAt: Date.now()
-      })
-      questionIds.push(questionId)
-    }
+  for (let i = 0; i < count; i++) {
+    const questionId = await t.mutation(api.questions.createQuestion, {
+      question: `Test question ${i + 1}`,
+      kind: i % 2 === 0 ? "boolean" : "0to6",
+      semesterId,
+      category: "Test Category"
+    })
+    questionIds.push(questionId)
+  }
 
-    return questionIds
-  })
+  return questionIds
 }
 
 /**
@@ -79,6 +77,28 @@ async function createTestTemplate(
     }
 
     return templateId
+  })
+}
+
+/**
+ * Helper to get selectionQuestions from table directly
+ */
+async function getSelectionQuestionsFromTable(
+  t: ReturnType<typeof convexTest>,
+  periodId: Id<"selectionPeriods">
+): Promise<Array<{
+  _id: Id<"selectionQuestions">
+  _creationTime: number
+  selectionPeriodId: Id<"selectionPeriods">
+  questionId: Id<"questions">
+  order: number
+  sourceTemplateId?: Id<"questionTemplates">
+}>> {
+  return await t.run(async (ctx: any) => {
+    return await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q: any) => q.eq("selectionPeriodId", periodId))
+      .collect()
   })
 }
 
@@ -113,15 +133,18 @@ test("selectionQuestions: addQuestion adds a question to selection period", asyn
     questionId
   })
 
-  // Verify it was added
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
+  // Verify it was added to the selectionQuestions table
+  const selectionQuestions = await t.run(async (ctx: any) => {
+    return await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q: any) => q.eq("selectionPeriodId", periodId))
+      .collect()
   })
 
-  expect(questions).toHaveLength(1)
-  expect(questions[0].questionId).toBe(questionId)
-  expect(questions[0].order).toBe(1)
-  expect(questions[0].sourceTemplateId).toBeUndefined()
+  expect(selectionQuestions).toHaveLength(1)
+  expect(selectionQuestions[0].questionId).toBe(questionId)
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[0].sourceTemplateId).toBeUndefined()
 
   vi.useRealTimers()
 })
@@ -142,15 +165,18 @@ test("selectionQuestions: addQuestion increments order correctly", async () => {
     })
   }
 
-  // Verify order
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
+  // Verify order in selectionQuestions table
+  const selectionQuestions = await t.run(async (ctx: any) => {
+    return await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q: any) => q.eq("selectionPeriodId", periodId))
+      .collect()
   })
 
-  expect(questions).toHaveLength(3)
-  expect(questions[0].order).toBe(1)
-  expect(questions[1].order).toBe(2)
-  expect(questions[2].order).toBe(3)
+  expect(selectionQuestions).toHaveLength(3)
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[1].order).toBe(2)
+  expect(selectionQuestions[2].order).toBe(3)
 
   vi.useRealTimers()
 })
@@ -168,15 +194,26 @@ test("selectionQuestions: getQuestionsForPeriod joins question data", async () =
     questionId
   })
 
+  // Link category to period so getQuestionsForPeriod returns the question
+  const categoryId = await t.mutation(api.categories.createCategory, {
+    name: "Test Category",
+    semesterId
+  })
+
+  await t.run(async (ctx: any) => {
+    await ctx.db.patch(periodId, { minimizeCategoryIds: [categoryId] })
+  })
+
   const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
     selectionPeriodId: periodId
   })
 
-  expect(questions).toHaveLength(1)
-  expect(questions[0].question).toBeDefined()
-  expect(questions[0].question).not.toBeNull()
-  expect(questions[0].question?.question).toBe("Test question 1")
-  expect(questions[0].question?.kind).toBe("boolean")
+  expect(questions.length).toBeGreaterThanOrEqual(1)
+  const matchingQuestion = questions.find(q => q.questionId === questionId)
+  expect(matchingQuestion).toBeDefined()
+  expect(matchingQuestion?.question).toBeDefined()
+  expect(matchingQuestion?.question?.question).toBe("Test question 1")
+  expect(matchingQuestion?.question?.kind).toBe("boolean")
 
   vi.useRealTimers()
 })
@@ -196,10 +233,13 @@ test("selectionQuestions: removeQuestion removes a question from selection perio
   })
 
   // Verify it was added
-  let questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
+  let selectionQuestions = await t.run(async (ctx: any) => {
+    return await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q: any) => q.eq("selectionPeriodId", periodId))
+      .collect()
   })
-  expect(questions).toHaveLength(1)
+  expect(selectionQuestions).toHaveLength(1)
 
   // Remove question
   await t.mutation(api.selectionQuestions.removeQuestion, {
@@ -208,10 +248,13 @@ test("selectionQuestions: removeQuestion removes a question from selection perio
   })
 
   // Verify it was removed
-  questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
+  selectionQuestions = await t.run(async (ctx: any) => {
+    return await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", (q: any) => q.eq("selectionPeriodId", periodId))
+      .collect()
   })
-  expect(questions).toHaveLength(0)
+  expect(selectionQuestions).toHaveLength(0)
 
   vi.useRealTimers()
 })
@@ -256,10 +299,8 @@ test("selectionQuestions: reorder changes question order", async () => {
   }
 
   // Original order: [q0, q1, q2]
-  let questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions.map(q => q.questionId)).toEqual(questionIds)
+  let selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions.map((q: any) => q.questionId)).toEqual(questionIds)
 
   // Reorder to: [q2, q0, q1]
   const newOrder = [questionIds[2], questionIds[0], questionIds[1]]
@@ -269,13 +310,11 @@ test("selectionQuestions: reorder changes question order", async () => {
   })
 
   // Verify new order
-  questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions.map(q => q.questionId)).toEqual(newOrder)
-  expect(questions[0].order).toBe(1)
-  expect(questions[1].order).toBe(2)
-  expect(questions[2].order).toBe(3)
+  selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions.map((q: any) => q.questionId)).toEqual(newOrder)
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[1].order).toBe(2)
+  expect(selectionQuestions[2].order).toBe(3)
 
   vi.useRealTimers()
 })
@@ -303,16 +342,14 @@ test("selectionQuestions: reorder handles partial reordering", async () => {
   })
 
   // Verify order - first two are swapped, third remains
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions).toHaveLength(3)
-  expect(questions[0].questionId).toBe(questionIds[1])
-  expect(questions[0].order).toBe(1)
-  expect(questions[1].questionId).toBe(questionIds[0])
-  expect(questions[1].order).toBe(2)
+  const selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions).toHaveLength(3)
+  expect(selectionQuestions[0].questionId).toBe(questionIds[1])
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[1].questionId).toBe(questionIds[0])
+  expect(selectionQuestions[1].order).toBe(2)
   // Third question keeps its original order value
-  expect(questions[2].questionId).toBe(questionIds[2])
+  expect(selectionQuestions[2].questionId).toBe(questionIds[2])
 
   vi.useRealTimers()
 })
@@ -332,16 +369,14 @@ test("selectionQuestions: applyTemplate copies questions from template", async (
     templateId
   })
 
-  // Verify questions were copied
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
+  // Verify questions were copied to selectionQuestions table
+  const selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
 
-  expect(questions).toHaveLength(3)
-  expect(questions.map(q => q.questionId).sort()).toEqual(questionIds.sort())
-  expect(questions[0].sourceTemplateId).toBe(templateId)
-  expect(questions[1].sourceTemplateId).toBe(templateId)
-  expect(questions[2].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions).toHaveLength(3)
+  expect(selectionQuestions.map((q: any) => q.questionId).sort()).toEqual(questionIds.sort())
+  expect(selectionQuestions[0].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions[1].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions[2].sourceTemplateId).toBe(templateId)
 
   vi.useRealTimers()
 })
@@ -361,15 +396,13 @@ test("selectionQuestions: applyTemplate preserves template order", async () => {
     templateId
   })
 
-  // Verify order matches template order
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
+  // Verify order matches template order in selectionQuestions table
+  const selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
 
-  expect(questions.map(q => q.questionId)).toEqual(questionIds)
-  expect(questions[0].order).toBe(1)
-  expect(questions[1].order).toBe(2)
-  expect(questions[2].order).toBe(3)
+  expect(selectionQuestions.map((q: any) => q.questionId)).toEqual(questionIds)
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[1].order).toBe(2)
+  expect(selectionQuestions[2].order).toBe(3)
 
   vi.useRealTimers()
 })
@@ -402,31 +435,29 @@ test("selectionQuestions: applyTemplate appends to existing questions", async ()
     templateId
   })
 
-  // Verify all questions are present with correct order
-  const questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
+  // Verify all questions are present with correct order in selectionQuestions table
+  const selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
 
-  expect(questions).toHaveLength(5)
-  expect(questions[0].questionId).toBe(allQuestionIds[0])
-  expect(questions[0].order).toBe(1)
-  expect(questions[0].sourceTemplateId).toBeUndefined()
+  expect(selectionQuestions).toHaveLength(5)
+  expect(selectionQuestions[0].questionId).toBe(allQuestionIds[0])
+  expect(selectionQuestions[0].order).toBe(1)
+  expect(selectionQuestions[0].sourceTemplateId).toBeUndefined()
 
-  expect(questions[1].questionId).toBe(allQuestionIds[1])
-  expect(questions[1].order).toBe(2)
-  expect(questions[1].sourceTemplateId).toBeUndefined()
+  expect(selectionQuestions[1].questionId).toBe(allQuestionIds[1])
+  expect(selectionQuestions[1].order).toBe(2)
+  expect(selectionQuestions[1].sourceTemplateId).toBeUndefined()
 
-  expect(questions[2].questionId).toBe(allQuestionIds[2])
-  expect(questions[2].order).toBe(3)
-  expect(questions[2].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions[2].questionId).toBe(allQuestionIds[2])
+  expect(selectionQuestions[2].order).toBe(3)
+  expect(selectionQuestions[2].sourceTemplateId).toBe(templateId)
 
-  expect(questions[3].questionId).toBe(allQuestionIds[3])
-  expect(questions[3].order).toBe(4)
-  expect(questions[3].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions[3].questionId).toBe(allQuestionIds[3])
+  expect(selectionQuestions[3].order).toBe(4)
+  expect(selectionQuestions[3].sourceTemplateId).toBe(templateId)
 
-  expect(questions[4].questionId).toBe(allQuestionIds[4])
-  expect(questions[4].order).toBe(5)
-  expect(questions[4].sourceTemplateId).toBe(templateId)
+  expect(selectionQuestions[4].questionId).toBe(allQuestionIds[4])
+  expect(selectionQuestions[4].order).toBe(5)
+  expect(selectionQuestions[4].sourceTemplateId).toBe(templateId)
 
   vi.useRealTimers()
 })
@@ -479,10 +510,8 @@ test("selectionQuestions: complex workflow with add, remove, reorder, and templa
     })
   }
 
-  let questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions).toHaveLength(3)
+  let selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions).toHaveLength(3)
 
   // Step 2: Remove the second question
   await t.mutation(api.selectionQuestions.removeQuestion, {
@@ -490,11 +519,9 @@ test("selectionQuestions: complex workflow with add, remove, reorder, and templa
     questionId: questionIds[1]
   })
 
-  questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions).toHaveLength(2)
-  expect(questions.map(q => q.questionId)).toEqual([questionIds[0], questionIds[2]])
+  selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions).toHaveLength(2)
+  expect(selectionQuestions.map((q: any) => q.questionId)).toEqual([questionIds[0], questionIds[2]])
 
   // Step 3: Apply template with last three questions
   const templateQuestionIds = [questionIds[3], questionIds[4], questionIds[5]]
@@ -505,10 +532,8 @@ test("selectionQuestions: complex workflow with add, remove, reorder, and templa
     templateId
   })
 
-  questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions).toHaveLength(5)
+  selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions).toHaveLength(5)
 
   // Step 4: Reorder all questions
   const newOrder = [
@@ -525,18 +550,16 @@ test("selectionQuestions: complex workflow with add, remove, reorder, and templa
   })
 
   // Verify final state
-  questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: periodId
-  })
-  expect(questions).toHaveLength(5)
-  expect(questions.map(q => q.questionId)).toEqual(newOrder)
+  selectionQuestions = await getSelectionQuestionsFromTable(t, periodId)
+  expect(selectionQuestions).toHaveLength(5)
+  expect(selectionQuestions.map((q: any) => q.questionId)).toEqual(newOrder)
 
   // Verify sourceTemplateId is preserved after reordering
-  expect(questions[0].sourceTemplateId).toBe(templateId) // questionIds[5]
-  expect(questions[1].sourceTemplateId).toBeUndefined() // questionIds[0]
-  expect(questions[2].sourceTemplateId).toBe(templateId) // questionIds[3]
-  expect(questions[3].sourceTemplateId).toBeUndefined() // questionIds[2]
-  expect(questions[4].sourceTemplateId).toBe(templateId) // questionIds[4]
+  expect(selectionQuestions[0].sourceTemplateId).toBe(templateId) // questionIds[5]
+  expect(selectionQuestions[1].sourceTemplateId).toBeUndefined() // questionIds[0]
+  expect(selectionQuestions[2].sourceTemplateId).toBe(templateId) // questionIds[3]
+  expect(selectionQuestions[3].sourceTemplateId).toBeUndefined() // questionIds[2]
+  expect(selectionQuestions[4].sourceTemplateId).toBe(templateId) // questionIds[4]
 
   vi.useRealTimers()
 })
@@ -570,18 +593,14 @@ test("selectionQuestions: multiple selection periods can have different question
     })
   }
 
-  // Verify each period has its own questions
-  const period1Questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: period1Id
-  })
-  const period2Questions = await t.query(api.selectionQuestions.getQuestionsForPeriod, {
-    selectionPeriodId: period2Id
-  })
+  // Verify each period has its own questions in selectionQuestions table
+  const period1Questions = await getSelectionQuestionsFromTable(t, period1Id)
+  const period2Questions = await getSelectionQuestionsFromTable(t, period2Id)
 
   expect(period1Questions).toHaveLength(2)
   expect(period2Questions).toHaveLength(3)
-  expect(period1Questions.map(q => q.questionId)).toEqual(questions1)
-  expect(period2Questions.map(q => q.questionId)).toEqual(questions2)
+  expect(period1Questions.map((q: any) => q.questionId)).toEqual(questions1)
+  expect(period2Questions.map((q: any) => q.questionId)).toEqual(questions2)
 
   vi.useRealTimers()
 })
