@@ -88,14 +88,14 @@ npx convex env set CP_SAT_SERVICE_URL https://your-deployed-service.com
 ## How It Works
 
 1. **When Assignment is Triggered**: Clicking "Assign Now" calls the `assignWithCPSAT` action
-2. **CP-SAT Call**: The action attempts to call the CP-SAT solver via `assignmentSolver.solveAssignment`
+2. **CP-SAT Call**: The action calls the CP-SAT solver via `assignmentSolver.solveAssignment` and receives a synchronous response
 3. **Data Transformation**: Student preferences, questionnaire answers, and topics are transformed into CP-SAT input format
 4. **CP-SAT Processing**: The service optimizes assignments based on:
    - Student preferences (rankings)
    - Questionnaire answers (aggregated by category)
    - Group size constraints
    - Category-based criteria (e.g., ensuring diversity)
-5. **Result Processing**: CP-SAT results are transformed back into assignments and saved via `saveCPSATAssignments` mutation
+5. **Result Processing**: CP-SAT results (assignments, status, stats) are transformed back into assignments and saved via `saveCPSATAssignments` mutation
 6. **Fallback**: If CP-SAT service is unavailable, the system automatically falls back to simple even distribution via `assignNow` mutation
 
 ## CP-SAT Input Format
@@ -123,6 +123,18 @@ The system automatically transforms your data into this format:
       "values": { "Technical Skills": 0.8, "Soft Skills": 0.6 }
     }
   ]
+}
+```
+
+## CP-SAT Response Format
+
+The solver returns assignments, a status string, and optional stats:
+
+```json
+{
+  "assignments": [ { "student_id": 0, "group_id": 1 } ],
+  "status": "OPTIMAL",
+  "stats": { "minimize": { "Leadership": { "max_group_avg_diff": 0.2, "max_group_global_diff": 0.1 } } }
 }
 ```
 
