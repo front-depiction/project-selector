@@ -1,4 +1,6 @@
-import { internalAction, internalQuery } from "./_generated/server"
+"use node"
+
+import { internalAction } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import type { Id } from "./_generated/dataModel"
@@ -14,6 +16,9 @@ const GA_SERVICE_URL =
   process.env.GA_SERVICE_URL ||
   process.env.CP_SAT_SERVICE_URL ||
   "https://assignment-cpsat-production.up.railway.app"
+function logGaService(...args: Array<unknown>) {
+  console.log("[ga-service]", ...args)
+}
 
 type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
 type SolverSettings = {
@@ -102,18 +107,35 @@ export const solveAssignment = internalAction({
 
     // Call GA service
     try {
+      const requestBody = JSON.stringify(cpSatInput)
+      logGaService("POST", `${GA_SERVICE_URL}/solve`, {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cpSatInput, null, 2)
+      })
+
       const response = await fetch(`${GA_SERVICE_URL}/solve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cpSatInput)
+        body: requestBody
+      })
+
+      const responseText = await response.text()
+      let parsedResponse: unknown = responseText
+      try {
+        parsedResponse = JSON.parse(responseText)
+      } catch {
+        // keep raw text
+      }
+      logGaService("Response", {
+        status: response.status,
+        body: typeof parsedResponse === "string" ? parsedResponse : JSON.stringify(parsedResponse, null, 2)
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`GA service error (${response.status}): ${errorText}`)
+        throw new Error(`GA service error (${response.status}): ${responseText}`)
       }
 
-      const result = await response.json()
+      const result = JSON.parse(responseText)
 
       // Transform results back to assignments
       return transformFromCPSATFormat(result, topics, preferences, studentIds)
@@ -211,7 +233,7 @@ function transformToCPSATFormat(data: {
       sizeOverrides.set(entry.topicId, entry.size)
     }
   }
-  type CriterionConfig = { type: string; min_ratio?: number; target?: number }
+  type CriterionConfig = { type: string; min_ratio?: number }
   const groups = topics.map((topic, index) => ({
     id: index,
     size: sizeOverrides.get(topic._id) ?? (baseSize + (remainder-- > 0 ? 1 : 0)),
@@ -233,7 +255,7 @@ function transformToCPSATFormat(data: {
       const category = categoryMap.get(categoryId)
       if (!category) continue
 
-      const criterionConfig: CriterionConfig = { type: "minimize", target: 0 }
+      const criterionConfig: CriterionConfig = { type: "minimize" }
 
       // Apply minimize criteria to all groups
       for (const group of groups) {
@@ -287,10 +309,21 @@ function transformToCPSATFormat(data: {
       }
     }
 
+    const rankings = pref && possibleGroups.length > 0
+      ? Object.fromEntries(
+          possibleGroups.map((groupId, i) => {
+            const denom = Math.max(possibleGroups.length - 1, 1)
+            const score = possibleGroups.length === 1 ? 1 : 1 - (i / denom)
+            return [groupId, score]
+          })
+        )
+      : undefined
+
     return {
       id: index,
       possible_groups: possibleGroups.length > 0 ? possibleGroups : topics.map((_, i) => i),
-      values: studentValues
+      values: studentValues,
+      ...(rankings ? { rankings } : {})
     }
   })
 

@@ -64,7 +64,6 @@ async function seedLeadershipPython(ctx: any) {
     createdAt: now,
     criterionType: "minimize" as const,
     minRatio: undefined,
-    target: undefined,
   })
 
   // 2. Printer Access (minimize)
@@ -75,7 +74,6 @@ async function seedLeadershipPython(ctx: any) {
     createdAt: now,
     criterionType: "minimize" as const,
     minRatio: undefined,
-    target: undefined,
   })
 
   // 3. Calculus (prerequisite) - for 2 topics
@@ -86,7 +84,6 @@ async function seedLeadershipPython(ctx: any) {
     createdAt: now,
     criterionType: "prerequisite" as const,
     minRatio: 0.7, // At least 70% must have passed
-    target: undefined,
   })
 
   // 4. Python Skills (pull) - for 2 groups
@@ -97,7 +94,6 @@ async function seedLeadershipPython(ctx: any) {
     createdAt: now,
     criterionType: "pull" as const,
     minRatio: undefined,
-    target: undefined,
   })
 
   // Create 4 questions about leadership (0-6 scale)
@@ -324,7 +320,6 @@ async function seedITSkills(ctx: any) {
     createdAt: now,
     criterionType: "minimize" as const,
     minRatio: undefined,
-    target: undefined,
   })
 
   // Create 2 questions about IT skills (0-6 scale)
@@ -501,25 +496,21 @@ export const seedTestData = mutation({
         name: "Technical Skills",
         description: "Programming and technical abilities",
         criterionType: "minimize" as const, // Balance evenly - no group gets all the best coders
-        target: undefined // Use overall average
       },
       {
         name: "Soft Skills",
         description: "Communication and teamwork abilities",
         criterionType: "pull" as const, // Maximize - put students with good teamwork together
-        target: undefined
       },
       {
         name: "Academic Background",
         description: "Prior coursework and knowledge",
         criterionType: "minimize" as const, // Balance evenly - mix of experience levels
-        target: undefined
       },
       {
         name: "Interests",
         description: "Personal interests and motivation",
         criterionType: "pull" as const, // Maximize - group students with similar interests
-        target: undefined
       },
       {
         name: "Availability",
@@ -538,7 +529,6 @@ export const seedTestData = mutation({
           createdAt: now,
           criterionType: cat.criterionType,
           minRatio: cat.minRatio,
-          target: cat.target,
         })
       )
     )

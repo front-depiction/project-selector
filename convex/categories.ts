@@ -32,7 +32,6 @@ export const createCategory = mutation({
       v.literal("pull")
     )),
     minRatio: v.optional(v.number()),
-    target: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check if category with same name already exists for this semester
@@ -46,14 +45,12 @@ export const createCategory = mutation({
       throw new Error(`Category "${args.name}" already exists for this semester`)
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio and target
+    // Convert percentage to ratio (0.0-1.0) for minRatio
     const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
-    const target = args.target !== undefined ? args.target / 100 : undefined
 
     return await ctx.db.insert("categories", Category.make({
       ...args,
       minRatio,
-      target,
     }))
   },
 })
@@ -72,7 +69,6 @@ export const updateCategory = mutation({
       v.literal("pull")
     )),
     minRatio: v.optional(v.number()),
-    target: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args
@@ -96,13 +92,10 @@ export const updateCategory = mutation({
       }
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio and target
+    // Convert percentage to ratio (0.0-1.0) for minRatio
     const patchData: any = { ...updates }
     if (updates.minRatio !== undefined) {
       patchData.minRatio = updates.minRatio / 100
-    }
-    if (updates.target !== undefined) {
-      patchData.target = updates.target / 100
     }
     // If criterionType is being cleared, set to undefined
     if (updates.criterionType === null || updates.criterionType === undefined) {
@@ -110,7 +103,6 @@ export const updateCategory = mutation({
       // Also clear related fields if criterion type is removed
       if (updates.criterionType === null) {
         patchData.minRatio = undefined
-        patchData.target = undefined
       }
     }
 
