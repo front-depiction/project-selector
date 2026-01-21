@@ -15,7 +15,6 @@ import {
 import { Edit, MoreVertical, Trash2 as Trash, Plus } from "lucide-react"
 import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
-import TemplateForm from "@/components/forms/template-form"
 import CategoryForm from "@/components/forms/category-form"
 import * as Option from "effect/Option"
 
@@ -24,31 +23,42 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
 
   return (
     <div className="space-y-8">
-      {/* Templates Section */}
+      {/* Balanced Distribution Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Templates</CardTitle>
-          <Button size="sm" onClick={vm.templateDialog.open}>
-            <Plus className="h-4 w-4 mr-2" />Add Template
+          <div>
+            <CardTitle>Balanced Distribution</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              These criteria are applied to the entire project assignment and all topics to ensure even distribution across groups.
+            </p>
+          </div>
+          <Button size="sm" onClick={vm.openMinimizeCategoryDialog}>
+            <Plus className="h-4 w-4 mr-2" />Add Category
           </Button>
         </CardHeader>
         <CardContent>
-          {vm.templates$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No templates yet. Add one to get started.</p>
+          {vm.minimizeCategories$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No balanced distribution criteria yet. Add one to get started.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Criterion</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vm.templates$.value.map((t) => (
-                  <TableRow key={t.key}>
-                    <TableCell className="font-medium">{t.title}</TableCell>
-                    <TableCell>{t.description}</TableCell>
+                {vm.minimizeCategories$.value.map((c) => (
+                  <TableRow key={c.key}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.criterionBadgeVariant}>
+                        {c.criterionDisplay}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -57,14 +67,14 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={t.edit}>
+                          <DropdownMenuItem onClick={c.edit}>
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600"
-                            onClick={t.remove}
+                            onClick={c.remove}
                           >
                             <Trash className="mr-2 h-4 w-4" />
                             Delete
@@ -80,31 +90,42 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
         </CardContent>
       </Card>
 
-      {/* Categories Section */}
+      {/* Constraints Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Categories</CardTitle>
-          <Button size="sm" onClick={vm.categoryDialog.open}>
+          <div>
+            <CardTitle>Topic-Specific Criteria</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Prerequisites and maximization criteria that can be assigned to specific topics.
+            </p>
+          </div>
+          <Button size="sm" onClick={vm.openConstraintCategoryDialog}>
             <Plus className="h-4 w-4 mr-2" />Add Category
           </Button>
         </CardHeader>
         <CardContent>
-          {vm.categories$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No categories yet. Add one to get started.</p>
+          {vm.constraintCategories$.value.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Criterion</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vm.categories$.value.map((c) => (
+                {vm.constraintCategories$.value.map((c) => (
                   <TableRow key={c.key}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>{c.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.criterionBadgeVariant}>
+                        {c.criterionDisplay}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -203,28 +224,8 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
       </Card>
 
       {/* Dialogs */}
-      <Dialog open={vm.templateDialog.isOpen$.value} onOpenChange={(open) => !open && vm.templateDialog.close()}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {Option.isSome(vm.editingTemplate$.value) ? "Edit Template" : "Create Template"}
-            </DialogTitle>
-          </DialogHeader>
-          <TemplateForm
-            questions={vm.availableQuestions$.value}
-            onSubmit={vm.onTemplateSubmit}
-            initialValues={Option.getOrUndefined(Option.map(vm.editingTemplate$.value, t => ({
-              title: t.title,
-              description: t.description || "",
-              semester_id: "default",
-              questionIds: t.questions?.map(q => q._id) || []
-            })))}
-          />
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
@@ -232,10 +233,14 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
           </DialogHeader>
           <CategoryForm
             onSubmit={vm.onCategorySubmit}
+            mode={vm.categoryDialogMode$.value}
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              semester_id: "default"
+              semester_id: "default",
+              criterionType: c.criterionType ?? undefined,
+              minRatio: c.minRatio !== undefined ? Math.round(c.minRatio * 100) : undefined,
+              target: c.target !== undefined ? Math.round(c.target * 100) : undefined,
             })))}
           />
         </DialogContent>
@@ -254,7 +259,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
               question: q.question,
               kind: q.kind,
-              category: q.category || "",
+              category: q.category,
               semester_id: "default"
             })))}
           />

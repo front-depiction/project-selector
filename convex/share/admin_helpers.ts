@@ -63,14 +63,18 @@ export async function createTestSelectionPeriod(
   ctx: MutationCtx,
   semesterId: string,
   now: number,
-  closeDate: number
+  closeDate: number,
+  options?: {
+    rankingsEnabled?: boolean
+  }
 ) {
   const inactivePeriod = SelectionPeriod.makeInactive({
     semesterId,
     openDate: now,
     closeDate,
     title: "Test Period",
-    description: "This is an auto generated test period"
+    description: "This is an auto generated test period",
+    rankingsEnabled: options?.rankingsEnabled,
   })
   const periodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
 

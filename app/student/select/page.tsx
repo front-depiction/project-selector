@@ -54,14 +54,16 @@ function useStudentSelectionPageVM() {
     api.selectionQuestions.getQuestionsForPeriod,
     currentPeriod?._id ? { selectionPeriodId: currentPeriod._id } : "skip"
   )
-  const hasCompletedQuestionnaire = useQuery(
-    api.studentAnswers.hasCompletedQuestionnaire,
+  const existingAnswers = useQuery(
+    api.studentAnswers.getAnswers,
     currentPeriod?._id && initialStudentId
       ? { studentId: initialStudentId, selectionPeriodId: currentPeriod._id }
       : "skip"
   )
-  const existingAnswers = useQuery(
-    api.studentAnswers.getAnswers,
+  
+  // Query for edit form (questions with existing answers)
+  const questionsWithAnswers = useQuery(
+    api.studentAnswers.getQuestionsWithAnswersForStudent,
     currentPeriod?._id && initialStudentId
       ? { studentId: initialStudentId, selectionPeriodId: currentPeriod._id }
       : "skip"
@@ -72,16 +74,19 @@ function useStudentSelectionPageVM() {
   const preferences$ = React.useMemo(() => signal(preferences), [])
   const currentPeriod$ = React.useMemo(() => signal(currentPeriod), [])
   const periodQuestions$ = React.useMemo(() => signal(periodQuestions), [])
-  const hasCompletedQuestionnaire$ = React.useMemo(() => signal(hasCompletedQuestionnaire), [])
   const existingAnswers$ = React.useMemo(() => signal(existingAnswers), [])
+  const questionnaireOpen$ = React.useMemo(() => signal(true), [])
 
   // Sync signals with query data
   React.useEffect(() => { topics$.value = topics }, [topics, topics$])
   React.useEffect(() => { preferences$.value = preferences }, [preferences, preferences$])
   React.useEffect(() => { currentPeriod$.value = currentPeriod }, [currentPeriod, currentPeriod$])
   React.useEffect(() => { periodQuestions$.value = periodQuestions }, [periodQuestions, periodQuestions$])
-  React.useEffect(() => { hasCompletedQuestionnaire$.value = hasCompletedQuestionnaire }, [hasCompletedQuestionnaire, hasCompletedQuestionnaire$])
   React.useEffect(() => { existingAnswers$.value = existingAnswers }, [existingAnswers, existingAnswers$])
+
+  React.useEffect(() => {
+    questionnaireOpen$.value = true
+  }, [currentPeriod?._id, questionnaireOpen$])
 
   // Mutation with optimistic update
   const savePreferencesMutation = useMutation(api.preferences.savePreferences).withOptimisticUpdate(
@@ -140,19 +145,15 @@ function useStudentSelectionPageVM() {
     }
   )
 
-  // Track questionnaire completion for optimistic UI
-  const questionnaireCompleted$ = React.useMemo(() => signal(false), [])
-
-  // Check if this is an experiment period
-  const isExperimentPeriod = React.useMemo(() => {
-    return currentPeriod?.description?.includes("EXCLUSIONS:") ?? false
-  }, [currentPeriod])
-
   // Wrap mutation to match expected signature (fire and forget - no await needed)
   const saveAnswers = React.useCallback((args: Parameters<typeof saveAnswersMutation>[0]) => {
     saveAnswersMutation(args).catch(err => console.error("Failed to save answer:", err))
     return Promise.resolve()
   }, [saveAnswersMutation])
+
+  const setQuestionnaireOpen = React.useCallback((open: boolean) => {
+    questionnaireOpen$.value = open
+  }, [questionnaireOpen$])
 
   // Create questionnaire VM - computed so it updates when period changes
   const questionnaireVM$ = React.useMemo(() => {
@@ -167,7 +168,7 @@ function useStudentSelectionPageVM() {
         existingAnswers$: existingAnswers$,
         saveAnswers,
         onComplete: () => {
-          questionnaireCompleted$.value = true
+          setQuestionnaireOpen(false)
           
           // For experiment periods, redirect to home with success notification
           if (period.description?.includes("EXCLUSIONS:")) {
@@ -182,7 +183,7 @@ function useStudentSelectionPageVM() {
         }
       })
     })
-  }, [periodQuestions$, existingAnswers$, saveAnswers, initialStudentId, currentPeriod$, questionnaireCompleted$, router])
+  }, [periodQuestions$, existingAnswers$, saveAnswers, initialStudentId, currentPeriod$, setQuestionnaireOpen, router])
 
   // Create VM once
   const vm = React.useMemo(
@@ -191,12 +192,14 @@ function useStudentSelectionPageVM() {
       preferences$,
       currentPeriod$,
       periodQuestions$,
-      hasCompletedQuestionnaire$,
+      existingAnswers$,
+      questionnaireOpen$,
+      setQuestionnaireOpen,
       savePreferences: savePreferencesMutation,
       initialStudentId,
       questionnaireVM$
     }),
-    [topics$, preferences$, currentPeriod$, periodQuestions$, hasCompletedQuestionnaire$, savePreferencesMutation, initialStudentId, questionnaireVM$]
+    [topics$, preferences$, currentPeriod$, periodQuestions$, existingAnswers$, questionnaireOpen$, setQuestionnaireOpen, savePreferencesMutation, initialStudentId, questionnaireVM$]
   )
 
   // Redirect if no student ID
@@ -217,18 +220,48 @@ function useStudentSelectionPageVM() {
   React.useEffect(() => {
     if (currentPeriod && 
         currentPeriod.description?.includes("EXCLUSIONS:") && 
-        hasCompletedQuestionnaire === true) {
+        existingAnswers && existingAnswers.length > 0) {
       router.push("/")
     }
-  }, [currentPeriod, hasCompletedQuestionnaire, router])
+  }, [currentPeriod, existingAnswers, router])
 
-  return vm
+  // State for edit form submission
+  const [isSubmittingAnswers, setIsSubmittingAnswers] = React.useState(false)
+  
+  // Handler for edit form submission
+  const handleSaveAnswers = React.useCallback(async (
+    answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>
+  ) => {
+    if (!currentPeriod?._id || !initialStudentId) return
+    
+    setIsSubmittingAnswers(true)
+    try {
+      await saveAnswersMutation({
+        studentId: initialStudentId,
+        selectionPeriodId: currentPeriod._id,
+        answers
+      })
+    } catch (error) {
+      console.error("Failed to save answers:", error)
+    } finally {
+      setIsSubmittingAnswers(false)
+    }
+  }, [currentPeriod?._id, initialStudentId, saveAnswersMutation])
+
+  return { vm, questionsWithAnswers, handleSaveAnswers, isSubmittingAnswers }
 }
 
 /**
  * Student Selection Page Route
  */
 export default function SelectTopics() {
-  const vm = useStudentSelectionPageVM()
-  return <StudentSelectionPage vm={vm} />
+  const { vm, questionsWithAnswers, handleSaveAnswers, isSubmittingAnswers } = useStudentSelectionPageVM()
+  return (
+    <StudentSelectionPage 
+      vm={vm} 
+      questionsWithAnswers={questionsWithAnswers}
+      onSaveAnswers={handleSaveAnswers}
+      isSubmittingAnswers={isSubmittingAnswers}
+    />
+  )
 }

@@ -8,6 +8,9 @@ import type { Id } from "./_generated/dataModel"
  * Creates a new selection period.
  * Multiple periods can exist, but only one can be active at a time.
  * 
+ * When topicIds are provided, those topics will have their semesterId updated
+ * to match the period's semesterId, properly linking them to this period.
+ * 
  * @category Mutations
  * @since 0.1.0
  */
@@ -18,11 +21,24 @@ export const createPeriod = mutation({
     semesterId: v.string(),
     openDate: v.number(),
     closeDate: v.number(),
+    minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
+    rankingsEnabled: v.optional(v.boolean()),
+    topicIds: v.optional(v.array(v.id("topics"))),
   },
   handler: async (ctx, args) => {
     // Validate dates
     if (args.openDate >= args.closeDate) {
       throw new Error("Open date must be before close date")
+    }
+
+    // Update selected topics' semesterId to link them to this period
+    if (args.topicIds && args.topicIds.length > 0) {
+      for (const topicId of args.topicIds) {
+        const topic = await ctx.db.get(topicId)
+        if (topic) {
+          await ctx.db.patch(topicId, { semesterId: args.semesterId })
+        }
+      }
     }
 
     const now = Date.now()
@@ -34,7 +50,9 @@ export const createPeriod = mutation({
         title: args.title,
         description: args.description,
         openDate: args.openDate,
-        closeDate: args.closeDate
+        closeDate: args.closeDate,
+        minimizeCategoryIds: args.minimizeCategoryIds,
+        rankingsEnabled: args.rankingsEnabled,
       }))
       return { success: true, periodId }
     }
@@ -47,7 +65,9 @@ export const createPeriod = mutation({
         title: args.title,
         description: args.description,
         openDate: args.openDate,
-        closeDate: args.closeDate
+        closeDate: args.closeDate,
+        minimizeCategoryIds: args.minimizeCategoryIds,
+        rankingsEnabled: args.rankingsEnabled,
       }))
 
       // 2. Schedule closing
@@ -64,7 +84,9 @@ export const createPeriod = mutation({
         description: args.description,
         openDate: args.openDate,
         closeDate: args.closeDate,
-        scheduledFunctionId: closeScheduleId
+        scheduledFunctionId: closeScheduleId,
+        minimizeCategoryIds: args.minimizeCategoryIds,
+        rankingsEnabled: args.rankingsEnabled,
       }))
 
       return { success: true, periodId }
@@ -76,7 +98,9 @@ export const createPeriod = mutation({
       title: args.title,
       description: args.description,
       openDate: args.openDate,
-      closeDate: args.closeDate
+      closeDate: args.closeDate,
+      minimizeCategoryIds: args.minimizeCategoryIds,
+      rankingsEnabled: args.rankingsEnabled,
     }))
 
     // Schedule open
@@ -93,7 +117,9 @@ export const createPeriod = mutation({
       description: args.description,
       openDate: args.openDate,
       closeDate: args.closeDate,
-      scheduledOpenFunctionId: openScheduleId
+      scheduledOpenFunctionId: openScheduleId,
+      minimizeCategoryIds: args.minimizeCategoryIds,
+      rankingsEnabled: args.rankingsEnabled,
     }))
 
     return { success: true, periodId }
@@ -112,7 +138,9 @@ export const updatePeriod = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     openDate: v.optional(v.number()),
-    closeDate: v.optional(v.number())
+    closeDate: v.optional(v.number()),
+    minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
+    rankingsEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.periodId)
@@ -130,6 +158,8 @@ export const updatePeriod = mutation({
     const description = args.description ?? existing.description
     const openDate = args.openDate ?? existing.openDate
     const closeDate = args.closeDate ?? existing.closeDate
+    const minimizeCategoryIds = args.minimizeCategoryIds ?? existing.minimizeCategoryIds
+    const rankingsEnabled = args.rankingsEnabled ?? existing.rankingsEnabled
 
     if (openDate >= closeDate) {
       throw new Error("Open date must be before close date")
@@ -153,7 +183,9 @@ export const updatePeriod = mutation({
         title,
         description,
         openDate,
-        closeDate
+        closeDate,
+        minimizeCategoryIds,
+        rankingsEnabled,
       }))
     }
     // State: OPEN
@@ -169,7 +201,9 @@ export const updatePeriod = mutation({
         description,
         openDate,
         closeDate,
-        scheduledFunctionId: closeScheduleId
+        scheduledFunctionId: closeScheduleId,
+        minimizeCategoryIds,
+        rankingsEnabled,
       }))
     }
     // State: INACTIVE (Future)
@@ -185,7 +219,9 @@ export const updatePeriod = mutation({
         description,
         openDate,
         closeDate,
-        scheduledOpenFunctionId: openScheduleId
+        scheduledOpenFunctionId: openScheduleId,
+        minimizeCategoryIds,
+        rankingsEnabled,
       }))
     }
 
@@ -209,21 +245,6 @@ export const deletePeriod = mutation({
       throw new Error("Period not found")
     }
 
-    // Don't allow deleting if already assigned
-    if (SelectionPeriod.isAssigned(period)) {
-      throw new Error("Cannot delete a period that has already been assigned")
-    }
-
-    // Check if there are any preferences for this period's semester
-    const preferences = await ctx.db
-      .query("preferences")
-      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
-      .first()
-
-    if (preferences) {
-      throw new Error("Cannot delete period with existing student selections")
-    }
-
     // Cancel scheduled function if exists
     if (SelectionPeriod.hasScheduledFunction(period)) {
       await ctx.scheduler.cancel(period.scheduledFunctionId)
@@ -231,6 +252,64 @@ export const deletePeriod = mutation({
       await ctx.scheduler.cancel(period.scheduledOpenFunctionId)
     }
 
+    // Cascade delete all related data
+
+    // 1. Delete assignments for this period
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_period", q => q.eq("periodId", args.periodId))
+      .collect()
+    for (const assignment of assignments) {
+      await ctx.db.delete(assignment._id)
+    }
+
+    // 2. Delete student answers for this period
+    // Note: by_student_period index requires both studentId and selectionPeriodId,
+    // so we query all and filter by period
+    const allStudentAnswers = await ctx.db.query("studentAnswers").collect()
+    const studentAnswers = allStudentAnswers.filter(a => a.selectionPeriodId === args.periodId)
+    for (const answer of studentAnswers) {
+      await ctx.db.delete(answer._id)
+    }
+
+    // 3. Delete period student allow list entries
+    const allowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+    for (const entry of allowListEntries) {
+      await ctx.db.delete(entry._id)
+    }
+
+    // 4. Delete selection questions for this period
+    const selectionQuestions = await ctx.db
+      .query("selectionQuestions")
+      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.periodId))
+      .collect()
+    for (const question of selectionQuestions) {
+      await ctx.db.delete(question._id)
+    }
+
+    // 5. Delete preferences for this period's semester
+    // Note: We delete by semesterId since preferences are linked to semester
+    const preferences = await ctx.db
+      .query("preferences")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+    for (const preference of preferences) {
+      await ctx.db.delete(preference._id)
+    }
+
+    // 6. Delete ranking events for this period's semester
+    const rankingEvents = await ctx.db
+      .query("rankingEvents")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+    for (const event of rankingEvents) {
+      await ctx.db.delete(event._id)
+    }
+
+    // Finally, delete the period itself
     await ctx.db.delete(args.periodId)
     return { success: true }
   }

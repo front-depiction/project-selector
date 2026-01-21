@@ -1,3 +1,5 @@
+"use node"
+
 import { internalAction } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
@@ -13,9 +15,14 @@ import type { Doc } from "./_generated/dataModel"
 const GA_SERVICE_URL =
   process.env.GA_SERVICE_URL ||
   process.env.CP_SAT_SERVICE_URL ||
-  "https://ga-production-2d99.up.railway.app"
+  "https://assignment-cpsat-production.up.railway.app"
 
 type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?: number }>
+type SolverSettings = {
+  rankingPercentage?: number
+  maxTimeInSeconds?: number
+  groupSizes?: Array<{ topicId: Id<"topics">; size: number }>
+}
 
 /**
  * Solves assignment using CP-SAT algorithm.
@@ -26,6 +33,14 @@ type AssignmentResult = Array<{ studentId: string; topicId: Id<"topics">; rank?:
 export const solveAssignment = internalAction({
   args: {
     periodId: v.id("selectionPeriods"),
+    settings: v.optional(v.object({
+      rankingPercentage: v.optional(v.number()),
+      maxTimeInSeconds: v.optional(v.number()),
+      groupSizes: v.optional(v.array(v.object({
+        topicId: v.id("topics"),
+        size: v.number()
+      })))
+    }))
   },
   handler: async (ctx, args): Promise<AssignmentResult> => {
     // Fetch all data needed for the solver
@@ -34,7 +49,10 @@ export const solveAssignment = internalAction({
       throw new Error("Period not found")
     }
 
-    const preferences: Array<Doc<"preferences">> = await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
+    const rankingsEnabled = period.rankingsEnabled !== false
+    const preferences: Array<Doc<"preferences">> = rankingsEnabled
+      ? await ctx.runQuery(internal.assignments.getPreferencesForSolver, { periodId: args.periodId })
+      : []
     const topics: Array<Doc<"topics">> = await ctx.runQuery(internal.assignments.getTopicsForSolver, { periodId: args.periodId })
     const studentAnswers: Array<Doc<"studentAnswers">> = await ctx.runQuery(internal.assignments.getStudentAnswersForSolver, { periodId: args.periodId })
     const questions: Array<Doc<"questions"> | null> = await ctx.runQuery(internal.assignments.getQuestionsForSolver, { periodId: args.periodId })
@@ -48,7 +66,7 @@ export const solveAssignment = internalAction({
 
     // Get unique student IDs - either from preferences or from access list for experiments
     let studentIds: string[]
-    if (isExperiment) {
+    if (isExperiment || !rankingsEnabled) {
       // For experiment periods, get students from access list
       const accessList = await ctx.runQuery(internal.assignments.getAccessListForSolver, { periodId: args.periodId })
       studentIds = accessList.map((a: any) => a.studentId)
@@ -61,41 +79,48 @@ export const solveAssignment = internalAction({
       throw new Error("No students to assign")
     }
 
+    // Fetch categories for criterion types
+    const allCategories = await ctx.runQuery(internal.categories.getAllCategoriesForSolver, {
+      semesterId: period.semesterId
+    })
+
     // Transform to CP-SAT format
+    const solverSettings = rankingsEnabled
+      ? args.settings
+      : args.settings
+        ? { ...args.settings, rankingPercentage: undefined }
+        : undefined
+
     const cpSatInput = transformToCPSATFormat({
       period,
       preferences,
       topics,
       studentAnswers,
       questions,
-      studentIds
+      studentIds,
+      categories: allCategories,
+      settings: solverSettings
     })
 
     // Call GA service
     try {
+      const requestBody = JSON.stringify(cpSatInput)
       const response = await fetch(`${GA_SERVICE_URL}/solve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cpSatInput)
+        body: requestBody
       })
 
+      const responseText = await response.text()
+
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`GA service error (${response.status}): ${errorText}`)
+        throw new Error(`GA service error (${response.status}): ${responseText}`)
       }
 
-      const result = await response.json()
-      if (!result || !Array.isArray(result.assignments)) {
-        throw new Error("GA service returned invalid payload")
-      }
+      const result = JSON.parse(responseText)
 
       // Transform results back to assignments
-      return transformFromCPSATFormat(
-        { assignments: result.assignments },
-        topics,
-        preferences,
-        studentIds
-      )
+      return transformFromCPSATFormat(result, topics, preferences, studentIds)
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Failed to call GA service: ${error.message}`)
@@ -115,8 +140,10 @@ function transformToCPSATFormat(data: {
   studentAnswers: Array<Doc<"studentAnswers">>
   questions: Array<Doc<"questions"> | null>
   studentIds: string[]
+  categories: Array<Doc<"categories">>
+  settings?: SolverSettings
 }) {
-  const { preferences, topics, studentAnswers, questions, studentIds } = data
+  const { period, preferences, topics, studentAnswers, questions, studentIds, categories, settings } = data
 
   // Map student IDs to indices
   const studentIdMap = new Map<string, number>()
@@ -178,34 +205,71 @@ function transformToCPSATFormat(data: {
   }
 
   // Build groups (topics) with criteria
-  // Calculate target group size (even distribution)
-  const targetGroupSize = Math.ceil(studentIds.length / topics.length)
-  type CriterionConfig = { type: string; min_ratio?: number; target?: number }
+  // Calculate target group sizes (even distribution with remainder)
+  const numTopics = topics.length
+  const baseSize = numTopics > 0 ? Math.floor(studentIds.length / numTopics) : 0
+  let remainder = numTopics > 0 ? studentIds.length % numTopics : 0
+  const sizeOverrides = new Map<Id<"topics">, number>()
+  if (settings?.groupSizes) {
+    for (const entry of settings.groupSizes) {
+      sizeOverrides.set(entry.topicId, entry.size)
+    }
+  }
+  type CriterionConfig = { type: string; min_ratio?: number }
   const groups = topics.map((topic, index) => ({
     id: index,
-    size: targetGroupSize,
+    size: sizeOverrides.get(topic._id) ?? (baseSize + (remainder-- > 0 ? 1 : 0)),
     criteria: {} as Record<string, CriterionConfig[]>
   }))
 
-  // Add criteria based on question categories
-  // Collect all unique categories from questions
-  const categories = new Set<string>()
-  for (const question of questions) {
-    if (question && question.category) {
-      categories.add(question.category)
+  // Build category map by ID and name for lookup
+  const categoryMap = new Map<string, typeof categories[0]>()
+  const categoryByName = new Map<string, typeof categories[0]>()
+  for (const cat of categories) {
+    categoryMap.set(cat._id, cat)
+    categoryByName.set(cat.name, cat)
+  }
+
+  // 1. Apply balance distribution (minimize) categories from the selection period
+  // These are stored in period.minimizeCategoryIds and apply to ALL groups
+  if (period.minimizeCategoryIds && period.minimizeCategoryIds.length > 0) {
+    for (const categoryId of period.minimizeCategoryIds) {
+      const category = categoryMap.get(categoryId)
+      if (!category) continue
+
+      const criterionConfig: CriterionConfig = { type: "minimize" }
+
+      // Apply minimize criteria to all groups
+      for (const group of groups) {
+        group.criteria[category.name] = [criterionConfig]
+      }
     }
   }
 
-  // Add "minimize" criteria with target 0 for each category to spread qualities across groups
-  // This ensures students with similar qualities are distributed evenly
-  for (const category of categories) {
-    for (const group of groups) {
-      group.criteria[category] = [
-        {
-          type: "minimize",
-          target: 0
+  // 2. Apply topic-specific criteria (prerequisite and pull) from each topic
+  // These are stored in topic.constraintIds and only apply to that specific topic
+  for (let topicIndex = 0; topicIndex < topics.length; topicIndex++) {
+    const topic = topics[topicIndex]
+    if (!topic.constraintIds || topic.constraintIds.length === 0) continue
+
+    for (const categoryId of topic.constraintIds) {
+      const category = categoryMap.get(categoryId)
+      if (!category || !category.criterionType) continue
+
+      const group = groups[topicIndex]
+
+      if (category.criterionType === "prerequisite") {
+        const criterionConfig: CriterionConfig = {
+          type: "prerequisite",
+          min_ratio: category.minRatio ?? 0.5
         }
-      ]
+        group.criteria[category.name] = [criterionConfig]
+      } else if (category.criterionType === "pull") {
+        const criterionConfig: CriterionConfig = {
+          type: "pull"
+        }
+        group.criteria[category.name] = [criterionConfig]
+      }
     }
   }
 
@@ -227,10 +291,21 @@ function transformToCPSATFormat(data: {
       }
     }
 
+    const rankings = pref && possibleGroups.length > 0
+      ? Object.fromEntries(
+          possibleGroups.map((groupId, i) => {
+            const denom = Math.max(possibleGroups.length - 1, 1)
+            const score = possibleGroups.length === 1 ? 1 : 1 - (i / denom)
+            return [groupId, score]
+          })
+        )
+      : undefined
+
     return {
       id: index,
       possible_groups: possibleGroups.length > 0 ? possibleGroups : topics.map((_, i) => i),
-      values: studentValues
+      values: studentValues,
+      ...(rankings ? { rankings } : {})
     }
   })
 
@@ -272,12 +347,26 @@ function transformToCPSATFormat(data: {
     }
   }
 
+  const totalGroupSize = groups.reduce((sum, group) => sum + group.size, 0)
+  if (settings?.groupSizes && totalGroupSize !== studentIds.length) {
+    throw new Error(`Group sizes (${totalGroupSize}) must sum to ${studentIds.length}`)
+  }
+
+  const clampedRankingPercentage = settings?.rankingPercentage !== undefined
+    ? Math.min(Math.max(settings.rankingPercentage, 0), 99.99)
+    : undefined
+  const clampedMaxTimeInSeconds = settings?.maxTimeInSeconds !== undefined
+    ? Math.min(Math.max(settings.maxTimeInSeconds, 15), 540)
+    : undefined
+
   return {
     num_students: studentIds.length,
     num_groups: topics.length,
     exclude: exclusions,
     groups,
-    students
+    students,
+    ...(clampedRankingPercentage !== undefined ? { ranking_percentage: clampedRankingPercentage } : {}),
+    ...(clampedMaxTimeInSeconds !== undefined ? { max_time_in_seconds: clampedMaxTimeInSeconds } : {})
   }
 }
 

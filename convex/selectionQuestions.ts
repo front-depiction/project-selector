@@ -1,41 +1,83 @@
 import { v } from "convex/values"
 import { query, mutation } from "./_generated/server"
 import * as SelectionQuestion from "./schemas/SelectionQuestion"
+import type { Id } from "./_generated/dataModel"
 
+/**
+ * Gets questions for a selection period by deriving them from linked categories.
+ * 
+ * Questions are included if their category is linked to:
+ * 1. The period via `minimizeCategoryIds` (Balance Distribution - minimize criterion)
+ * 2. Any topic in the period's semester via `constraintIds` (Topic-Specific - prerequisite/pull criteria)
+ */
 export const getQuestionsForPeriod = query({
   args: { selectionPeriodId: v.id("selectionPeriods") },
   handler: async (ctx, args) => {
-    const selectionQuestions = await ctx.db
-      .query("selectionQuestions")
-      .withIndex("by_selection_period", q => q.eq("selectionPeriodId", args.selectionPeriodId))
+    // 1. Get the period
+    const period = await ctx.db.get(args.selectionPeriodId)
+    if (!period) return []
+
+    // 2. Get all topics for this semester
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
       .collect()
 
-    // Sort by order
-    selectionQuestions.sort((a, b) => a.order - b.order)
-
-    // Deduplicate questions to prevent incorrect counts
-    const uniqueQuestions: typeof selectionQuestions = []
-    const seenIds = new Set<string>()
-
-    for (const sq of selectionQuestions) {
-      if (!seenIds.has(sq.questionId)) {
-        seenIds.add(sq.questionId)
-        uniqueQuestions.push(sq)
+    // 3. Collect all category IDs from period and topics
+    const categoryIds = new Set<Id<"categories">>()
+    
+    // From period (balance distribution - minimize categories)
+    if (period.minimizeCategoryIds) {
+      period.minimizeCategoryIds.forEach(id => categoryIds.add(id))
+    }
+    
+    // From topics (topic-specific criteria - prerequisite and pull categories)
+    for (const topic of topics) {
+      if (topic.constraintIds) {
+        topic.constraintIds.forEach(id => categoryIds.add(id))
       }
     }
 
-    // Fetch full question data for each unique question
-    const questionsWithData = await Promise.all(
-      uniqueQuestions.map(async (sq) => {
-        const question = await ctx.db.get(sq.questionId)
-        return {
-          ...sq,
-          question
-        }
-      })
-    )
+    // If no categories are linked, return empty array
+    if (categoryIds.size === 0) return []
 
-    return questionsWithData
+    // 4. Get category names from those IDs
+    const categoryNames = new Set<string>()
+    for (const categoryId of categoryIds) {
+      const category = await ctx.db.get(categoryId)
+      if (category) {
+        categoryNames.add(category.name)
+      }
+    }
+
+    // If no valid category names found, return empty array
+    if (categoryNames.size === 0) return []
+
+    // 5. Get questions matching those category names (same semester)
+    const allQuestions = await ctx.db
+      .query("questions")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .collect()
+
+    const matchingQuestions = allQuestions.filter(q => categoryNames.has(q.category))
+
+    // Sort by category name for consistent ordering, then by createdAt
+    matchingQuestions.sort((a, b) => {
+      const catCompare = a.category.localeCompare(b.category)
+      if (catCompare !== 0) return catCompare
+      return a.createdAt - b.createdAt
+    })
+
+    // Return in expected format (matching the structure from selectionQuestions table)
+    return matchingQuestions.map((question, index) => ({
+      _id: `derived-${question._id}` as Id<"selectionQuestions">,
+      _creationTime: question.createdAt,
+      selectionPeriodId: args.selectionPeriodId,
+      questionId: question._id,
+      order: index,
+      sourceTemplateId: undefined,
+      question
+    }))
   }
 })
 

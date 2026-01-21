@@ -34,43 +34,59 @@ const formSchema = z.object({
     selection_period_id: z.string().min(1, "Selection period ID is required"),
     start_deadline: z.date(),
     end_deadline: z.date(),
-    questionIds: z.array(z.string()),
+    topicIds: z.array(z.string()).min(1, "Select at least one topic"),
+    minimizeCategoryIds: z.array(z.string()).optional(),
+    rankingsEnabled: z.boolean().default(true),
+}).refine((data) => data.end_deadline > data.start_deadline, {
+    message: "End date must be after start date",
+    path: ["end_deadline"],
 });
 
 export type SelectionPeriodFormValues = z.infer<typeof formSchema>
 
-export interface QuestionOption {
-    id: string
-    questionText: string
-    kindDisplay: string
-    kindVariant: "secondary" | "outline"
-}
-
-export interface TemplateOption {
+export interface TopicOption {
     id: string
     title: string
-    questionIds: string[]
+    description: string
+}
+
+export interface CategoryOption {
+    id: string
+    name: string
+    description?: string
 }
 
 export default function SelectionPeriodForm({
-    questions = [],
-    templates = [],
+    topics = [],
+    categories = [],
     initialValues,
     onSubmit,
 }: {
-    questions?: readonly QuestionOption[]
-    templates?: readonly TemplateOption[]
+    topics?: readonly TopicOption[]
+    categories?: readonly CategoryOption[]
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
+    // Calculate default end date (3 days after start date)
+    const getDefaultEndDate = (startDate: Date) => {
+        const endDate = new Date(startDate)
+        endDate.setDate(endDate.getDate() + 3)
+        return endDate
+    }
+
+    const defaultStartDate = initialValues?.start_deadline ?? new Date()
+    const defaultEndDate = initialValues?.end_deadline ?? getDefaultEndDate(defaultStartDate)
+
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             title: initialValues?.title ?? "",
             selection_period_id: initialValues?.selection_period_id ?? "",
-            start_deadline: initialValues?.start_deadline ?? new Date(),
-            end_deadline: initialValues?.end_deadline ?? new Date(),
-            questionIds: initialValues?.questionIds ?? [],
+            start_deadline: defaultStartDate,
+            end_deadline: defaultEndDate,
+            topicIds: initialValues?.topicIds ?? [],
+            minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
+            rankingsEnabled: initialValues?.rankingsEnabled ?? true,
         },
     })
 
@@ -83,50 +99,67 @@ export default function SelectionPeriodForm({
             selection_period_id: initialValues.selection_period_id,
             start_deadline: initialValues.start_deadline?.getTime(),
             end_deadline: initialValues.end_deadline?.getTime(),
-            questionIds: initialValues.questionIds,
-        })
-        console.log('[SelectionPeriodForm] initialValuesKey changed:', {
-            questionIds: initialValues.questionIds,
-            questionIdsLength: initialValues.questionIds?.length ?? 0
+            topicIds: initialValues.topicIds,
+            rankingsEnabled: initialValues.rankingsEnabled,
         })
         return key
     }, [initialValues])
 
     useEffect(() => {
-        console.log('[SelectionPeriodForm] useEffect triggered', {
-            hasInitialValues: !!initialValues,
-            questionIds: initialValues?.questionIds,
-            questionIdsLength: initialValues?.questionIds?.length ?? 0
-        })
         if (initialValues) {
+            const startDate = initialValues.start_deadline ?? new Date()
+            const endDate = initialValues.end_deadline ?? getDefaultEndDate(startDate)
+
             form.reset({
                 title: initialValues.title ?? "",
                 selection_period_id: initialValues.selection_period_id ?? "",
-                start_deadline: initialValues.start_deadline ?? new Date(),
-                end_deadline: initialValues.end_deadline ?? new Date(),
-                questionIds: initialValues.questionIds ?? [],
+                start_deadline: startDate,
+                end_deadline: endDate,
+                topicIds: initialValues.topicIds ?? [],
+                minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
+                rankingsEnabled: initialValues.rankingsEnabled ?? true,
             })
-            console.log('[SelectionPeriodForm] Form reset with questionIds:', initialValues.questionIds)
         }
     }, [initialValuesKey, form])
 
-    const questionIds = useWatch({ control: form.control, name: "questionIds" })
+    // Watch start_deadline and auto-update end_deadline if it becomes invalid
+    const startDeadline = useWatch({ control: form.control, name: "start_deadline" })
+    const endDeadline = useWatch({ control: form.control, name: "end_deadline" })
 
-    const toggleQuestion = (id: string) => {
-        const currentIds = form.getValues("questionIds")
-        const newIds = currentIds.includes(id)
-            ? currentIds.filter(qid => qid !== id)
-            : [...currentIds, id]
-        form.setValue("questionIds", newIds)
+    useEffect(() => {
+        if (startDeadline && endDeadline && endDeadline <= startDeadline) {
+            // Auto-update end_deadline to be 3 days after start_deadline if it's invalid
+            const newEndDate = getDefaultEndDate(startDeadline)
+            form.setValue("end_deadline", newEndDate, { shouldValidate: true })
+        }
+    }, [startDeadline, endDeadline, form])
+
+    const topicIds = useWatch({ control: form.control, name: "topicIds" })
+    const minimizeCategoryIds = useWatch({ control: form.control, name: "minimizeCategoryIds" })
+    const semesterId = useWatch({ control: form.control, name: "selection_period_id" })
+
+    // Filter topics by selected semester (if semesterId is provided)
+    const filteredTopics = useMemo(() => {
+        if (!semesterId) return topics
+        // Filter topics by semesterId - but topics don't have semesterId in TopicOption
+        // For now, show all topics since the VM will filter them when editing
+        return topics
+    }, [topics, semesterId])
+
+    const toggleTopic = (topicId: string) => {
+        const current = form.getValues("topicIds")
+        const next = current.includes(topicId)
+            ? current.filter((id: string) => id !== topicId)
+            : [...current, topicId]
+        form.setValue("topicIds", next)
     }
 
-    const importTemplate = (templateId: string) => {
-        const template = templates.find(t => t.id === templateId)
-        if (template) {
-            const currentIds = form.getValues("questionIds")
-            const newIds = [...new Set([...currentIds, ...template.questionIds])]
-            form.setValue("questionIds", newIds)
-        }
+    const toggleCategory = (categoryId: string) => {
+        const current = form.getValues("minimizeCategoryIds") ?? []
+        const next = current.includes(categoryId)
+            ? current.filter((id: string) => id !== categoryId)
+            : [...current, categoryId]
+        form.setValue("minimizeCategoryIds", next)
     }
 
     async function handleSubmit(values: z.infer<typeof formSchema>) {
@@ -230,72 +263,73 @@ export default function SelectionPeriodForm({
                     )}
                 />
 
+                <FormField
+                    control={form.control}
+                    name="rankingsEnabled"
+                    render={({ field }) => (
+                        <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                                <FormLabel className="text-base">Enable topic rankings</FormLabel>
+                                <FormDescription>
+                                    When disabled, students can view topics but cannot rank them.
+                                </FormDescription>
+                            </div>
+                            <FormControl>
+                                <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                />
+                            </FormControl>
+                        </FormItem>
+                    )}
+                />
 
-                {/* Questions Section */}
+
+                {/* Topics Section */}
                 <div className="space-y-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <Label className="text-base">Questions</Label>
+                            <Label className="text-base">Topics</Label>
                             <p className="text-sm text-muted-foreground">
-                                Select questions students will answer during this project assignment.
-                                {questionIds.length > 0 && (
-                                    <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
+                                Select topics available for this project assignment.
+                                {topicIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{topicIds.length} selected</Badge>
                                 )}
                             </p>
                         </div>
-                        {templates.length > 0 && (
-                            <Select
-                                value={
-                                    // Only show template as selected if ALL its questions are checked
-                                    templates.find(t =>
-                                        t.questionIds.length > 0 &&
-                                        t.questionIds.every(qId => questionIds.includes(qId))
-                                    )?.id ?? ""
-                                }
-                                onValueChange={importTemplate}
-                            >
-                                <SelectTrigger className="w-[200px]">
-                                    <FileDown className="h-4 w-4 mr-2" />
-                                    <SelectValue placeholder="Import from template" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {templates.map((t) => (
-                                        <SelectItem key={t.id} value={t.id}>
-                                            {t.title} ({t.questionIds.length})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
                     </div>
 
                     <div className="h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
-                        {questions.length === 0 ? (
+                        {filteredTopics.length === 0 ? (
                             <p className="text-sm text-muted-foreground py-8 text-center">
-                                No questions available. Create some in the Questionnaires tab first.
+                                {!semesterId 
+                                    ? "Enter a Semester ID first to see available topics."
+                                    : "No topics available for this semester. Create topics in the Topics tab first."}
                             </p>
                         ) : (
                             <div className="grid grid-cols-2 gap-3">
-                                {questions.map((q) => {
-                                    const isChecked = questionIds.includes(q.id)
+                                {filteredTopics.map((topic) => {
+                                    const isChecked = topicIds?.includes(topic.id)
                                     return (
                                         <label
-                                            key={q.id}
-                                            htmlFor={`sp-q-${q.id}`}
+                                            key={topic.id}
+                                            htmlFor={`sp-topic-${topic.id}`}
                                             className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
                                         >
                                             <Checkbox
-                                                id={`sp-q-${q.id}`}
+                                                id={`sp-topic-${topic.id}`}
                                                 checked={isChecked}
-                                                onCheckedChange={() => toggleQuestion(q.id)}
+                                                onCheckedChange={() => toggleTopic(topic.id)}
                                             />
                                             <div className="flex-1 space-y-1">
                                                 <p className="text-sm font-medium leading-none line-clamp-2">
-                                                    {q.questionText}
+                                                    {topic.title}
                                                 </p>
-                                                <Badge variant={q.kindVariant} className="text-xs">
-                                                    {q.kindDisplay}
-                                                </Badge>
+                                                {topic.description && (
+                                                    <p className="text-xs text-muted-foreground line-clamp-2">
+                                                        {topic.description}
+                                                    </p>
+                                                )}
                                             </div>
                                         </label>
                                     )
@@ -305,7 +339,59 @@ export default function SelectionPeriodForm({
                     </div>
                 </div>
 
-                <Button type="submit">Submit</Button>
+                {/* Balance Distribution Categories Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base">Balance Distribution (Optional)</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Select categories to balance evenly across all groups in this project assignment.
+                                {minimizeCategoryIds && minimizeCategoryIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{minimizeCategoryIds.length} selected</Badge>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
+                        {categories.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-8 text-center">
+                                No balance distribution categories available. Create categories with "Balance Evenly" criterion in the Questionnaires tab first.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {categories.map((category) => {
+                                    const isChecked = minimizeCategoryIds?.includes(category.id)
+                                    return (
+                                        <label
+                                            key={category.id}
+                                            htmlFor={`sp-category-${category.id}`}
+                                            className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                        >
+                                            <Checkbox
+                                                id={`sp-category-${category.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleCategory(category.id)}
+                                            />
+                                            <div className="flex-1 space-y-1">
+                                                <p className="text-sm font-medium leading-none">
+                                                    {category.name}
+                                                </p>
+                                                {category.description && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {category.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <Button type="submit">Apply</Button>
             </form>
         </Form>
     )

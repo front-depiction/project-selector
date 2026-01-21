@@ -10,6 +10,8 @@ import * as Option from "effect/Option"
 import {
   ArrowLeft,
   ChevronDown,
+  Users,
+  User,
 } from "lucide-react"
 import {
   Select,
@@ -36,9 +38,9 @@ import TopicForm from "@/components/forms/topic-form"
 import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
 import { StudentsView } from "./StudentsView"
-import { AnalyticsView } from "./AnalyticsView"
 import { SettingsView } from "./SettingsView"
 import { QuestionnairesView } from "./QuestionnairesView"
+import { HelpView } from "./HelpView"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -72,17 +74,19 @@ const OverviewView: React.FC = () => {
   const [selectedPeriodId, setSelectedPeriodId] = React.useState<Id<"selectionPeriods"> | null>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("overviewSelectedPeriodId")
-      if (saved) return saved as Id<"selectionPeriods">
+      if (saved && sortedPeriods.find(p => p._id === saved)) {
+        return saved as Id<"selectionPeriods">
+      }
     }
     return defaultPeriodId
   })
 
-  // Update selected period when default changes (e.g., new period created)
+  // Update selected period when default changes (e.g., new period created) or if current selection is invalid
   React.useEffect(() => {
-    if (defaultPeriodId && !selectedPeriodId) {
+    if (defaultPeriodId && (!selectedPeriodId || !sortedPeriods.find(p => p._id === selectedPeriodId))) {
       setSelectedPeriodId(defaultPeriodId)
     }
-  }, [defaultPeriodId, selectedPeriodId])
+  }, [defaultPeriodId, selectedPeriodId, sortedPeriods])
 
   // Save to localStorage when selection changes
   React.useEffect(() => {
@@ -114,10 +118,11 @@ const OverviewView: React.FC = () => {
 
     const assignments: AD.Assignment[] = []
     for (const [topicId, data] of Object.entries(selectedPeriodAssignmentsData)) {
-      const topicData = data as { topic?: { title: string }; students: Array<{ studentId: string; originalRank?: number }> }
+      const topicData = data as { topic?: { title: string }; students: Array<{ studentId: string; name?: string; originalRank?: number }> }
       for (const student of topicData.students) {
         assignments.push({
           studentId: student.studentId,
+          name: student.name, // Include name if available
           topicTitle: topicData.topic?.title ?? "Unknown Topic",
           preferenceRank: student.originalRank ?? 0,
           isMatched: student.originalRank !== undefined,
@@ -128,8 +133,62 @@ const OverviewView: React.FC = () => {
     return assignments
   }, [selectedPeriodAssignmentsData])
 
+  // Transform assignments data to topics with groups format
+  const topicsWithGroups = React.useMemo(() => {
+    if (!selectedPeriodAssignmentsData) {
+      return []
+    }
+
+    const topics: Array<{
+      topicId: string
+      title: string
+      students: Array<{ studentId: string; name?: string; originalRank?: number; studentIdDisplay: string }>
+    }> = []
+
+    // Debug: log the data structure
+    console.log("selectedPeriodAssignmentsData:", selectedPeriodAssignmentsData)
+
+    for (const [topicId, data] of Object.entries(selectedPeriodAssignmentsData)) {
+      const topicData = data as { 
+        topic?: { title: string }
+        students: Array<{ studentId: string; name?: string; originalRank?: number }>
+      }
+      
+      if (topicData.topic && topicData.students && topicData.students.length > 0) {
+        topics.push({
+          topicId,
+          title: topicData.topic.title,
+          students: topicData.students.map(student => ({
+            studentId: student.studentId,
+            name: student.name,
+            originalRank: student.originalRank,
+            studentIdDisplay: student.name 
+              ? `${student.name} (${student.studentId})` 
+              : student.studentId
+          }))
+        })
+      }
+    }
+
+    // Sort by title
+    return topics.sort((a, b) => a.title.localeCompare(b.title))
+  }, [selectedPeriodAssignmentsData])
+
   // Check if selected period is assigned
   const isSelectedPeriodAssigned = selectedPeriod && SelectionPeriod.isAssigned(selectedPeriod)
+
+  // Calculate match rate from actual assignments
+  const matchRate = React.useMemo(() => {
+    if (!selectedPeriodAssignments || selectedPeriodAssignments.length === 0) return 0
+    const matched = selectedPeriodAssignments.filter(a => a.isMatched).length
+    return (matched / selectedPeriodAssignments.length) * 100
+  }, [selectedPeriodAssignments])
+
+  const topChoiceRate = React.useMemo(() => {
+    if (!selectedPeriodAssignments || selectedPeriodAssignments.length === 0) return 0
+    const topChoice = selectedPeriodAssignments.filter(a => a.preferenceRank === 1).length
+    return (topChoice / selectedPeriodAssignments.length) * 100
+  }, [selectedPeriodAssignments])
 
   return (
     <div className="space-y-6">
@@ -192,7 +251,83 @@ const OverviewView: React.FC = () => {
       )}
 
       {/* Metrics Grid - Clean, no nesting */}
-      <AD.MetricsGrid stats={selectedPeriodStats as LandingStats | undefined} />
+      <AD.MetricsGrid
+        stats={selectedPeriodStats ? {
+          ...selectedPeriodStats,
+          matchRate,
+          topChoiceRate
+        } as any : undefined}
+      />
+
+      {/* Topics with Groups - Show for selected period */}
+      {selectedPeriodId && (
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>Topics & Groups</CardTitle>
+            <CardDescription>
+              Topic assignments with student groups for "{selectedPeriod?.title}"
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!selectedPeriodAssignmentsData ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                <p className="text-sm font-medium">No assignments yet</p>
+                <p className="text-xs mt-1">
+                  {selectedPeriod && SelectionPeriod.isOpen(selectedPeriod)
+                    ? "Assignments will appear after the period closes and assignments are made."
+                    : "This period doesn't have any student assignments yet."}
+                </p>
+              </div>
+            ) : topicsWithGroups.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                <p className="text-sm font-medium">No topic groups found</p>
+                <p className="text-xs mt-1">Assignments exist but no topics have students assigned yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {topicsWithGroups.map((topic) => (
+                  <Card key={topic.topicId} className="border">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{topic.title}</CardTitle>
+                        <Badge variant="secondary" className="text-xs">
+                          <Users className="w-3 h-3 mr-1" />
+                          {topic.students.length} {topic.students.length === 1 ? "student" : "students"}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {topic.students.map((student) => (
+                          <div
+                            key={student.studentId}
+                            className="flex items-center gap-2 text-sm py-2 px-3 rounded border bg-muted/30 border-border hover:bg-muted/50"
+                          >
+                            <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate flex-1">
+                              {student.studentIdDisplay}
+                            </span>
+                            {student.originalRank !== undefined && (
+                              <Badge
+                                variant={student.originalRank === 1 ? "default" : "outline"}
+                                className="text-xs h-5 flex-shrink-0"
+                              >
+                                Rank {student.originalRank}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Assignment Results when selected period is assigned */}
       {isSelectedPeriodAssigned && selectedPeriodAssignments && selectedPeriodAssignments.length > 0 && (
@@ -208,7 +343,7 @@ const OverviewView: React.FC = () => {
       )}
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Project Assignments</CardTitle>
@@ -216,16 +351,6 @@ const OverviewView: React.FC = () => {
           </CardHeader>
           <CardContent>
             <AD.PeriodsTable onEdit={(period) => vm.editPeriodDialog.open(period)} showActions={false} />
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-sm">
-          <CardHeader>
-            <CardTitle>Topics</CardTitle>
-            <CardDescription>Available topics for selection</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AD.TopicsTable onEdit={(topic) => vm.editTopicDialog.open(topic)} showActions={false} />
           </CardContent>
         </Card>
       </div>
@@ -246,9 +371,10 @@ const OverviewView: React.FC = () => {
                 selection_period_id: vm.editPeriodDialog.editingPeriod$.value.value.semesterId,
                 start_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.openDate),
                 end_deadline: new Date(vm.editPeriodDialog.editingPeriod$.value.value.closeDate),
-                questionIds: [...vm.existingQuestionIds$.value]
+                topicIds: [],
+                minimizeCategoryIds: []
               }}
-              onSubmit={vm.updatePeriodFromForm}
+              onSubmit={vm.updatePeriodFromForm as any}
             />
           )}
         </DialogContent>
@@ -265,13 +391,14 @@ const OverviewView: React.FC = () => {
           </DialogHeader>
           {Option.isSome(vm.editTopicDialog.editingTopic$.value) && (
             <TopicForm
-              periods={[...vm.periodOptions$.value]}
+              constraints={[...vm.constraintOptions$.value]}
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                selection_period_id: vm.editTopicDialog.editingTopic$.value.value.semesterId
+                constraintIds: [], // TODO: Get constraintIds from topic if stored
+                duplicateCount: 1
               }}
-              onSubmit={vm.updateTopicFromForm}
+              onSubmit={vm.updateTopicFromForm as any}
             />
           )}
         </DialogContent>
@@ -302,10 +429,10 @@ const MainContent: React.FC = () => {
       return <StudentsView vm={vm.studentsView} />
     case "questionnaires":
       return <QuestionnairesView vm={vm.questionnairesView} />
-    case "analytics":
-      return <AnalyticsView vm={vm.analyticsView} />
     case "settings":
       return <SettingsView vm={vm.settingsView} />
+    case "help":
+      return <HelpView />
     default:
       return <OverviewView />
   }

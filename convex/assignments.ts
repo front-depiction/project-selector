@@ -48,6 +48,54 @@ export const assignNow = mutation({
 })
 
 /**
+ * Returns assignment setup data for a period (topics + student count).
+ *
+ * @category Queries
+ * @since 0.3.0
+ */
+export const getAssignmentSetup = query({
+  args: { periodId: v.id("selectionPeriods") },
+  handler: async (ctx, args) => {
+    const period = await ctx.db.get(args.periodId)
+    if (!period) return null
+
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+      .filter(q => q.eq(q.field("isActive"), true))
+      .collect()
+
+    const isExperiment = period.description.includes("EXCLUSIONS:")
+    const rankingsEnabled = period.rankingsEnabled !== false
+
+    let studentCount = 0
+    if (isExperiment || !rankingsEnabled) {
+      const accessList = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period", q => q.eq("selectionPeriodId", args.periodId))
+        .collect()
+      studentCount = accessList.length
+    } else {
+      const preferences = await ctx.db
+        .query("preferences")
+        .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+        .collect()
+      const studentIds = new Set(preferences.map(p => p.studentId))
+      studentCount = studentIds.size
+    }
+
+    return {
+      topics: topics.map(topic => ({
+        _id: topic._id,
+        title: topic.title
+      })),
+      studentCount,
+      rankingsEnabled: period.rankingsEnabled ?? true,
+    }
+  }
+})
+
+/**
  * Internal function to perform the actual assignment.
  * 
  * @category Internal Functions
@@ -67,14 +115,83 @@ async function assignPeriodInternal(
     return period.assignmentBatchId // Already assigned
   }
 
+  // Check if all questionnaires are complete before assigning
+  const periodQuestions = await ctx.db
+    .query("selectionQuestions")
+    .withIndex("by_selection_period", q => q.eq("selectionPeriodId", periodId))
+    .collect()
+
+  const questionIds = new Set(periodQuestions.map(pq => pq.questionId))
+  const requiredCount = questionIds.size
+
+  // Only check questionnaire completion if there are questions
+  if (requiredCount > 0) {
+    const periodAllowListEntries = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_period", q => q.eq("selectionPeriodId", periodId))
+      .collect()
+
+    const studentIds = new Set<string>()
+    for (const entry of periodAllowListEntries) {
+      studentIds.add(entry.studentId)
+    }
+
+    if (studentIds.size > 0) {
+      // Get all answers for this period
+      const allAnswers = await ctx.db.query("studentAnswers")
+        .filter(q => q.eq(q.field("selectionPeriodId"), periodId))
+        .collect()
+
+      // Group answers by student
+      const studentAnswerCounts = new Map<string, Set<string>>()
+      for (const answer of allAnswers) {
+        if (!studentAnswerCounts.has(answer.studentId)) {
+          studentAnswerCounts.set(answer.studentId, new Set())
+        }
+        if (questionIds.has(answer.questionId)) {
+          studentAnswerCounts.get(answer.studentId)!.add(answer.questionId as string)
+        }
+      }
+
+      // Check if all students have completed
+      let allComplete = true
+      for (const studentId of studentIds) {
+        const answeredCount = studentAnswerCounts.get(studentId)?.size ?? 0
+        if (answeredCount < requiredCount) {
+          allComplete = false
+          break
+        }
+      }
+
+      // If questionnaires are incomplete, close period without assignment
+      // The UI will show "Questionnaires Incomplete" badge
+      if (!allComplete) {
+        console.log(`[assignPeriod] Questionnaires incomplete for period ${periodId}. Closing period without assignment.`)
+
+        await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
+          semesterId: period.semesterId,
+          title: period.title,
+          description: period.description,
+          openDate: period.openDate,
+          closeDate: period.closeDate
+        }))
+
+        return null
+      }
+    }
+  }
+
   // Check if this is an experiment period (doesn't require topic preferences)
   const isExperiment = period.description.includes("EXCLUSIONS:")
+  const rankingsEnabled = period.rankingsEnabled !== false
 
   // Get all preferences for this semester
-  const preferences = await ctx.db
-    .query("preferences")
-    .withIndex("by_semester", (q) => q.eq("semesterId", period.semesterId))
-    .collect()
+  const preferences = rankingsEnabled
+    ? await ctx.db
+      .query("preferences")
+      .withIndex("by_semester", (q) => q.eq("semesterId", period.semesterId))
+      .collect()
+    : []
 
   // Get all active topics for this semester
   const topics = await ctx.db
@@ -85,7 +202,7 @@ async function assignPeriodInternal(
 
   // For experiment periods, get students from access list instead of preferences
   let studentIds: string[]
-  if (isExperiment) {
+  if (isExperiment || !rankingsEnabled) {
     const accessList = await ctx.db
       .query("periodStudentAllowList")
       .withIndex("by_period", (q) => q.eq("selectionPeriodId", periodId))
@@ -209,14 +326,20 @@ export const getAssignments = query({
   handler: async (ctx, args) => {
     const period = await ctx.db.get(args.periodId)
 
-    if (!period || !SelectionPeriod.isAssigned(period)) {
+    if (!period) {
       return null
     }
 
+    // Check if there are any assignments for this period (regardless of status)
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_period", (q) => q.eq("periodId", args.periodId))
       .collect()
+
+    // If no assignments exist, return null
+    if (assignments.length === 0) {
+      return null
+    }
 
     // Group by topic with topic details
     const topics = await ctx.db.query("topics").collect()
@@ -231,7 +354,7 @@ export const getAssignments = query({
       .query("selectionQuestions")
       .withIndex("by_selection_period", (q) => q.eq("selectionPeriodId", args.periodId))
       .collect()
-    
+
     const questionIds = selectionQuestions.map(sq => sq.questionId)
     const questions = await Promise.all(
       questionIds.map(id => ctx.db.get(id))
@@ -240,7 +363,7 @@ export const getAssignments = query({
 
     // Build student quality map (category -> average)
     const studentQualityMap = new Map<string, Map<string, number>>()
-    
+
     for (const answer of periodAnswers) {
       const question = questionMap.get(answer.questionId)
       if (!question || !question.category) continue
@@ -251,7 +374,7 @@ export const getAssignments = query({
 
       const qualities = studentQualityMap.get(answer.studentId)!
       const category = question.category
-      
+
       if (!qualities.has(category)) {
         qualities.set(category, 0)
         qualities.set(`${category}_count`, 0)
@@ -259,7 +382,7 @@ export const getAssignments = query({
 
       const currentSum = qualities.get(category) || 0
       const currentCount = qualities.get(`${category}_count`) || 0
-      
+
       qualities.set(category, currentSum + answer.normalizedAnswer * 6) // Convert back to 0-6
       qualities.set(`${category}_count`, currentCount + 1)
     }
@@ -275,9 +398,9 @@ export const getAssignments = query({
       }
     }
 
-    const byTopic: Record<string, { 
-      topic: typeof topics[0] | undefined; 
-      students: Array<{ studentId: string; originalRank?: number; assignedAt: number }>;
+    const byTopic: Record<string, {
+      topic: typeof topics[0] | undefined;
+      students: Array<{ studentId: string; name?: string; originalRank?: number; assignedAt: number }>;
       qualityAverages: Record<string, number>;
     }> = {}
 
@@ -293,8 +416,18 @@ export const getAssignments = query({
         }
       }
 
+      // Get student name if available (must query by period and studentId)
+      const studentEntry = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period_studentId", (q) =>
+          q.eq("selectionPeriodId", args.periodId)
+            .eq("studentId", assignment.studentId)
+        )
+        .first()
+
       byTopic[topicId].students.push({
         studentId: assignment.studentId,
+        name: studentEntry?.name,
         originalRank: assignment.originalRank,
         assignedAt: assignment.assignedAt
       })
@@ -551,12 +684,12 @@ export const saveCPSATAssignments = internalMutation({
       SelectionPeriod.isClosed(period)
         ? period
         : SelectionPeriod.makeClosed({
-            semesterId: period.semesterId,
-            title: period.title,
-            description: period.description,
-            openDate: period.openDate,
-            closeDate: period.closeDate
-          })
+          semesterId: period.semesterId,
+          title: period.title,
+          description: period.description,
+          openDate: period.openDate,
+          closeDate: period.closeDate
+        })
     ))
 
     return batchId

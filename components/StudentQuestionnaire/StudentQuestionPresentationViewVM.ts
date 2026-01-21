@@ -139,8 +139,8 @@ export function createStudentQuestionPresentationVM(
       if (firstUnansweredIndex !== -1) {
         currentIndexSignal.value = firstUnansweredIndex
       } else if (allQuestions.length > 0) {
-        // All answered, go to last
-        currentIndexSignal.value = allQuestions.length - 1
+        // All answered - start at first question for editing
+        currentIndexSignal.value = 0
       }
     }
     initializedSignal.value = true

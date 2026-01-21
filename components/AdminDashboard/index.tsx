@@ -20,7 +20,6 @@ import {
   Calendar,
   FileText,
   Users,
-  BarChart3,
   Settings,
   Home,
   ArrowLeft,
@@ -67,6 +66,7 @@ export type { ViewType, PeriodFormData, TopicFormData, SelectionPeriodWithStats 
 
 export interface Assignment {
   readonly studentId: string
+  readonly name?: string // Optional name (GDPR: only if provided by teacher)
   readonly topicTitle: string
   readonly preferenceRank: number
   readonly isMatched: boolean
@@ -146,7 +146,7 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
     totalTopics: parseInt(stats.totalTopicsDisplay),
     activeTopics: parseInt(stats.activeTopicsDisplay),
     totalStudents: parseInt(stats.totalStudentsDisplay),
-    totalSelections: 0,
+    totalSelections: parseInt(stats.totalSelectionsDisplay),
     averageSelectionsPerStudent: parseFloat(stats.averageSelectionsDisplay),
     matchRate: parseFloat(stats.matchRateDisplay.replace('%', '')),
     topChoiceRate: parseFloat(stats.topChoiceRateDisplay.replace('%', '')),
@@ -238,7 +238,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 )
 
 export interface MetricsGridProps {
-  readonly stats?: LandingStats | null | undefined
+  readonly stats?: (LandingStats & { matchRate?: number; topChoiceRate?: number }) | null | undefined
 }
 
 export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) => {
@@ -253,8 +253,8 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) =>
       totalStudents: statsProp.totalStudents,
       totalSelections: statsProp.totalSelections,
       averageSelectionsPerStudent: statsProp.averageSelectionsPerStudent,
-      matchRate: 0, // Not in query result, would need assignments data
-      topChoiceRate: 0, // Not in query result
+      matchRate: statsProp.matchRate ?? 0, // Use provided matchRate from assignments
+      topChoiceRate: statsProp.topChoiceRate ?? 0, // Use provided topChoiceRate
       currentPeriodDisplay: statsProp.isActive ? (statsProp.title ?? "NONE") : "NONE",
       currentPeriodVariant: statsProp.isActive
         ? (statsProp.periodStatus === "open" ? "border-green-200 bg-green-50/50" : "border-purple-200 bg-purple-50/50")
@@ -290,7 +290,6 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({ stats: statsProp }) =>
         title="Match Rate"
         value={`${stats.matchRate.toFixed(0)}%`}
         icon={<Award className="h-4 w-4" />}
-        trend={{ value: 12, isPositive: true }}
       />
       <MetricCard
         title="Current Period"
@@ -348,9 +347,11 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assignments.map((assignment, idx) => (
+            {assignments.map((assignment, idx) => {
+              const displayName = assignment.name || assignment.studentId
+              return (
               <TableRow key={idx}>
-                <TableCell className="font-medium">{assignment.studentId}</TableCell>
+                <TableCell className="font-medium">{displayName}</TableCell>
                 <TableCell>{assignment.topicTitle}</TableCell>
                 <TableCell className="text-center">
                   {assignment.isMatched ? (
@@ -374,7 +375,8 @@ export const AssignmentTable: React.FC<AssignmentTableProps> = ({ assignments: a
                   </Badge>
                 </TableCell>
               </TableRow>
-            ))}
+              )
+            })}
           </TableBody>
         </Table>
       </div>
@@ -409,7 +411,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit, showActions = 
             <TableHead>Title</TableHead>
             <TableHead>Description</TableHead>
             <TableHead className="text-center">Status</TableHead>
-            <TableHead className="text-center">Selections</TableHead>
             {showActions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
@@ -423,7 +424,6 @@ export const TopicsTable: React.FC<TopicsTableProps> = ({ onEdit, showActions = 
                   {topic.isActive ? "Active" : "Inactive"}
                 </Badge>
               </TableCell>
-              <TableCell className="text-center">0</TableCell>
               {showActions && (
                 <TableCell className="text-right">
                   <DropdownMenu>
@@ -598,7 +598,6 @@ export const TabNavigation: React.FC = () => {
     { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
     { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
     { id: "questionnaires", label: "Questionnaires", icon: <FileText className="h-4 w-4" /> },
-    { id: "analytics", label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }
   ]
 

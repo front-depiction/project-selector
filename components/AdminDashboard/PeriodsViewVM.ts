@@ -1,6 +1,6 @@
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
-import type { SelectionPeriodFormValues, QuestionOption, TemplateOption } from "@/components/forms/selection-period-form"
+import type { SelectionPeriodFormValues, TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { SelectionPeriodWithStats, Assignment } from "./index"
 import { format } from "date-fns"
@@ -38,6 +38,8 @@ export interface PeriodRowVM {
   readonly openDateDisplay: string
   readonly closeDateDisplay: string
   readonly studentCountDisplay: string
+  readonly needsNames: boolean // Whether this period needs student names
+  readonly readyForAssignment: boolean // Whether all questionnaires are complete
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
@@ -48,6 +50,7 @@ export interface PeriodRowVM {
 export interface AssignmentRowVM {
   readonly key: string
   readonly studentId: string
+  readonly name?: string // Optional name (GDPR: only if provided by teacher)
   readonly topicTitle: string
   readonly preferenceRank: number
   readonly isMatched: boolean
@@ -80,14 +83,17 @@ export interface PeriodsViewVM {
   /** Edit dialog state with editing period */
   readonly editDialog: EditDialogVM
 
-  /** Available questions for form */
-  readonly questions$: ReadonlySignal<readonly QuestionOption[]>
+  /** Available topics for form */
+  readonly topics$: ReadonlySignal<readonly TopicOption[]>
 
-  /** Available templates for form */
-  readonly templates$: ReadonlySignal<readonly TemplateOption[]>
+  /** Topics already linked to editing period */
+  readonly existingTopicIds$: ReadonlySignal<readonly string[]>
 
-  /** Questions already linked to editing period */
-  readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
+  /** Balance distribution categories (minimize only) */
+  readonly categories$: ReadonlySignal<readonly CategoryOption[]>
+
+  /** Existing minimize category IDs for editing period */
+  readonly existingMinimizeCategoryIds$: ReadonlySignal<readonly string[]>
 
   /** ID and title of newly created period (for showing access codes) */
   readonly createdPeriod$: ReadonlySignal<Option.Option<{ id: Id<"selectionPeriods">; title: string }>>
@@ -121,14 +127,14 @@ export interface PeriodsViewVMDeps {
   /** Signal of assignments data from Convex */
   readonly assignmentsData$: ReadonlySignal<readonly Assignment[] | undefined>
 
-  /** Signal of questions data from Convex */
-  readonly questionsData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of topics data from Convex */
+  readonly topicsData$: ReadonlySignal<readonly any[] | undefined>
 
-  /** Signal of templates data from Convex */
-  readonly templatesData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of existing topics for editing period (filtered by semester) */
+  readonly existingTopicsData$: ReadonlySignal<readonly any[] | undefined>
 
-  /** Signal of existing questions for editing period */
-  readonly existingQuestionsData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of categories data from Convex */
+  readonly categoriesData$: ReadonlySignal<readonly any[] | undefined>
 
   /** Mutation to create a period */
   readonly createPeriod: (args: {
@@ -137,6 +143,9 @@ export interface PeriodsViewVMDeps {
     semesterId: string
     openDate: number
     closeDate: number
+    minimizeCategoryIds?: Id<"categories">[]
+    rankingsEnabled?: boolean
+    topicIds?: Id<"topics">[]
   }) => Promise<{ periodId: Id<"selectionPeriods"> }>
 
   /** Mutation to update a period */
@@ -146,6 +155,8 @@ export interface PeriodsViewVMDeps {
     description?: string
     openDate?: number
     closeDate?: number
+    minimizeCategoryIds?: Id<"categories">[]
+    rankingsEnabled?: boolean
   }) => Promise<any>
 
   /** Mutation to delete a period */
@@ -198,6 +209,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     return assignmentsData.map((assignment, idx): AssignmentRowVM => ({
       key: `${assignment.studentId}-${assignment.topicTitle}-${idx}`,
       studentId: assignment.studentId,
+      name: (assignment as any).name, // Include name if available
       topicTitle: assignment.topicTitle,
       preferenceRank: assignment.preferenceRank,
       isMatched: assignment.isMatched,
@@ -246,6 +258,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         openDateDisplay: format(period.openDate, "MMM d, yyyy"),
         closeDateDisplay: format(period.closeDate, "MMM d, yyyy"),
         studentCountDisplay: String(period.studentCount || 0),
+        needsNames: false, // Will be set by component-level query
+        readyForAssignment: false, // Will be set by component-level query
         onEdit: () => {
           batch(() => {
             editingPeriod$.value = Option.some(period)
@@ -261,37 +275,63 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     })
   })
 
-  // Computed: questions for form
-  const questions$ = computed((): readonly QuestionOption[] => {
-    const questionsData = deps.questionsData$.value
-    return (questionsData ?? []).map((q): QuestionOption => ({
-      id: q._id,
-      questionText: q.question,
-      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
-      kindVariant: q.kind === "boolean" ? "secondary" : "outline",
-    }))
-  })
-
-  // Computed: templates for form
-  const templates$ = computed((): readonly TemplateOption[] => {
-    const templatesData = deps.templatesData$.value
-    return (templatesData ?? []).map((t): TemplateOption => ({
+  // Computed: topics for form (filtered by editing period's semester if editing)
+  const topics$ = computed((): readonly TopicOption[] => {
+    const topicsData = deps.topicsData$.value ?? []
+    const editingPeriod = editingPeriod$.value
+    
+    // If editing, filter topics by the period's semester
+    if (Option.isSome(editingPeriod)) {
+      const semesterId = editingPeriod.value.semesterId
+      return topicsData
+        .filter((t: any) => t.semesterId === semesterId)
+        .map((t: any): TopicOption => ({
+          id: t._id,
+          title: t.title,
+          description: t.description,
+        }))
+    }
+    
+    // If creating, show all topics (will be filtered by selected semester in form)
+    return topicsData.map((t: any): TopicOption => ({
       id: t._id,
       title: t.title,
-      questionIds: t.questionIds,
+      description: t.description,
     }))
   })
 
-  // Computed: existing question IDs
-  const existingQuestionIds$ = computed((): readonly string[] => {
-    const existingQuestionsData = deps.existingQuestionsData$.value
-    const ids = (existingQuestionsData ?? []).map((sq) => sq.questionId)
-    console.log('[PeriodsViewVM] existingQuestionIds$ computed:', {
-      existingQuestionsData,
-      ids,
-      length: ids.length
-    })
-    return ids
+  // Computed: existing topic IDs for editing period (all topics in the semester)
+  const existingTopicIds$ = computed((): readonly string[] => {
+    const editingPeriod = editingPeriod$.value
+    if (Option.isNone(editingPeriod)) return []
+    
+    const semesterId = editingPeriod.value.semesterId
+    const topicsData = deps.topicsData$.value ?? []
+    // Return all topic IDs for this semester (since topics are linked to semesters)
+    return topicsData
+      .filter((t: any) => t.semesterId === semesterId)
+      .map((t: any) => t._id)
+  })
+
+  // Computed: balance distribution categories (minimize only) for form
+  const categories$ = computed((): readonly CategoryOption[] => {
+    const categoriesData = deps.categoriesData$.value ?? []
+    return categoriesData
+      .filter((cat: any) => cat.criterionType === "minimize")
+      .map((cat: any): CategoryOption => ({
+        id: cat._id,
+        name: cat.name,
+        description: cat.description,
+      }))
+  })
+
+  // Computed: existing minimize category IDs for editing period
+  const existingMinimizeCategoryIds$ = computed((): readonly string[] => {
+    const editingPeriod = editingPeriod$.value
+    if (Option.isNone(editingPeriod)) return []
+    
+    const categoryIds = editingPeriod.value.minimizeCategoryIds ?? []
+    return categoryIds.map(id => id as string)
   })
 
   // Create dialog
@@ -339,7 +379,6 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
   // Form submission handlers
   const onCreateSubmit = (values: SelectionPeriodFormValues): void => {
-    let createdPeriodId: Id<"selectionPeriods">
     const periodTitle = values.title
 
     deps.createPeriod({
@@ -348,26 +387,23 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       semesterId: values.selection_period_id,
       openDate: values.start_deadline.getTime(),
       closeDate: values.end_deadline.getTime(),
+      minimizeCategoryIds: values.minimizeCategoryIds?.map(id => id as Id<"categories">),
+      rankingsEnabled: values.rankingsEnabled,
+      // Pass selected topic IDs to update their semesterId, linking them to this period
+      topicIds: values.topicIds?.map(id => id as Id<"topics">),
     })
       .then((result) => {
-        createdPeriodId = result.periodId
-
-        // Add selected questions to the period
-        if (values.questionIds.length > 0) {
-          const promises = values.questionIds.map(questionId =>
-            deps.addQuestion({
-              selectionPeriodId: createdPeriodId,
-              questionId: questionId as Id<"questions">,
-            })
-          )
-          return Promise.all(promises)
-        }
+        const createdPeriodId = result.periodId
+        return createdPeriodId
       })
-      .then(() => {
+      .then((createdPeriodId: Id<"selectionPeriods">) => {
         // Show access codes panel instead of closing
         createdPeriod$.value = Option.some({ id: createdPeriodId, title: periodTitle })
       })
-      .catch(console.error)
+      .catch((error) => {
+        console.error("Failed to create period:", error)
+        // Optionally show error toast here
+      })
   }
 
   const onEditSubmit = (values: SelectionPeriodFormValues): void => {
@@ -382,32 +418,9 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
           description: values.title,
           openDate: values.start_deadline.getTime(),
           closeDate: values.end_deadline.getTime(),
+          minimizeCategoryIds: values.minimizeCategoryIds?.map(id => id as Id<"categories">),
+          rankingsEnabled: values.rankingsEnabled,
         })
-          .then(() => {
-            // Sync questions: remove those not in new selection, add new ones
-            const newQuestionIds = new Set(values.questionIds)
-            const oldQuestionIds = new Set(existingQuestionIds$.value)
-
-            const removePromises = existingQuestionIds$.value
-              .filter(qId => !newQuestionIds.has(qId))
-              .map(qId =>
-                deps.removeQuestion({
-                  selectionPeriodId: editingPeriodValue._id,
-                  questionId: qId as Id<"questions">,
-                })
-              )
-
-            const addPromises = values.questionIds
-              .filter(qId => !oldQuestionIds.has(qId as Id<"questions">))
-              .map(qId =>
-                deps.addQuestion({
-                  selectionPeriodId: editingPeriodValue._id,
-                  questionId: qId as Id<"questions">,
-                })
-              )
-
-            return Promise.all([...removePromises, ...addPromises])
-          })
           .then(() => {
             editDialog.close()
           })
@@ -424,9 +437,10 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     periodsData$: deps.periodsData$,
     createDialog,
     editDialog,
-    questions$,
-    templates$,
-    existingQuestionIds$,
+    topics$,
+    existingTopicIds$,
+    categories$,
+    existingMinimizeCategoryIds$,
     createdPeriod$,
     onCreateSubmit,
     onEditSubmit,
@@ -501,6 +515,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     const questionsData$ = computed(() => questionsData)
     const templatesData$ = computed(() => templatesData)
     const existingQuestionsData$ = computed(() => existingQuestionsData)
+    const topicsData$ = computed(() => [])
+    const existingTopicsData$ = computed(() => [])
 
     return {
       periodsData$,
@@ -509,6 +525,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       questionsData$,
       templatesData$,
       existingQuestionsData$,
+      topicsData$,
+      existingTopicsData$,
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,

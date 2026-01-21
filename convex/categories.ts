@@ -1,5 +1,5 @@
 import { v } from "convex/values"
-import { query, mutation } from "./_generated/server"
+import { query, mutation, internalQuery } from "./_generated/server"
 import * as Category from "./schemas/Category"
 
 /**
@@ -26,6 +26,12 @@ export const createCategory = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     semesterId: v.string(),
+    criterionType: v.optional(v.union(
+      v.literal("prerequisite"),
+      v.literal("minimize"),
+      v.literal("pull")
+    )),
+    minRatio: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check if category with same name already exists for this semester
@@ -39,7 +45,13 @@ export const createCategory = mutation({
       throw new Error(`Category "${args.name}" already exists for this semester`)
     }
 
-    return await ctx.db.insert("categories", Category.make(args))
+    // Convert percentage to ratio (0.0-1.0) for minRatio
+    const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
+
+    return await ctx.db.insert("categories", Category.make({
+      ...args,
+      minRatio,
+    }))
   },
 })
 
@@ -51,6 +63,12 @@ export const updateCategory = mutation({
     id: v.id("categories"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
+    criterionType: v.optional(v.union(
+      v.literal("prerequisite"),
+      v.literal("minimize"),
+      v.literal("pull")
+    )),
+    minRatio: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args
@@ -74,7 +92,21 @@ export const updateCategory = mutation({
       }
     }
 
-    return await ctx.db.patch(id, updates)
+    // Convert percentage to ratio (0.0-1.0) for minRatio
+    const patchData: any = { ...updates }
+    if (updates.minRatio !== undefined) {
+      patchData.minRatio = updates.minRatio / 100
+    }
+    // If criterionType is being cleared, set to undefined
+    if (updates.criterionType === null || updates.criterionType === undefined) {
+      patchData.criterionType = undefined
+      // Also clear related fields if criterion type is removed
+      if (updates.criterionType === null) {
+        patchData.minRatio = undefined
+      }
+    }
+
+    return await ctx.db.patch(id, patchData)
   },
 })
 
@@ -118,5 +150,18 @@ export const getCategoryNames = query({
       : await ctx.db.query("categories").collect()
 
     return categories.map((c) => c.name).sort()
+  },
+})
+
+/**
+ * Internal query to get all categories for a semester (for CP-SAT solver)
+ */
+export const getAllCategoriesForSolver = internalQuery({
+  args: { semesterId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("categories")
+      .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId))
+      .collect()
   },
 })

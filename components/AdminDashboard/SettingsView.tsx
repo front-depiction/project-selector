@@ -6,6 +6,7 @@ import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Settings, Database, RefreshCw, Trash2, Beaker, Copy, CheckCircle2 } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +24,7 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
   useSignals()
   const { currentPeriod } = AD.useDashboard()
   const [copiedCode, setCopiedCode] = React.useState<string | null>(null)
+  const [selectedSeedType, setSelectedSeedType] = React.useState<"default" | "leadership-python" | "it-skills">("default")
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -138,13 +140,25 @@ export const SettingsView: React.FC<{ vm: SettingsViewVM }> = ({ vm }) => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
+            <div className="flex-1">
               <h4 className="font-medium">Seed Test Data</h4>
               <p className="text-sm text-muted-foreground mt-1">
                 Generate sample topics and project assignments for testing
               </p>
+              <div className="mt-3">
+                <Select value={selectedSeedType} onValueChange={(value) => setSelectedSeedType(value as typeof selectedSeedType)}>
+                  <SelectTrigger className="w-full max-w-md">
+                    <SelectValue placeholder="Select seed type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default (20 students, 5 groups)</SelectItem>
+                    <SelectItem value="leadership-python">Leadership + Python (70 students, 10 groups)</SelectItem>
+                    <SelectItem value="it-skills">IT Skills (60 students, 5 groups)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Button onClick={vm.seedTestData} variant="outline" disabled={vm.isSeedingData$.value}>
+            <Button onClick={() => vm.seedTestData(selectedSeedType)} variant="outline" disabled={vm.isSeedingData$.value} className="ml-4">
               <RefreshCw className={`mr-2 h-4 w-4 ${vm.isSeedingData$.value ? "animate-spin" : ""}`} />
               {vm.isSeedingData$.value ? "Seeding..." : "Seed Data"}
             </Button>

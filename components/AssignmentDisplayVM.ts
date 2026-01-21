@@ -201,10 +201,22 @@ export function useAssignmentDisplayVM(
       const students: StudentItemVM[] = topicData.students.map((student: any): StudentItemVM => {
         const isCurrentUser = student.studentId === studentId
         const hasRank = student.originalRank != null
+        
+        // Debug: log student data
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Student data:', { studentId: student.studentId, name: student.name, hasName: !!student.name })
+        }
+        
+        // Format: "Name (CODE)" if name exists, otherwise just CODE
+        // Ensure we're using the actual name, not an initial
+        const displayName = student.name && student.name.trim() 
+          ? `${student.name.trim()} (${student.studentId})` 
+          : student.studentId
+        const displayText = isCurrentUser ? `${displayName} (You)` : displayName
 
         return {
           key: student.studentId,
-          studentIdDisplay: isCurrentUser ? `${student.studentId} (You)` : student.studentId,
+          studentIdDisplay: displayText,
           isCurrentUser,
           rankDisplay: hasRank ? `#${student.originalRank}` : null,
           rankBadgeVariant: student.originalRank === 1 ? "default" : "outline",

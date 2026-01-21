@@ -12,8 +12,10 @@ const BaseSelectionPeriod = {
   description: v.string(),
   openDate: v.number(),
   closeDate: v.number(),
+  rankingsEnabled: v.optional(v.boolean()),
   isExperiment: v.optional(v.boolean()),
   excludePairs: v.optional(v.array(v.array(v.string()))),
+  minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
 }
 
 /**
@@ -98,17 +100,21 @@ export const makeInactive = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly scheduledOpenFunctionId?: Id<"_scheduled_functions">
+  readonly minimizeCategoryIds?: Id<"categories">[]
 }): InactivePeriod => ({
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
+  minimizeCategoryIds: params.minimizeCategoryIds,
   kind: "inactive" as const,
   scheduledOpenFunctionId: params.scheduledOpenFunctionId,
 })
@@ -125,17 +131,21 @@ export const makeOpen = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly scheduledFunctionId: Id<"_scheduled_functions">
+  readonly minimizeCategoryIds?: Id<"categories">[]
 }): OpenPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
+  minimizeCategoryIds: params.minimizeCategoryIds,
   kind: "open" as const,
   scheduledFunctionId: params.scheduledFunctionId,
 })
@@ -152,16 +162,20 @@ export const makeClosed = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
+  readonly minimizeCategoryIds?: Id<"categories">[]
 }): ClosedPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
+  minimizeCategoryIds: params.minimizeCategoryIds,
   kind: "closed" as const,
 })
 
@@ -177,17 +191,21 @@ export const makeAssigned = (params: {
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly assignmentBatchId: string
+  readonly minimizeCategoryIds?: Id<"categories">[]
 }): AssignedPeriod => ({
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
+  minimizeCategoryIds: params.minimizeCategoryIds,
   kind: "assigned" as const,
   assignmentBatchId: params.assignmentBatchId,
 })
@@ -692,7 +710,11 @@ export const getBase = (period: SelectionPeriod) => ({
   title: period.title,
   description: period.description,
   openDate: period.openDate,
-  closeDate: period.closeDate
+  closeDate: period.closeDate,
+  rankingsEnabled: period.rankingsEnabled,
+  isExperiment: period.isExperiment,
+  excludePairs: period.excludePairs,
+  minimizeCategoryIds: period.minimizeCategoryIds,
 })
 
 /**

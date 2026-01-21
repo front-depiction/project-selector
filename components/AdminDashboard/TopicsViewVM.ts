@@ -12,22 +12,11 @@ export interface TopicItemVM {
   readonly key: string
   readonly title: string
   readonly description: string
-  readonly statusDisplay: string
-  readonly statusVariant: "default" | "secondary"
-  readonly selectionsCount: number
-  readonly toggleActive: () => void
   readonly remove: () => void
   readonly edit: () => void
-  readonly semesterId: string
 }
 
-export interface TopicGroupVM {
-  readonly semesterId: string
-  readonly periodTitle: string
-  readonly topics: readonly TopicItemVM[]
-}
-
-export interface PeriodOptionVM {
+export interface ConstraintOptionVM {
   readonly value: string
   readonly label: string
   readonly id?: string
@@ -50,8 +39,7 @@ export interface EditTopicDialogVM extends DialogVM {
 
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
-  readonly groupedTopics$: ReadonlySignal<readonly TopicGroupVM[]>
-  readonly periodOptions$: ReadonlySignal<readonly PeriodOptionVM[]>
+  readonly constraintOptions$: ReadonlySignal<readonly ConstraintOptionVM[]>
   readonly createTopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
   readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
@@ -64,11 +52,12 @@ export interface TopicsViewVM {
 
 export interface TopicsViewVMDeps {
   readonly topics$: ReadonlySignal<readonly any[] | undefined>
-  readonly periods$: ReadonlySignal<readonly any[] | undefined>
+  readonly categories$: ReadonlySignal<readonly any[] | undefined>
   readonly createTopic: (args: {
     title: string
     description: string
     semesterId: string
+    constraintIds?: string[]
     duplicateCount?: number
   }) => Promise<any>
   readonly updateTopic: (args: {
@@ -76,7 +65,6 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
   }) => Promise<any>
-  readonly toggleTopicActive: (args: { id: Id<"topics"> }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
 }
 
@@ -87,10 +75,9 @@ export interface TopicsViewVMDeps {
 export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const {
     topics$,
-    periods$,
+    categories$,
     createTopic,
     updateTopic,
-    toggleTopicActive,
     deleteTopic,
   } = deps
 
@@ -106,14 +93,14 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
-    const fullTopic = topics$.value?.find(t => t._id === topicId)
+    const fullTopic = topics$.value?.find(topic => topic._id === topicId)
     if (!fullTopic) return
 
     editingTopic$.value = Option.some({
       id: fullTopic._id,
       title: fullTopic.title,
       description: fullTopic.description,
-      semesterId: fullTopic.semesterId,
+      semesterId: fullTopic.semesterId
     })
     editTopicDialogOpen$.value = true
   }
@@ -124,13 +111,6 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       key: topic._id,
       title: topic.title,
       description: topic.description,
-      statusDisplay: topic.isActive ? "Active" : "Inactive",
-      statusVariant: topic.isActive ? "default" : "secondary",
-      selectionsCount: 0,
-      semesterId: topic.semesterId,
-      toggleActive: () => {
-        toggleTopicActive({ id: topic._id }).catch(console.error)
-      },
       remove: () => {
         deleteTopic({ id: topic._id }).catch((error) => {
           console.error("Failed to delete topic:", error)
@@ -147,62 +127,22 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     }))
   )
 
-  // Computed: topics grouped by project assignment (semesterId)
-  const groupedTopics$ = computed((): readonly TopicGroupVM[] => {
-    const topics = topicItems$.value
-    const periods = periods$.value ?? []
-
-    // Create a map of semesterId -> period title
-    const periodMap = new Map<string, string>()
-    for (const period of periods) {
-      periodMap.set(period.semesterId, period.title)
-    }
-
-    // Group topics by semesterId
-    const grouped = new Map<string, TopicItemVM[]>()
-    for (const topic of topics) {
-      const existing = grouped.get(topic.semesterId) ?? []
-      existing.push(topic)
-      grouped.set(topic.semesterId, existing)
-    }
-
-    // Convert to array of groups, sorted by period title
-    const groups: TopicGroupVM[] = []
-    
-    // First, add groups for periods that have topics
-    for (const [semesterId, topicList] of grouped.entries()) {
-      const periodTitle = periodMap.get(semesterId) ?? `Unknown Assignment (${semesterId})`
-      groups.push({
-        semesterId,
-        periodTitle,
-        topics: topicList,
-      })
-    }
-
-    // Sort groups by period title
-    groups.sort((a, b) => a.periodTitle.localeCompare(b.periodTitle))
-
-    return groups
+  // Sort topics by title
+  const sortedTopics$ = computed((): readonly TopicItemVM[] => {
+    return [...topicItems$.value].sort((a, b) => a.title.localeCompare(b.title))
   })
 
-  // Computed: period options for form (deduplicated by semesterId)
-  const periodOptions$ = computed((): readonly PeriodOptionVM[] => {
-    const periods = periods$.value ?? []
-    const seenSemesterIds = new Set<string>()
-    const options: PeriodOptionVM[] = []
 
-    for (const period of periods) {
-      if (!seenSemesterIds.has(period.semesterId)) {
-        seenSemesterIds.add(period.semesterId)
-        options.push({
-          value: period.semesterId,
-          label: period.title,
-          id: period._id,
-        })
-      }
-    }
-
-    return options
+  // Computed: constraint options for form (topic-specific: pull and prerequisite only)
+  const constraintOptions$ = computed((): readonly ConstraintOptionVM[] => {
+    const categories = categories$.value ?? []
+    return categories
+      .filter((cat: any) => cat.criterionType === "pull" || cat.criterionType === "prerequisite")
+      .map((cat: any): ConstraintOptionVM => ({
+        value: cat._id,
+        label: cat.name,
+        id: cat._id,
+      }))
   })
 
   // Create topic dialog
@@ -237,7 +177,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       await createTopic({
         title: values.title,
         description: values.description,
-        semesterId: values.selection_period_id,
+        semesterId: "default", // Use default semesterId since we removed it from the form
+        constraintIds: values.constraintIds,
         duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()
@@ -265,9 +206,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   }
 
   return {
-    topics$: topicItems$,
-    groupedTopics$,
-    periodOptions$,
+    topics$: sortedTopics$,
+    constraintOptions$,
     createTopicDialog,
     editTopicDialog,
     onTopicSubmit,

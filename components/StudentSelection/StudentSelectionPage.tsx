@@ -3,6 +3,7 @@
 import { useSignals } from "@preact/signals-react/runtime"
 import SortableList, { SortableListItem } from "@/components/ui/sortable-list"
 import { StudentQuestionPresentationView } from "@/components/StudentQuestionnaire/StudentQuestionPresentationView"
+import { StudentQuestionnaireEditForm } from "@/components/StudentQuestionnaire/StudentQuestionnaireEditForm"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,9 @@ import { formatDistanceToNow } from "date-fns"
 import type { Item } from "@/components/ui/sortable-list"
 import type { TopicItemVM, StudentSelectionPageVM } from "./StudentSelectionPageVM"
 import { TopicPopularityChart } from "@/components/charts/topic-popularity-chart"
+import type { FunctionReturnType } from "convex/server"
+import type { api } from "@/convex/_generated/api"
+import type { Id } from "@/convex/_generated/dataModel"
 import * as Option from "effect/Option"
 
 // ============================================================================
@@ -276,12 +280,76 @@ const TopicCard = ({
 }
 
 // ============================================================================
+// Props Types
+// ============================================================================
+
+export interface StudentSelectionPageProps {
+  vm: StudentSelectionPageVM
+  questionsWithAnswers?: FunctionReturnType<typeof api.studentAnswers.getQuestionsWithAnswersForStudent>
+  onSaveAnswers?: (answers: Array<{ questionId: Id<"questions">; kind: "boolean" | "0to6"; value: boolean | number }>) => Promise<void>
+  isSubmittingAnswers?: boolean
+}
+
+// ============================================================================
+// Completion Message Component (for when rankings are disabled)
+// ============================================================================
+
+const QuestionnaireCompletedView = ({ periodTitle }: { periodTitle?: string }) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <Card className="w-full max-w-lg border-green-500/20 shadow-lg">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
+            <CheckCircle className="h-10 w-10 text-green-500" />
+          </div>
+          <CardTitle className="text-2xl sm:text-3xl font-bold">
+            Questionnaire Completed
+          </CardTitle>
+          <CardDescription className="text-base mt-2">
+            {periodTitle ? `${periodTitle}` : "Your questionnaire has been completed successfully."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-4">
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-4">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span>Thank you for completing the questionnaire. Your responses have been saved.</span>
+          </div>
+          
+          <div className="flex justify-center">
+            <Link href="/">
+              <Button size="lg" variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Home
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// ============================================================================
 // Main Component
 // ============================================================================
 
-export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
+export function StudentSelectionPage({ 
+  vm, 
+  questionsWithAnswers,
+  onSaveAnswers,
+  isSubmittingAnswers = false
+}: StudentSelectionPageProps) {
   // Enable automatic reactivity for signals
   useSignals()
+  const rankingsEnabled = Option.match(vm.currentPeriod$.value, {
+    onNone: () => true,
+    onSome: (period) => period.rankingsEnabled,
+  })
+  
+  const periodTitle = Option.match(vm.currentPeriod$.value, {
+    onNone: () => undefined,
+    onSome: (period) => period.title,
+  })
 
   // Loading state
   if (vm.isLoading$.value) {
@@ -292,16 +360,41 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
     )
   }
 
-  // Questionnaire view
-  if (vm.questionnaireState$.value.needsCompletion && vm.questionnaireVM$.value) {
-    return (
-      <StudentQuestionPresentationView
-        vm={vm.questionnaireVM$.value}
-      />
-    )
+  // Questionnaire view - show edit form if in edit mode, otherwise show presentation view
+  if (vm.questionnaireState$.value.needsCompletion) {
+    const isEditMode = vm.questionnaireState$.value.isEditMode
+    
+    // Edit mode: show all-in-one form
+    if (isEditMode && questionsWithAnswers && onSaveAnswers) {
+      return (
+        <StudentQuestionnaireEditForm
+          questions={questionsWithAnswers}
+          onSubmit={async (answers) => {
+            await onSaveAnswers(answers)
+            vm.handleQuestionnaireComplete()
+          }}
+          isSubmitting={isSubmittingAnswers}
+          periodTitle={periodTitle}
+        />
+      )
+    }
+    
+    // First-time: show one-at-a-time presentation view
+    if (vm.questionnaireVM$.value) {
+      return (
+        <StudentQuestionPresentationView
+          vm={vm.questionnaireVM$.value}
+        />
+      )
+    }
   }
 
-  // No topics available
+  // Questionnaire completed but rankings disabled - show completion message
+  if (vm.questionnaireState$.value.isCompleted && !rankingsEnabled) {
+    return <QuestionnaireCompletedView periodTitle={periodTitle} />
+  }
+
+  // No topics available (and rankings enabled)
   if (vm.topics$.value.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -355,7 +448,7 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                 <Card className="mb-6 border-primary/10 shadow-lg bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
                   <div className="absolute inset-0 bg-grid-white/5 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.6))] pointer-events-none" />
                   <CardHeader className="relative">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="space-y-2">
                         <div className="flex items-center gap-3">
                           <Sparkles className="h-5 w-5 text-primary" />
@@ -367,23 +460,34 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                           {period.description.split('EXCLUSIONS:')[0].trim()}
                         </CardDescription>
                       </div>
-                      <Badge className={
-                        period.isOpen
-                          ? "bg-green-500/10 text-green-600 border-green-500/20 shadow-sm"
-                          : "bg-red-500/10 text-red-600 border-red-500/20 shadow-sm"
-                      }>
-                        {period.isOpen ? (
-                          <>
-                            <CheckCircle className="mr-1 h-3 w-3" />
-                            Open
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="mr-1 h-3 w-3" />
-                            Closed
-                          </>
+                      <div className="flex flex-col items-end gap-2">
+                        <Badge className={
+                          period.isOpen
+                            ? "bg-green-500/10 text-green-600 border-green-500/20 shadow-sm"
+                            : "bg-red-500/10 text-red-600 border-red-500/20 shadow-sm"
+                        }>
+                          {period.isOpen ? (
+                            <>
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Open
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="mr-1 h-3 w-3" />
+                              Closed
+                            </>
+                          )}
+                        </Badge>
+                        {vm.questionnaireState$.value.hasQuestions && !vm.questionnaireState$.value.needsCompletion && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={vm.openQuestionnaire}
+                          >
+                            Edit Questionnaire
+                          </Button>
                         )}
-                      </Badge>
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-4 pt-4 border-t border-border/50">
                       <div className="flex items-center gap-1">
@@ -398,7 +502,11 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                       <span className="text-border">•</span>
                       <div className="flex items-center gap-1">
                         <CheckCircle className="h-3 w-3" />
-                        <span>{vm.selectionProgress$.value.selectedCount} topics ranked</span>
+                        <span>
+                          {rankingsEnabled
+                            ? `${vm.selectionProgress$.value.selectedCount} topics ranked`
+                            : "Rankings disabled"}
+                        </span>
                       </div>
                     </div>
                   </CardHeader>
@@ -439,13 +547,23 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Your Rankings</p>
-                    <p className="text-2xl font-bold">
-                      {vm.selectionProgress$.value.selectedCount}/{vm.selectionProgress$.value.maxSelections}
+                    <p className="text-sm text-muted-foreground">
+                      {rankingsEnabled ? "Your Rankings" : "Rankings"}
                     </p>
+                    {rankingsEnabled ? (
+                      <p className="text-2xl font-bold">
+                        {vm.selectionProgress$.value.selectedCount}/{vm.selectionProgress$.value.maxSelections}
+                      </p>
+                    ) : (
+                      <p className="text-sm font-medium text-muted-foreground">Disabled</p>
+                    )}
                   </div>
                   <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <CheckCircle className="h-6 w-6 text-green-500" />
+                    {rankingsEnabled ? (
+                      <CheckCircle className="h-6 w-6 text-green-500" />
+                    ) : (
+                      <XCircle className="h-6 w-6 text-green-500" />
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -500,21 +618,27 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-semibold">Rank Your Preferences</h2>
+                  <h2 className="text-xl font-semibold">
+                    {rankingsEnabled ? "Rank Your Preferences" : "Topics (View Only)"}
+                  </h2>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Drag to reorder • Click arrows to expand details • Your top choice should be #1
+                  {rankingsEnabled
+                    ? "Drag to reorder • Click arrows to expand details • Your top choice should be #1"
+                    : "Rankings are disabled for this project assignment."}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Progress</p>
-                  <p className="text-sm font-medium">
-                    {vm.selectionProgress$.value.selectedCount}/{vm.selectionProgress$.value.maxSelections}
-                  </p>
+              {rankingsEnabled && (
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Progress</p>
+                    <p className="text-sm font-medium">
+                      {vm.selectionProgress$.value.selectedCount}/{vm.selectionProgress$.value.maxSelections}
+                    </p>
+                  </div>
+                  <Progress value={vm.selectionProgress$.value.progressPercentage} className="w-20 h-2" />
                 </div>
-                <Progress value={vm.selectionProgress$.value.progressPercentage} className="w-20 h-2" />
-              </div>
+              )}
             </div>
             {Option.match(vm.validationState$.value.error$.value, {
               onNone: () => null,
@@ -564,6 +688,33 @@ export function StudentSelectionPage({ vm }: { vm: StudentSelectionPageVM }) {
                           </Card>
                         )
                       })}
+                    </div>
+                  </div>
+                )
+              }
+
+              if (!rankingsEnabled) {
+                return (
+                  <div className="space-y-4">
+                    <Alert className="mt-4">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription>
+                        Rankings are disabled for this project assignment. You can review topics but cannot submit preferences.
+                      </AlertDescription>
+                    </Alert>
+                    <div className="space-y-3">
+                      {vm.topics$.value.map((item) => (
+                        <Card key={item._id}>
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-1">
+                                <h3 className="font-semibold">{item.text}</h3>
+                                <p className="text-sm text-muted-foreground">{item.description}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   </div>
                 )

@@ -220,8 +220,10 @@ export function AssignmentDisplay({ periodId, studentId, isExperiment = false, s
                         )}
                       >
                         <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate flex-1">
-                          {student.studentIdDisplay}
+                        <span className="flex-1 min-w-0">
+                          <span className="block truncate">
+                            {student.studentIdDisplay}
+                          </span>
                         </span>
                         {!isExperiment && student.rankDisplay && (
                           <Badge

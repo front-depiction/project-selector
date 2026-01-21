@@ -12,6 +12,14 @@ export const Category = v.object({
   description: v.optional(v.string()),
   semesterId: v.string(),
   createdAt: v.number(),
+  // Criterion type for CP-SAT assignment algorithm
+  criterionType: v.optional(v.union(
+    v.literal("prerequisite"),
+    v.literal("minimize"),
+    v.literal("pull")
+  )),
+  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement
+  minRatio: v.optional(v.number()),
 })
 
 /**
@@ -41,9 +49,13 @@ export const make = (params: {
   readonly description?: string
   readonly semesterId: string
   readonly createdAt?: number
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly minRatio?: number
 }): Category => ({
   name: params.name,
   description: params.description,
   semesterId: params.semesterId,
   createdAt: params.createdAt ?? Date.now(),
+  criterionType: params.criterionType ?? undefined,
+  minRatio: params.minRatio,
 } as const)
