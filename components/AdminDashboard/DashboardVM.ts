@@ -875,7 +875,7 @@ export function useDashboardVM(): DashboardVM {
             id: editingTopic._id,
             title: values.title,
             description: values.description,
-            constraintIds: values.constraintIds
+            constraintIds: values.constraintIds as Id<"categories">[] | undefined
           }).then(() => {
             editTopicDialogOpen$.value = false
             editingTopic$.value = Option.none()

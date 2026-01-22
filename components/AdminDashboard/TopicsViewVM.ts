@@ -58,7 +58,7 @@ export interface EditTopicDialogVM extends DialogVM {
     readonly title: string
     readonly description: string
     readonly semesterId: string
-    readonly constraintIds?: string[]
+    readonly constraintIds?: Id<"categories">[]
   }>>
 }
 
@@ -86,14 +86,14 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
     semesterId: string
-    constraintIds?: string[]
+    constraintIds?: Id<"categories">[]
     duplicateCount?: number
   }) => Promise<any>
   readonly updateTopic: (args: {
     id: Id<"topics">
     title: string
     description: string
-    constraintIds?: string[]
+    constraintIds?: Id<"categories">[]
   }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
   readonly createCategory: (args: {
@@ -139,6 +139,9 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     return Math.min(Math.max(normalized, 0), 1)
   }
 
+  const toCategoryIds = (ids?: string[]): Id<"categories">[] | undefined =>
+    ids?.map((id) => id as Id<"categories">)
+
   const formatCriterionValue = (value?: number): string | undefined => {
     if (value === undefined) return undefined
     return (value * 6).toFixed(1)
@@ -153,7 +156,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     title: string
     description: string
     semesterId: string
-    constraintIds?: string[]
+    constraintIds?: Id<"categories">[]
   }>>(Option.none())
   const editingCategory$ = signal<Option.Option<Category>>(Option.none())
 
@@ -312,7 +315,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         title: values.title,
         description: values.description,
         semesterId: "default", // Use default semesterId since we removed it from the form
-        constraintIds: values.constraintIds,
+        constraintIds: toCategoryIds(values.constraintIds),
         duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()
@@ -330,7 +333,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           id: editing.id,
           title: values.title,
           description: values.description,
-          constraintIds: values.constraintIds,
+          constraintIds: toCategoryIds(values.constraintIds),
         })
           .then(() => {
             editTopicDialog.close()
