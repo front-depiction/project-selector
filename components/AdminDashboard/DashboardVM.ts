@@ -16,6 +16,7 @@ import { createTopicsViewVM } from "./TopicsViewVM"
 import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
 import { createStudentsViewVM } from "./StudentsViewVM"
+import { createOnboardingVM, type OnboardingVM } from "./OnboardingVM"
 // ============================================================================
 // View Model Types
 // ============================================================================
@@ -118,6 +119,7 @@ export interface DashboardVM {
   readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
   readonly settingsView: import("./SettingsViewVM").SettingsViewVM
   readonly studentsView: import("./StudentsViewVM").StudentsViewVM
+  readonly onboardingVM: OnboardingVM
 
   // Legacy support - for backward compatibility with existing overview components
   readonly periods$: ReadonlySignal<Loadable.Loadable<readonly PeriodItemVM[]>>
@@ -224,6 +226,9 @@ export function useDashboardVM(): DashboardVM {
     {}
   )
 
+  // Onboarding data - uses computeOnboardingStatus for auto-detection
+  const onboardingStatusData = useQuery(api.teacherOnboarding.computeOnboardingStatus, {})
+
   // ============================================================================
   // CONVEX MUTATIONS - Root VM owns all mutations
   // ============================================================================
@@ -276,6 +281,7 @@ export function useDashboardVM(): DashboardVM {
     studentsData$: signal<typeof studentsData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
+    onboardingStatusData$: signal<typeof onboardingStatusData>(undefined),
   }).current
 
   // Update signals when query data changes - must be in useEffect to avoid setState during render
@@ -294,8 +300,9 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.studentsData$.value = studentsData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
+      dataSignals.onboardingStatusData$.value = onboardingStatusData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, onboardingStatusData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -666,6 +673,55 @@ export function useDashboardVM(): DashboardVM {
       saveAnswersAsTeacher: saveAnswersAsTeacherMutation,
     })
 
+    // Onboarding VM - transform onboarding status data to expected format
+    const onboardingData$ = computed(() => {
+      const statusData = dataSignals.onboardingStatusData$.value
+      if (!statusData) return null
+      return {
+        completedSteps: statusData.completedSteps,
+        dismissedAt: undefined, // computeOnboardingStatus doesn't track dismissal
+      }
+    })
+
+    // Local state for dismissed (persisted in localStorage since we don't have visitorId)
+    const isDismissedLocal$ = signal<boolean>(
+      typeof window !== "undefined"
+        ? localStorage.getItem("onboarding_dismissed") === "true"
+        : false
+    )
+
+    const onboardingVM = createOnboardingVM({
+      onboardingData$: computed(() => {
+        const statusData = dataSignals.onboardingStatusData$.value
+        if (!statusData) return null
+        // Check local dismissal state
+        if (typeof window !== "undefined" && localStorage.getItem("onboarding_dismissed") === "true") {
+          return {
+            completedSteps: statusData.completedSteps,
+            dismissedAt: Date.now(),
+          }
+        }
+        return {
+          completedSteps: statusData.completedSteps,
+          dismissedAt: undefined,
+        }
+      }),
+      markStepComplete: async ({ stepId }) => {
+        // Steps are auto-completed based on data existence, so this is a no-op
+        console.log("Step auto-completed:", stepId)
+      },
+      dismissOnboarding: async () => {
+        // Store dismissal in localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem("onboarding_dismissed", "true")
+        }
+        isDismissedLocal$.value = true
+      },
+      setActiveView: (view: string) => {
+        activeView$.value = view as ViewType
+      },
+    })
+
     // Legacy dialog VMs for overview compatibility
     const editPeriodDialog: EditPeriodDialogVM = {
       isOpen$: editPeriodDialogOpen$,
@@ -816,6 +872,7 @@ export function useDashboardVM(): DashboardVM {
       questionnairesView,
       settingsView,
       studentsView,
+      onboardingVM,
 
       // Legacy support for overview
       periods$,

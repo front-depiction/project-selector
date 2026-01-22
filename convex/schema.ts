@@ -13,6 +13,7 @@ import * as User from "./schemas/User"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Category from "./schemas/Category"
+import * as TeacherOnboarding from "./schemas/TeacherOnboarding"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -80,4 +81,10 @@ export default defineSchema({
     .index("by_period", ["selectionPeriodId"])
     .index("by_period_studentId", ["selectionPeriodId", "studentId"])
     .index("by_studentId", ["studentId"]),
+
+  // === ONBOARDING TABLES ===
+
+  // Tracks teacher onboarding progress
+  teacherOnboarding: defineTable(TeacherOnboarding.TeacherOnboarding)
+    .index("by_visitorId", ["visitorId"]),
 })

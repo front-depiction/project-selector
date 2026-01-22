@@ -41,6 +41,7 @@ import { StudentsView } from "./StudentsView"
 import { SettingsView } from "./SettingsView"
 import { QuestionnairesView } from "./QuestionnairesView"
 import { HelpView } from "./HelpView"
+import { OnboardingCard } from "./OnboardingCard"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -192,6 +193,9 @@ const OverviewView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Card - Show at top of Overview */}
+      <OnboardingCard vm={vm.onboardingVM} />
+
       {/* Period Selector */}
       {sortedPeriods.length > 0 && (
         <Card className="border-0 shadow-sm">
