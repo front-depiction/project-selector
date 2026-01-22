@@ -245,7 +245,7 @@ export function createStudentSelectionPageVM(deps: StudentSelectionPageVMDeps): 
     }
 
     return sortedTopics.map((topic): TopicItemVM => ({
-      id: topic._id as any,
+      id: topic._id,
       _id: topic._id,
       text: topic.title,
       description: topic.description,

@@ -350,20 +350,24 @@ describe("QuestionnairesViewVM", () => {
       const formValues: QuestionFormValues = {
         question: "Do you like coding?",
         kind: "boolean",
+        characteristicName: "Technical Skills",
       }
 
       expect(formValues.question).toBe("Do you like coding?")
       expect(formValues.kind).toBe("boolean")
+      expect(formValues.characteristicName).toBe("Technical Skills")
     })
 
-    it("should validate 0to10 question kind", () => {
+    it("should validate 0to6 question kind", () => {
       const formValues: QuestionFormValues = {
         question: "Rate your interest in databases",
-        kind: "0to10",
+        kind: "0to6",
+        characteristicName: "Interests",
       }
 
       expect(formValues.question).toBe("Rate your interest in databases")
-      expect(formValues.kind).toBe("0to10")
+      expect(formValues.kind).toBe("0to6")
+      expect(formValues.characteristicName).toBe("Interests")
     })
 
     it("should validate template form values structure", () => {

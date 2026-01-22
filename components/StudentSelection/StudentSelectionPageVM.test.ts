@@ -90,7 +90,7 @@ function createTopicsSignal(mockTopics: any[] | null | undefined, mockPreference
     }
 
     return sortedTopics.map((topic): TopicItemVM => ({
-      id: topic._id as any,
+      id: topic._id,
       _id: topic._id,
       text: topic.title,
       description: topic.description,
@@ -500,19 +500,25 @@ describe("StudentSelectionPageVM", () => {
   })
 
   describe("action: updateSelection", () => {
+    // Type for simplified topic item in tests
+    interface MockTopicItem {
+      id: string
+      text: string
+    }
+
     it("should update topic order correctly", () => {
       // Simulate the updateSelection logic
-      const currentItems = [
+      const currentItems: MockTopicItem[] = [
         { id: "t1", text: "Topic 1" },
         { id: "t2", text: "Topic 2" },
         { id: "t3", text: "Topic 3" }
-      ] as any[]
+      ]
 
-      const newItems = [
+      const newItems: MockTopicItem[] = [
         { id: "t3", text: "Topic 3" },
         { id: "t1", text: "Topic 1" },
         { id: "t2", text: "Topic 2" }
-      ] as any[]
+      ]
 
       const topicOrder = newItems.map((item) => item.id as Id<"topics">)
 
@@ -520,12 +526,12 @@ describe("StudentSelectionPageVM", () => {
     })
 
     it("should handle function-based update", () => {
-      const currentItems = [
+      const currentItems: MockTopicItem[] = [
         { id: "t1", text: "Topic 1" },
         { id: "t2", text: "Topic 2" }
-      ] as any[]
+      ]
 
-      const updateFn = (prev: any[]) => prev.slice().reverse()
+      const updateFn = (prev: MockTopicItem[]) => prev.slice().reverse()
       const newItems = updateFn(currentItems)
       const topicOrder = newItems.map((item) => item.id as Id<"topics">)
 

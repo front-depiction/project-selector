@@ -23,7 +23,7 @@ describe("SettingsViewVM", () => {
     beforeEach(() => {
       dialogOpen$ = signal<boolean>(false)
       dialog = {
-        isOpen$: dialogOpen$ as any,
+        isOpen$: dialogOpen$,
         open: () => {
           dialogOpen$.value = true
         },

@@ -18,12 +18,12 @@ async function createTestQuestion(
     question: string
     kind: "boolean" | "0to6"
     semesterId: string
-    category?: string
+    characteristicName?: string
   }
 ): Promise<Id<"questions">> {
   return await t.mutation(api.questions.createQuestion, {
     ...params,
-    category: params.category ?? "Test Category"
+    characteristicName: params.characteristicName ?? "Test Category"
   })
 }
 

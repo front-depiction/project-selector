@@ -8,6 +8,7 @@ import { pipe } from "effect/Function"
 import * as Array from "effect/Array"
 import { shuffleArray } from "../lib/utils"
 import { createRankingEventsAndUpdateAggregate } from "./rankings"
+import { generateShareableSlug } from "../lib/slugGenerator"
 
 /**
  * Sample topics for seeding test data.
@@ -61,6 +62,7 @@ export const TOPICDATA = [
  */
 export async function createTestSelectionPeriod(
   ctx: MutationCtx,
+  userId: string,
   semesterId: string,
   now: number,
   closeDate: number,
@@ -68,12 +70,15 @@ export async function createTestSelectionPeriod(
     rankingsEnabled?: boolean
   }
 ) {
+  const shareableSlug = generateShareableSlug()
   const inactivePeriod = SelectionPeriod.makeInactive({
+    userId,
     semesterId,
     openDate: now,
     closeDate,
     title: "Test Period",
     description: "This is an auto generated test period",
+    shareableSlug,
     rankingsEnabled: options?.rankingsEnabled,
   })
   const periodId = await ctx.db.insert("selectionPeriods", inactivePeriod)
@@ -96,10 +101,11 @@ export async function createTestSelectionPeriod(
 /**
  * Helper to create test topics for a given semester.
  */
-export const createTestTopics = (ctx: MutationCtx, semesterId: string) =>
+export const createTestTopics = (ctx: MutationCtx, userId: string, semesterId: string) =>
   pipe(
     TOPICDATA,
     Array.map(data => Topic.make({
+      userId,
       ...data,
       semesterId,
       isActive: true

@@ -2,7 +2,29 @@
 import { signal, computed, ReadonlySignal } from "@preact/signals-react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Id, Doc } from "@/convex/_generated/dataModel"
+
+// ============================================================================
+// Type Definitions for Assignment Query Results
+// ============================================================================
+
+/** Shape of a student within an assignment group */
+interface AssignmentStudent {
+  readonly studentId: string
+  readonly name?: string
+  readonly originalRank?: number
+  readonly assignedAt: number
+}
+
+/** Shape of a topic assignment group from the query */
+interface TopicAssignment {
+  readonly topic: Doc<"topics"> | undefined
+  readonly students: readonly AssignmentStudent[]
+  readonly qualityAverages: Record<string, number>
+}
+
+/** The full assignments response shape */
+type AssignmentsResponse = Record<string, TopicAssignment> | null
 
 // ============================================================================
 // View Model Types
@@ -180,8 +202,11 @@ export function useAssignmentDisplayVM(
   const assignments$ = computed((): readonly TopicAssignmentVM[] => {
     if (!assignments) return []
 
-    const topicEntries = Object.entries(assignments).sort(
-      ([, a], [, b]) => (b as any).students.length - (a as any).students.length
+    const typedAssignments = assignments as AssignmentsResponse
+    if (!typedAssignments) return []
+
+    const topicEntries = Object.entries(typedAssignments).sort(
+      ([, a], [, b]) => b.students.length - a.students.length
     )
 
     // Map category names to letters
@@ -192,13 +217,12 @@ export function useAssignmentDisplayVM(
       "IT Professional": { letter: "I", fullName: "IT Professional" },
     }
 
-    return topicEntries.map(([topicId, data]): TopicAssignmentVM => {
-      const topicData = data as any
+    return topicEntries.map(([topicId, topicData]): TopicAssignmentVM => {
       const isUserAssigned = myAssignment?.topic?._id === topicId
       const studentCount = topicData.students.length
 
       // Show all students (no limit)
-      const students: StudentItemVM[] = topicData.students.map((student: any): StudentItemVM => {
+      const students: StudentItemVM[] = topicData.students.map((student): StudentItemVM => {
         const isCurrentUser = student.studentId === studentId
         const hasRank = student.originalRank != null
         
@@ -231,10 +255,10 @@ export function useAssignmentDisplayVM(
       if (topicData.qualityAverages) {
         for (const [category, average] of Object.entries(topicData.qualityAverages)) {
           const mapping = categoryLetterMap[category]
-          if (mapping) {
+          if (mapping && typeof average === "number") {
             qualityBadges.push({
               letter: mapping.letter,
-              value: (average as number).toFixed(1),
+              value: average.toFixed(1),
               fullName: mapping.fullName,
             })
           }

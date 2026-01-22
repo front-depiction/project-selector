@@ -13,14 +13,17 @@ import { toast } from "sonner"
 import * as Loadable from "@/lib/Loadable"
 import { createPeriodsViewVM } from "./PeriodsViewVM"
 import { createTopicsViewVM } from "./TopicsViewVM"
-import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
 import { createStudentsViewVM } from "./StudentsViewVM"
+import { createOnboardingVM, type OnboardingVM } from "./OnboardingVM"
+import type { Assignment } from "./index"
+import type { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
+import type { TopicFormValues } from "@/components/forms/topic-form"
 // ============================================================================
 // View Model Types
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "questionnaires" | "settings" | "help"
+export type ViewType = "overview" | "periods" | "topics" | "students" | "settings" | "help"
 
 export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
   studentCount?: number
@@ -115,9 +118,9 @@ export interface DashboardVM {
   // Child View Models
   readonly periodsView: import("./PeriodsViewVM").PeriodsViewVM
   readonly topicsView: import("./TopicsViewVM").TopicsViewVM
-  readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
   readonly settingsView: import("./SettingsViewVM").SettingsViewVM
   readonly studentsView: import("./StudentsViewVM").StudentsViewVM
+  readonly onboardingVM: OnboardingVM
 
   // Legacy support - for backward compatibility with existing overview components
   readonly periods$: ReadonlySignal<Loadable.Loadable<readonly PeriodItemVM[]>>
@@ -129,7 +132,8 @@ export interface DashboardVM {
   readonly updateTopicFromForm: (values: TopicFormValues) => void
 
   // Actions
-  readonly setActiveView: (view: ViewType) => void
+  readonly setActiveView: (view: ViewType, updateUrl?: boolean) => void
+  readonly syncFromUrl: (tab: string | null) => void
 
   // Legacy actions for backward compatibility (used by context/overview)
   readonly createPeriod: (data: PeriodFormData) => void
@@ -149,21 +153,10 @@ export interface DashboardVM {
   readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 }
 
-export interface SelectionPeriodFormValues {
-  readonly title: string
-  readonly selection_period_id: string
-  readonly start_deadline: Date
+// Re-export the form's type to ensure type compatibility
+export type { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
 
-  readonly end_deadline: Date
-  readonly questionIds: string[]
-}
-
-export interface TopicFormValues {
-  readonly title: string
-  readonly description: string
-  readonly duplicateCount: number
-  readonly constraintIds?: string[]
-}
+export type { TopicFormValues } from "@/components/forms/topic-form"
 
 export interface PeriodFormData {
   readonly title: string
@@ -185,8 +178,17 @@ export interface TopicFormData {
 
 export function useDashboardVM(): DashboardVM {
   const convex = useConvex()
-  // Reactive state - stable signal created once per component lifecycle
+  // Use React state for activeView to ensure proper re-renders across components
+  // Signals don't trigger React re-renders reliably when shared across component boundaries
+  const [activeViewState, setActiveViewState] = React.useState<ViewType>("overview")
+
+  // Create a stable signal that mirrors the React state for API compatibility
   const activeView$ = React.useMemo(() => signal<ViewType>("overview"), [])
+
+  // Keep the signal in sync with React state
+  React.useEffect(() => {
+    activeView$.value = activeViewState
+  }, [activeViewState, activeView$])
 
   // Legacy dialog state for overview components
   const editPeriodDialogOpen$ = React.useMemo(() => signal(false), [])
@@ -217,12 +219,15 @@ export function useDashboardVM(): DashboardVM {
       ? { selectionPeriodId: editingPeriod$.value.value._id }
       : "skip"
   )
-  const categoriesData = useQuery(api.categories.getAllCategories, {})
-  const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
+  const constraintsData = useQuery(api.constraints.getAllConstraints, {})
+  const constraintNamesData = useQuery(api.constraints.getConstraintNames, {})
   const studentsData = useQuery(
     api.studentAnswers.getAllPeriodsStudentsWithCompletionStatus,
     {}
   )
+
+  // Onboarding data - uses getOnboardingProgress for auth-based tracking with auto-detection
+  const onboardingProgressData = useQuery(api.teacherOnboarding.getOnboardingProgress, {})
 
   // ============================================================================
   // CONVEX MUTATIONS - Root VM owns all mutations
@@ -248,15 +253,19 @@ export function useDashboardVM(): DashboardVM {
   const deleteTemplateMutation = useMutation(api.questionTemplates.deleteTemplate)
   const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
   const reorderTemplateQuestionsMutation = useMutation(api.templateQuestions.reorder)
-  const createCategoryMutation = useMutation(api.categories.createCategory)
-  const updateCategoryMutation = useMutation(api.categories.updateCategory)
-  const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
+  const createConstraintMutation = useMutation(api.constraints.createConstraint)
+  const updateConstraintMutation = useMutation(api.constraints.updateConstraint)
+  const deleteConstraintMutation = useMutation(api.constraints.deleteConstraint)
   const saveAnswersAsTeacherMutation = useMutation(api.studentAnswers.saveAnswersAsTeacher)
 
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
   const clearAllDataMutation = useMutation(api.admin.clearAllData)
   const setupExperimentMutation = useMutation(api.admin.setupExperiment)
   const generateRandomAnswersMutation = useMutation(api.admin.generateRandomAnswers)
+
+  // Onboarding mutations - auth-based (no visitorId needed)
+  const markOnboardingStepCompleteMutation = useMutation(api.teacherOnboarding.markStepComplete)
+  const dismissOnboardingMutation = useMutation(api.teacherOnboarding.dismissOnboarding)
 
   // ============================================================================
   // DATA SIGNALS - Updated when query data changes
@@ -271,11 +280,12 @@ export function useDashboardVM(): DashboardVM {
     questionsData$: signal<typeof questionsData>(undefined),
     templatesData$: signal<typeof templatesData>(undefined),
     existingQuestionsData$: signal<typeof existingQuestionsData>(undefined),
-    categoriesData$: signal<typeof categoriesData>(undefined),
-    categoryNamesData$: signal<typeof categoryNamesData>(undefined),
+    constraintsData$: signal<typeof constraintsData>(undefined),
+    constraintNamesData$: signal<typeof constraintNamesData>(undefined),
     studentsData$: signal<typeof studentsData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
+    onboardingProgressData$: signal<typeof onboardingProgressData>(undefined),
   }).current
 
   // Update signals when query data changes - must be in useEffect to avoid setState during render
@@ -289,13 +299,14 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.questionsData$.value = questionsData
       dataSignals.templatesData$.value = templatesData
       dataSignals.existingQuestionsData$.value = existingQuestionsData
-      dataSignals.categoriesData$.value = categoriesData
-      dataSignals.categoryNamesData$.value = categoryNamesData
+      dataSignals.constraintsData$.value = constraintsData
+      dataSignals.constraintNamesData$.value = constraintNamesData
       dataSignals.studentsData$.value = studentsData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
+      dataSignals.onboardingProgressData$.value = onboardingProgressData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, constraintsData, constraintNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -525,9 +536,28 @@ export function useDashboardVM(): DashboardVM {
     }))
   })
 
+  // Helper: valid view types for URL parsing
+  const validViews: ViewType[] = ["overview", "periods", "topics", "students", "settings", "help"]
+
   // Actions
-  const setActiveView = (view: ViewType): void => {
-    activeView$.value = view
+  const setActiveView = (view: ViewType, updateUrl = true): void => {
+    setActiveViewState(view)
+    // Update URL without page refresh
+    if (updateUrl && typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      if (view === "overview") {
+        url.searchParams.delete("tab")
+      } else {
+        url.searchParams.set("tab", view)
+      }
+      window.history.pushState({}, "", url.toString())
+    }
+  }
+
+  // Sync view from URL param
+  const syncFromUrl = (tab: string | null): void => {
+    const view = tab && validViews.includes(tab as ViewType) ? (tab as ViewType) : "overview"
+    setActiveViewState(view)
   }
 
   const createPeriod = (data: PeriodFormData): void => {
@@ -606,10 +636,10 @@ export function useDashboardVM(): DashboardVM {
     const periodsView = createPeriodsViewVM({
       periodsData$: dataSignals.periodsData$,
       currentPeriodData$: dataSignals.currentPeriodData$,
-      assignmentsData$: computed(() => {
+      assignmentsData$: computed((): readonly Assignment[] | undefined => {
         const data = dataSignals.assignmentsData$.value
         if (!data) return undefined
-        return data.map((a): any => ({
+        return data.map((a): Assignment => ({
           studentId: a.student_id,
           topicTitle: a.assigned_topic,
           preferenceRank: 0,
@@ -619,39 +649,38 @@ export function useDashboardVM(): DashboardVM {
       }),
       topicsData$: dataSignals.topicsData$,
       existingTopicsData$: computed(() => []), // Will be computed based on editing period's semester
-      categoriesData$: dataSignals.categoriesData$, // Will be filtered to minimize in PeriodsViewVM
+      constraintsData$: dataSignals.constraintsData$, // Will be filtered to minimize in PeriodsViewVM
+      existingQuestionsForPeriod$: computed(() => {
+        // Map from the query result format to { questionId: string }[]
+        const data = dataSignals.existingQuestionsData$.value
+        if (!data) return undefined
+        return data.map((sq) => ({ questionId: sq.questionId as string }))
+      }),
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
+      // Question & Category Management
+      questionsData$: dataSignals.questionsData$,
+      constraintNamesData$: dataSignals.constraintNamesData$,
+      createQuestion: createQuestionMutation,
+      updateQuestion: updateQuestionMutation,
+      deleteQuestion: deleteQuestionMutation,
+      createConstraint: createConstraintMutation,
+      updateConstraint: updateConstraintMutation,
+      deleteConstraint: deleteConstraintMutation,
     })
 
     const topicsView = createTopicsViewVM({
       topics$: dataSignals.topicsData$,
-      categories$: dataSignals.categoriesData$, // Will be filtered to pull/prerequisite in TopicsViewVM
-      createTopic: createTopicMutation as any, // Type cast to handle constraintIds type mismatch
+      constraints$: dataSignals.constraintsData$, // Will be filtered to pull/prerequisite in TopicsViewVM
+      createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
-    })
-
-    const questionnairesView = createQuestionnairesViewVM({
-      questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to6" vs "numeric" mismatch
-      templates$: dataSignals.templatesData$,
-      categories$: dataSignals.categoriesData$,
-      existingCategories$: dataSignals.categoryNamesData$,
-      createQuestion: createQuestionMutation as any, // Type cast to handle category optional vs required mismatch
-      updateQuestion: updateQuestionMutation,
-      deleteQuestion: deleteQuestionMutation,
-      createTemplate: createTemplateMutation,
-      updateTemplate: updateTemplateMutation,
-      deleteTemplate: deleteTemplateMutation,
-      getTemplateWithQuestions: (args) => convex.query(api.questionTemplates.getTemplateWithQuestions, args) as Promise<any>,
-      addQuestionToTemplate: addQuestionToTemplateMutation,
-      reorderTemplateQuestions: reorderTemplateQuestionsMutation,
-      createCategory: createCategoryMutation as any, // Type cast to handle criterionType null vs optional mismatch
-      updateCategory: updateCategoryMutation as any, // Type cast to handle criterionType null vs optional mismatch
-      deleteCategory: deleteCategoryMutation,
+      createConstraint: createConstraintMutation,
+      updateConstraint: updateConstraintMutation,
+      deleteConstraint: deleteConstraintMutation,
     })
 
     const settingsView = createSettingsViewVM({
@@ -664,6 +693,40 @@ export function useDashboardVM(): DashboardVM {
     const studentsView = createStudentsViewVM({
       allPeriodsStudentsData$: dataSignals.studentsData$,
       saveAnswersAsTeacher: saveAnswersAsTeacherMutation,
+    })
+
+    // Onboarding VM - uses auth-based getOnboardingProgress which includes dismissal status
+    const onboardingVM = createOnboardingVM({
+      onboardingData$: computed(() => {
+        const progressData = dataSignals.onboardingProgressData$.value
+        if (!progressData) return null
+        return {
+          completedSteps: progressData.completedSteps,
+          dismissedAt: progressData.dismissedAt,
+        }
+      }),
+      markStepComplete: async ({ stepId }) => {
+        // Call the auth-based mutation (no visitorId needed)
+        await markOnboardingStepCompleteMutation({ stepId })
+      },
+      dismissOnboarding: async () => {
+        // Call the auth-based mutation (no visitorId needed)
+        await dismissOnboardingMutation({})
+      },
+      setActiveView: (view: string) => {
+        const viewType = view as ViewType
+        setActiveViewState(viewType)
+        // Update URL without page refresh
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href)
+          if (viewType === "overview") {
+            url.searchParams.delete("tab")
+          } else {
+            url.searchParams.set("tab", viewType)
+          }
+          window.history.pushState({}, "", url.toString())
+        }
+      },
     })
 
     // Legacy dialog VMs for overview compatibility
@@ -693,9 +756,28 @@ export function useDashboardVM(): DashboardVM {
       }
     }
 
-    // Actions
-    const setActiveView = (view: ViewType): void => {
-      activeView$.value = view
+    // Helper: valid view types for URL parsing (scoped to block)
+    const validViewsInner: ViewType[] = ["overview", "periods", "topics", "students", "settings", "help"]
+
+    // Actions - with URL update support
+    const setActiveViewInner = (view: ViewType, updateUrl = true): void => {
+      setActiveViewState(view)
+      // Update URL without page refresh
+      if (updateUrl && typeof window !== "undefined") {
+        const url = new URL(window.location.href)
+        if (view === "overview") {
+          url.searchParams.delete("tab")
+        } else {
+          url.searchParams.set("tab", view)
+        }
+        window.history.pushState({}, "", url.toString())
+      }
+    }
+
+    // Sync view from URL param
+    const syncFromUrlInner = (tab: string | null): void => {
+      const view = tab && validViewsInner.includes(tab as ViewType) ? (tab as ViewType) : "overview"
+      setActiveViewState(view)
     }
 
     // Legacy actions for backward compatibility
@@ -813,9 +895,9 @@ export function useDashboardVM(): DashboardVM {
       // Child VMs
       periodsView,
       topicsView,
-      questionnairesView,
       settingsView,
       studentsView,
+      onboardingVM,
 
       // Legacy support for overview
       periods$,
@@ -827,7 +909,8 @@ export function useDashboardVM(): DashboardVM {
       updateTopicFromForm,
 
       // Actions
-      setActiveView,
+      setActiveView: setActiveViewInner,
+      syncFromUrl: syncFromUrlInner,
       createPeriod,
       updatePeriod,
       deletePeriod,

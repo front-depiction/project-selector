@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import { useSharedDashboardVM } from "./index"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { Doc } from "@/convex/_generated/dataModel"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSignals } from "@preact/signals-react/runtime"
 import * as Option from "effect/Option"
 import {
@@ -39,8 +40,8 @@ import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
 import { StudentsView } from "./StudentsView"
 import { SettingsView } from "./SettingsView"
-import { QuestionnairesView } from "./QuestionnairesView"
 import { HelpView } from "./HelpView"
+import { OnboardingCard } from "./OnboardingCard"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
@@ -53,7 +54,7 @@ import type { LandingStats } from "@/convex/stats"
 const OverviewView: React.FC = () => {
   useSignals()
   const { currentPeriod, assignments, periods } = AD.useDashboard()
-  const vm = AD.useDashboardVM()
+  const vm = useSharedDashboardVM()
 
   // Get all periods for the selector
   const allPeriods = periods ?? []
@@ -192,6 +193,9 @@ const OverviewView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Onboarding Card - Show at top of Overview */}
+      <OnboardingCard vm={vm.onboardingVM} />
+
       {/* Period Selector */}
       {sortedPeriods.length > 0 && (
         <Card className="border-0 shadow-sm">
@@ -256,7 +260,7 @@ const OverviewView: React.FC = () => {
           ...selectedPeriodStats,
           matchRate,
           topChoiceRate
-        } as any : undefined}
+        } as LandingStats & { matchRate?: number; topChoiceRate?: number } : undefined}
       />
 
       {/* Topics with Groups - Show for selected period */}
@@ -374,7 +378,7 @@ const OverviewView: React.FC = () => {
                 topicIds: [],
                 minimizeCategoryIds: []
               }}
-              onSubmit={vm.updatePeriodFromForm as any}
+              onSubmit={vm.updatePeriodFromForm}
             />
           )}
         </DialogContent>
@@ -398,7 +402,7 @@ const OverviewView: React.FC = () => {
                 constraintIds: [], // TODO: Get constraintIds from topic if stored
                 duplicateCount: 1
               }}
-              onSubmit={vm.updateTopicFromForm as any}
+              onSubmit={vm.updateTopicFromForm}
             />
           )}
         </DialogContent>
@@ -415,8 +419,9 @@ const MainContent: React.FC = () => {
   // Enable signals reactivity
   useSignals()
 
-  const { activeView } = AD.useDashboard()
-  const vm = AD.useDashboardVM()
+  const vm = useSharedDashboardVM()
+  // Read from signal directly for reactivity (context value is not reactive)
+  const activeView = vm.activeView$.value
 
   switch (activeView) {
     case "overview":
@@ -427,8 +432,6 @@ const MainContent: React.FC = () => {
       return <TopicsView vm={vm.topicsView} />
     case "students":
       return <StudentsView vm={vm.studentsView} />
-    case "questionnaires":
-      return <QuestionnairesView vm={vm.questionnairesView} />
     case "settings":
       return <SettingsView vm={vm.settingsView} />
     case "help":
@@ -447,6 +450,26 @@ export const AdminDashboardView: React.FC = () => {
   useSignals()
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const vm = useSharedDashboardVM()
+
+  // Sync view from URL on initial load and when searchParams change
+  React.useEffect(() => {
+    const tab = searchParams.get("tab")
+    vm.syncFromUrl(tab)
+  }, [searchParams, vm])
+
+  // Handle browser back/forward buttons
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const url = new URL(window.location.href)
+      const tab = url.searchParams.get("tab")
+      vm.syncFromUrl(tab)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [vm])
 
   return (
     <SidebarProvider>
@@ -483,6 +506,8 @@ export const AdminDashboardView: React.FC = () => {
 
 export const AdminDashboard: React.FC = () => (
   <AD.Provider>
-    <AdminDashboardView />
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <AdminDashboardView />
+    </React.Suspense>
   </AD.Provider>
 )

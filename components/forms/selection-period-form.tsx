@@ -36,7 +36,10 @@ const formSchema = z.object({
     end_deadline: z.date(),
     topicIds: z.array(z.string()).min(1, "Select at least one topic"),
     minimizeCategoryIds: z.array(z.string()).optional(),
-    rankingsEnabled: z.boolean().default(true),
+    questionIds: z.array(z.string()).optional(),
+    rankingsEnabled: z.boolean(),
+    accessMode: z.enum(["code", "student_id"]),
+    codeLength: z.number().min(4).max(12),
 }).refine((data) => data.end_deadline > data.start_deadline, {
     message: "End date must be after start date",
     path: ["end_deadline"],
@@ -56,14 +59,23 @@ export interface CategoryOption {
     description?: string
 }
 
+export interface QuestionOption {
+    id: string
+    question: string
+    kind: "boolean" | "0to6"
+    category?: string
+}
+
 export default function SelectionPeriodForm({
     topics = [],
     categories = [],
+    questions = [],
     initialValues,
     onSubmit,
 }: {
     topics?: readonly TopicOption[]
     categories?: readonly CategoryOption[]
+    questions?: readonly QuestionOption[]
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
@@ -86,7 +98,10 @@ export default function SelectionPeriodForm({
             end_deadline: defaultEndDate,
             topicIds: initialValues?.topicIds ?? [],
             minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
+            questionIds: initialValues?.questionIds ?? [],
             rankingsEnabled: initialValues?.rankingsEnabled ?? true,
+            accessMode: initialValues?.accessMode ?? "code",
+            codeLength: initialValues?.codeLength ?? 6,
         },
     })
 
@@ -100,7 +115,10 @@ export default function SelectionPeriodForm({
             start_deadline: initialValues.start_deadline?.getTime(),
             end_deadline: initialValues.end_deadline?.getTime(),
             topicIds: initialValues.topicIds,
+            questionIds: initialValues.questionIds,
             rankingsEnabled: initialValues.rankingsEnabled,
+            accessMode: initialValues.accessMode,
+            codeLength: initialValues.codeLength,
         })
         return key
     }, [initialValues])
@@ -117,7 +135,10 @@ export default function SelectionPeriodForm({
                 end_deadline: endDate,
                 topicIds: initialValues.topicIds ?? [],
                 minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
+                questionIds: initialValues.questionIds ?? [],
                 rankingsEnabled: initialValues.rankingsEnabled ?? true,
+                accessMode: initialValues.accessMode ?? "code",
+                codeLength: initialValues.codeLength ?? 6,
             })
         }
     }, [initialValuesKey, form])
@@ -136,7 +157,9 @@ export default function SelectionPeriodForm({
 
     const topicIds = useWatch({ control: form.control, name: "topicIds" })
     const minimizeCategoryIds = useWatch({ control: form.control, name: "minimizeCategoryIds" })
+    const questionIds = useWatch({ control: form.control, name: "questionIds" })
     const semesterId = useWatch({ control: form.control, name: "selection_period_id" })
+    const accessMode = useWatch({ control: form.control, name: "accessMode" })
 
     // Filter topics by selected semester (if semesterId is provided)
     const filteredTopics = useMemo(() => {
@@ -162,6 +185,14 @@ export default function SelectionPeriodForm({
         form.setValue("minimizeCategoryIds", next)
     }
 
+    const toggleQuestion = (questionId: string) => {
+        const current = form.getValues("questionIds") ?? []
+        const next = current.includes(questionId)
+            ? current.filter((id: string) => id !== questionId)
+            : [...current, questionId]
+        form.setValue("questionIds", next)
+    }
+
     async function handleSubmit(values: z.infer<typeof formSchema>) {
         try {
             await onSubmit(values)
@@ -173,7 +204,7 @@ export default function SelectionPeriodForm({
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-w-3xl mx-auto max-h-[70vh] overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-w-3xl mx-auto max-h-[70vh] overflow-y-auto pr-2 pb-6">
 
                 <div className="grid grid-cols-12 gap-4">
 
@@ -284,6 +315,54 @@ export default function SelectionPeriodForm({
                     )}
                 />
 
+                <FormField
+                    control={form.control}
+                    name="accessMode"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Access Mode</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select access mode" />
+                                    </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="code">Access Codes (teacher generates codes)</SelectItem>
+                                    <SelectItem value="student_id">Student ID (students enter their own ID)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormDescription>
+                                Code mode requires pre-generated codes. Student ID mode lets students enter any ID.
+                            </FormDescription>
+                        </FormItem>
+                    )}
+                />
+
+                {accessMode === "code" && (
+                    <FormField
+                        control={form.control}
+                        name="codeLength"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Code Length</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="number"
+                                        min={4}
+                                        max={12}
+                                        {...field}
+                                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 6)}
+                                    />
+                                </FormControl>
+                                <FormDescription>
+                                    Number of characters for access codes (4-12, default 6)
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
 
                 {/* Topics Section */}
                 <div className="space-y-4">
@@ -356,7 +435,7 @@ export default function SelectionPeriodForm({
                     <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
                         {categories.length === 0 ? (
                             <p className="text-sm text-muted-foreground py-8 text-center">
-                                No balance distribution categories available. Create categories with "Balance Evenly" criterion in the Questionnaires tab first.
+                                No balance distribution categories available. Create them in the "Selection-Wide Criteria" section above.
                             </p>
                         ) : (
                             <div className="space-y-2">
@@ -382,6 +461,63 @@ export default function SelectionPeriodForm({
                                                         {category.description}
                                                     </p>
                                                 )}
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Questions Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base">Questionnaire Questions</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Select questions students must answer before ranking topics.
+                                {questionIds && questionIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
+                        {questions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-8 text-center">
+                                No questions available. Create questions in the Questions section first.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {questions.map((question) => {
+                                    const isChecked = questionIds?.includes(question.id)
+                                    return (
+                                        <label
+                                            key={question.id}
+                                            htmlFor={`sp-question-${question.id}`}
+                                            className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                        >
+                                            <Checkbox
+                                                id={`sp-question-${question.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleQuestion(question.id)}
+                                            />
+                                            <div className="flex-1 space-y-1">
+                                                <p className="text-sm font-medium leading-none">
+                                                    {question.question}
+                                                </p>
+                                                <div className="flex gap-2 text-xs text-muted-foreground">
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {question.kind === "boolean" ? "Yes/No" : "Scale 0-6"}
+                                                    </Badge>
+                                                    {question.category && (
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {question.category}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                         </label>
                                     )

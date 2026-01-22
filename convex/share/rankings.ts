@@ -56,7 +56,7 @@ export const updateRankingsAggregateUtil = async (
   await Promise.all([deletions, insertions]);
 }
 
-type Ranking = { topicId: string; position: number }
+type Ranking = { topicId: Id<"topics">; position: number }
 
 function buildRankingEvents(
   args: { studentId: string; semesterId: string },
@@ -65,13 +65,13 @@ function buildRankingEvents(
 ) {
   const base = { studentId: args.studentId, semesterId: args.semesterId }
 
-  const makeAdded = (topicId: string, position: number) =>
+  const makeAdded = (topicId: Id<"topics">, position: number) =>
     RankingEvent.make({ ...base, topicId, position, action: "added" })
 
-  const makeRemoved = (topicId: string, previousPosition: number) =>
+  const makeRemoved = (topicId: Id<"topics">, previousPosition: number) =>
     RankingEvent.make({ ...base, topicId, position: 0, previousPosition, action: "removed" })
 
-  const makeMoved = (topicId: string, position: number, previousPosition: number) =>
+  const makeMoved = (topicId: Id<"topics">, position: number, previousPosition: number) =>
     RankingEvent.make({ ...base, topicId, position, previousPosition, action: "moved" })
 
   // If no previous rankings, everything is "added"

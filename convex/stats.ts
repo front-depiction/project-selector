@@ -36,7 +36,8 @@ export type LandingStats =
  * Gets statistics for the landing page.
  * If periodId is provided, stats are filtered to that period.
  * Otherwise, uses the active period or most recent assigned period.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.1.0
  */
@@ -45,61 +46,96 @@ export const getLandingStats = query({
     periodId: v.optional(v.id("selectionPeriods"))
   },
   handler: async (ctx, args) => {
-    let activePeriod = null
-
-    // If periodId is provided, use that period
-    if (args.periodId) {
-      activePeriod = await ctx.db.get(args.periodId)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      return {
+        isActive: false,
+        periodStatus: "inactive" as const,
+        title: undefined,
+        totalTopics: 0,
+        totalStudents: 0,
+        averageSelectionsPerStudent: 0,
+        mostPopularTopics: [],
+        leastPopularTopics: [],
+        totalSelections: 0
+      }
     }
 
-    // Otherwise, get active selection period (open)
+    const userId = identity.subject
+    let activePeriod = null
+
+    // If periodId is provided, use that period (verify ownership)
+    if (args.periodId) {
+      const period = await ctx.db.get(args.periodId)
+      if (period && period.userId === userId) {
+        activePeriod = period
+      }
+    }
+
+    // Otherwise, get active selection period (open) owned by this user
     if (!activePeriod) {
       const openPeriods = await ctx.db
         .query("selectionPeriods")
-        .withIndex("by_kind", q => q.eq("kind", "open"))
+        .withIndex("by_user", q => q.eq("userId", userId))
         .collect()
-      
+        .then(periods => periods.filter(p => p.kind === "open"))
+
       // If multiple open periods, get the most recent one
       if (openPeriods.length > 0) {
         activePeriod = openPeriods.sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))[0]
       }
     }
 
-    // If no active period, check for recently assigned periods
+    // If no active period, check for recently assigned periods owned by this user
     if (!activePeriod) {
       const allPeriods = await ctx.db
         .query("selectionPeriods")
+        .withIndex("by_user", q => q.eq("userId", userId))
         .collect()
-      
+
       // Find the most recent assigned period
       const assignedPeriods = allPeriods
         .filter(p => SelectionPeriod.isAssigned(p))
         .sort((a, b) => (b.closeDate || 0) - (a.closeDate || 0))
-      
+
       activePeriod = assignedPeriods[0]
     }
 
-    // If no active period, aggregate stats across all periods
+    // If no active period, aggregate stats across all periods owned by this user
     if (!activePeriod) {
-      // Get all topics (across all semesters)
+      // Get all topics owned by this user (across all semesters)
       const allTopics = await ctx.db
         .query("topics")
-        .filter(q => q.eq(q.field("isActive"), true))
+        .withIndex("by_user", q => q.eq("userId", userId))
+        .collect()
+        .then(topics => topics.filter(t => t.isActive))
+
+      // Get all periods owned by this user to filter access codes
+      const userPeriods = await ctx.db
+        .query("selectionPeriods")
+        .withIndex("by_user", q => q.eq("userId", userId))
         .collect()
 
-      // Get all access code entries (across all periods)
+      const userPeriodIds = new Set(userPeriods.map(p => p._id))
+
+      // Get all access code entries for user's periods
       const allAccessCodeEntries = await ctx.db
         .query("periodStudentAllowList")
         .collect()
-      
+        .then(entries => entries.filter(e => userPeriodIds.has(e.selectionPeriodId)))
+
       // Count unique students (by studentId)
       const uniqueStudents = new Set(allAccessCodeEntries.map(e => e.studentId))
       const totalStudents = uniqueStudents.size
 
-      // Get all preferences (across all semesters)
+      // Get semester IDs from user's periods
+      const userSemesterIds = new Set(userPeriods.map(p => p.semesterId))
+
+      // Get preferences for user's semesters
       const allPreferences = await ctx.db
         .query("preferences")
         .collect()
+        .then(prefs => prefs.filter(p => userSemesterIds.has(p.semesterId)))
 
       const totalSelections = allPreferences
         .reduce((sum, pref) => sum + pref.topicOrder.length, 0)
@@ -122,12 +158,14 @@ export const getLandingStats = query({
 
     const periodStatus = SelectionPeriod.getStatus()(activePeriod)
 
-    // Get all topics for this semester
+    // Get all topics for this semester owned by this user
     const topics = await ctx.db
       .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .filter(q => q.eq(q.field("isActive"), true))
+      .withIndex("by_user", q => q.eq("userId", userId))
       .collect()
+      .then(allTopics => allTopics.filter(t =>
+        t.semesterId === activePeriod.semesterId && t.isActive
+      ))
 
     // Get all students with access codes for this period
     const accessCodeEntries = await ctx.db

@@ -7,15 +7,19 @@ import { dual } from "effect/Function"
  * Base properties shared by all SelectionPeriod variants
  */
 const BaseSelectionPeriod = {
+  userId: v.string(),
   semesterId: v.string(),
   title: v.string(),
   description: v.string(),
   openDate: v.number(),
   closeDate: v.number(),
+  shareableSlug: v.string(),
   rankingsEnabled: v.optional(v.boolean()),
   isExperiment: v.optional(v.boolean()),
   excludePairs: v.optional(v.array(v.array(v.string()))),
   minimizeCategoryIds: v.optional(v.array(v.id("categories"))),
+  accessMode: v.optional(v.union(v.literal("code"), v.literal("student_id"))),
+  codeLength: v.optional(v.number()),
 }
 
 /**
@@ -95,26 +99,34 @@ export type AssignedPeriod = Readonly<Infer<typeof AssignedPeriod>>
  * })
  */
 export const makeInactive = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly scheduledOpenFunctionId?: Id<"_scheduled_functions">
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
+  readonly codeLength?: number
 }): InactivePeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
+  codeLength: params.codeLength,
   kind: "inactive" as const,
   scheduledOpenFunctionId: params.scheduledOpenFunctionId,
 })
@@ -126,26 +138,34 @@ export const makeInactive = (params: {
  * @since 0.1.0
  */
 export const makeOpen = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly scheduledFunctionId: Id<"_scheduled_functions">
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
+  readonly codeLength?: number
 }): OpenPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
+  codeLength: params.codeLength,
   kind: "open" as const,
   scheduledFunctionId: params.scheduledFunctionId,
 })
@@ -157,25 +177,33 @@ export const makeOpen = (params: {
  * @since 0.1.0
  */
 export const makeClosed = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
+  readonly codeLength?: number
 }): ClosedPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
+  codeLength: params.codeLength,
   kind: "closed" as const,
 })
 
@@ -186,26 +214,34 @@ export const makeClosed = (params: {
  * @since 0.1.0
  */
 export const makeAssigned = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
   readonly openDate: number
   readonly closeDate: number
+  readonly shareableSlug: string
   readonly rankingsEnabled?: boolean
   readonly isExperiment?: boolean
   readonly excludePairs?: string[][]
   readonly assignmentBatchId: string
   readonly minimizeCategoryIds?: Id<"categories">[]
+  readonly accessMode?: "code" | "student_id"
+  readonly codeLength?: number
 }): AssignedPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
   openDate: params.openDate,
   closeDate: params.closeDate,
+  shareableSlug: params.shareableSlug,
   rankingsEnabled: params.rankingsEnabled,
   isExperiment: params.isExperiment,
   excludePairs: params.excludePairs,
   minimizeCategoryIds: params.minimizeCategoryIds,
+  accessMode: params.accessMode,
+  codeLength: params.codeLength,
   kind: "assigned" as const,
   assignmentBatchId: params.assignmentBatchId,
 })
@@ -244,11 +280,13 @@ export const open = (scheduledFunctionId: Id<"_scheduled_functions">) =>
  * @since 0.1.0
  */
 export const close = (period: OpenPeriod): ClosedPeriod => ({
+  userId: period.userId,
   semesterId: period.semesterId,
   title: period.title,
   description: period.description,
   openDate: period.openDate,
   closeDate: period.closeDate,
+  shareableSlug: period.shareableSlug,
   kind: "closed" as const,
 })
 
@@ -260,11 +298,13 @@ export const close = (period: OpenPeriod): ClosedPeriod => ({
  */
 export const assign = (assignmentBatchId: string) =>
   (period: ClosedPeriod): AssignedPeriod => ({
+    userId: period.userId,
     semesterId: period.semesterId,
     title: period.title,
     description: period.description,
     openDate: period.openDate,
     closeDate: period.closeDate,
+    shareableSlug: period.shareableSlug,
     kind: "assigned" as const,
     assignmentBatchId,
   })
@@ -424,8 +464,26 @@ export const matchPartial = <P extends SelectionPeriod>(period: P) =>
     closed: (p: Extract<P, ClosedPeriod>) => R
     assigned: (p: Extract<P, AssignedPeriod>) => R
   }>, defaultCase: (p: P) => R): R => {
-    const handler = patterns[period.kind as keyof typeof patterns]
-    return handler ? (handler as any)(period) : defaultCase(period)
+    switch (period.kind) {
+      case "inactive":
+        return patterns.inactive
+          ? patterns.inactive(period as Extract<P, InactivePeriod>)
+          : defaultCase(period)
+      case "open":
+        return patterns.open
+          ? patterns.open(period as Extract<P, OpenPeriod>)
+          : defaultCase(period)
+      case "closed":
+        return patterns.closed
+          ? patterns.closed(period as Extract<P, ClosedPeriod>)
+          : defaultCase(period)
+      case "assigned":
+        return patterns.assigned
+          ? patterns.assigned(period as Extract<P, AssignedPeriod>)
+          : defaultCase(period)
+      default:
+        return defaultCase(period)
+    }
   }
 
 /**
@@ -706,15 +764,19 @@ export const toAssigned = dual<
  * const base = getBase(period)
  */
 export const getBase = (period: SelectionPeriod) => ({
+  userId: period.userId,
   semesterId: period.semesterId,
   title: period.title,
   description: period.description,
   openDate: period.openDate,
   closeDate: period.closeDate,
+  shareableSlug: period.shareableSlug,
   rankingsEnabled: period.rankingsEnabled,
   isExperiment: period.isExperiment,
   excludePairs: period.excludePairs,
   minimizeCategoryIds: period.minimizeCategoryIds,
+  accessMode: period.accessMode,
+  codeLength: period.codeLength,
 })
 
 /**

@@ -1,6 +1,7 @@
 import { mutation, query, QueryCtx } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
+import { internal } from "./_generated/api"
 
 /**
  * Helper function to get question IDs for a period based on linked categories.
@@ -150,6 +151,18 @@ export const generateStudentAccessCodes = mutation({
       generatedCodes.push(code)
     }
 
+    // Mark onboarding step complete
+    const onboardingIdentity = await ctx.auth.getUserIdentity()
+    if (onboardingIdentity) {
+      const userId = onboardingIdentity.subject ?? onboardingIdentity.email ?? ""
+      if (userId) {
+        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+          userId,
+          stepId: "add_students"
+        })
+      }
+    }
+
     return {
       codes: generatedCodes,
       total: generatedCodes.length,
@@ -202,6 +215,82 @@ export const validateAccessCode = query({
     }
 
     return { valid: true, normalizedCode: normalized, selectionPeriodId: entry.selectionPeriodId }
+  },
+})
+
+/**
+ * Validate an access code for a specific selection period.
+ * Ensures the code belongs to the specified period and the period is open.
+ *
+ * @category Mutations
+ * @since 0.3.0
+ */
+export const validateAccessCodeForPeriod = mutation({
+  args: {
+    code: v.string(),
+    periodId: v.id("selectionPeriods"),
+  },
+  handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
+    // Get the period to check accessMode
+    const period = await ctx.db.get(args.periodId)
+    if (!period || period.kind !== "open") {
+      return { valid: false, error: "This selection period is not currently accepting applications" }
+    }
+
+    // Normalize code
+    const normalizedCode = args.code.toUpperCase().trim()
+    const accessMode = period.accessMode ?? "code"
+    const codeLength = period.codeLength ?? 6
+
+    // For student_id mode, just add to allow list if not exists
+    if (accessMode === "student_id") {
+      if (normalizedCode.length === 0) {
+        return { valid: false, error: "Please enter your student ID" }
+      }
+
+      // Check if already in allow list
+      const existingEntry = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period_studentId", (q) =>
+          q.eq("selectionPeriodId", args.periodId).eq("studentId", normalizedCode)
+        )
+        .first()
+
+      // Add to allow list if not exists
+      if (!existingEntry) {
+        await ctx.db.insert("periodStudentAllowList", {
+          selectionPeriodId: args.periodId,
+          studentId: normalizedCode,
+          addedAt: Date.now(),
+          addedBy: "self-registration",
+        })
+      }
+
+      return { valid: true }
+    }
+
+    // Code mode: Check format
+    const codePattern = new RegExp(`^[A-Z0-9]{${codeLength}}$`)
+    if (!codePattern.test(normalizedCode)) {
+      return { valid: false, error: `Code must be ${codeLength} alphanumeric characters` }
+    }
+
+    // Find the access code entry
+    const entry = await ctx.db
+      .query("periodStudentAllowList")
+      .withIndex("by_studentId", (q) => q.eq("studentId", normalizedCode))
+      .first()
+
+    if (!entry) {
+      return { valid: false, error: "Invalid access code" }
+    }
+
+    // Check if code belongs to the specified period
+    if (entry.selectionPeriodId !== args.periodId) {
+      return { valid: false, error: "This code is not valid for this selection period" }
+    }
+
+    return { valid: true }
   },
 })
 

@@ -125,6 +125,26 @@ export const useDashboard = () => {
 }
 
 // ============================================================================
+// VM CONTEXT (for sharing the VM instance across components)
+// ============================================================================
+
+type DashboardVMType = ReturnType<typeof useDashboardVM>
+
+const DashboardVMContext = React.createContext<DashboardVMType | null>(null)
+
+/**
+ * Hook to get the shared DashboardVM instance.
+ * Must be used within a Provider component.
+ */
+export const useSharedDashboardVM = (): DashboardVMType => {
+  const context = React.useContext(DashboardVMContext)
+  if (!context) {
+    throw new Error("useSharedDashboardVM must be used within DashboardProvider")
+  }
+  return context
+}
+
+// ============================================================================
 // PROVIDER
 // ============================================================================
 
@@ -186,9 +206,11 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   }
 
   return (
-    <DashboardContext.Provider value={value}>
-      {children}
-    </DashboardContext.Provider>
+    <DashboardVMContext.Provider value={vm}>
+      <DashboardContext.Provider value={value}>
+        {children}
+      </DashboardContext.Provider>
+    </DashboardVMContext.Provider>
   )
 }
 
@@ -597,7 +619,6 @@ export const TabNavigation: React.FC = () => {
     { id: "periods", label: "Periods", icon: <Calendar className="h-4 w-4" /> },
     { id: "topics", label: "Topics", icon: <FileText className="h-4 w-4" /> },
     { id: "students", label: "Students", icon: <Users className="h-4 w-4" /> },
-    { id: "questionnaires", label: "Questionnaires", icon: <FileText className="h-4 w-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="h-4 w-4" /> }
   ]
 

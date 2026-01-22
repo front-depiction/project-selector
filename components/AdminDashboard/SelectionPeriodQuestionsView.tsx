@@ -66,7 +66,7 @@ export const SelectionPeriodQuestionsView: React.FC<{
         open={vm.addQuestionsDialog.isOpen$.value}
         onOpenChange={(open) => !open && vm.addQuestionsDialog.close()}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Questions to Selection Period</DialogTitle>
           </DialogHeader>

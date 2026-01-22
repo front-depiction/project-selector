@@ -15,8 +15,8 @@ async function seedTestDataWithoutRankings(t: ReturnType<typeof convexTest>) {
 
   return await t.run(async (ctx: any) => {
     const [periodId, topicIds] = await Promise.all([
-      createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
-      createTestTopics(ctx, semesterId)
+      createTestSelectionPeriod(ctx, "test-user", semesterId, now, thirtyDaysFromNow),
+      createTestTopics(ctx, "test-user", semesterId)
     ])
 
     return { periodId, semesterId, topicIds }

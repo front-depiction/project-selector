@@ -28,12 +28,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Power, Trash2, MoreVertical, Key, Users } from "lucide-react"
+import { Plus, Edit, Trash2, MoreVertical, Key, Users, Link, Copy, ChevronDown, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
-import type { TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
+import type { TopicOption, CategoryOption, QuestionOption } from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { AssignNowButton } from "@/components/admin/AssignNowButton"
+import QuestionForm from "@/components/forms/question-form"
+import ConstraintForm from "@/components/forms/constraint-form"
 import type { PeriodsViewVM } from "./PeriodsViewVM"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useSignals } from "@preact/signals-react/runtime"
@@ -46,20 +49,47 @@ const EditPeriodFormWrapper: React.FC<{
   editingPeriod: any
   topics: readonly TopicOption[]
   categories: readonly CategoryOption[]
+  questions: readonly QuestionOption[]
   existingTopicIds: readonly string[]
   existingMinimizeCategoryIds: readonly string[]
+  existingQuestionIds: readonly string[]
   updatePeriod: PeriodsViewVM["updatePeriod"]
+  addQuestion: PeriodsViewVM["addQuestion"]
+  removeQuestion: PeriodsViewVM["removeQuestion"]
   closeDialog: () => void
-}> = ({ editingPeriod, topics, categories, existingTopicIds, existingMinimizeCategoryIds, updatePeriod, closeDialog }) => {
+}> = ({ editingPeriod, topics, categories, questions, existingTopicIds, existingMinimizeCategoryIds, existingQuestionIds, updatePeriod, addQuestion, removeQuestion, closeDialog }) => {
   const handleSubmit = async (values: any) => {
+    const periodId = editingPeriod._id
+
+    // Update period basic info
     await updatePeriod({
-      periodId: editingPeriod._id,
+      periodId,
       title: values.title,
       description: values.description,
       openDate: values.start_deadline.getTime(),
       closeDate: values.end_deadline.getTime(),
       minimizeCategoryIds: values.minimizeCategoryIds,
     })
+
+    // Sync questions: compare existing with selected
+    const selectedQuestionIds = values.questionIds ?? []
+    const currentQuestionIds = new Set(existingQuestionIds)
+    const newQuestionIds = new Set(selectedQuestionIds)
+
+    // Add new questions
+    for (const questionId of selectedQuestionIds) {
+      if (!currentQuestionIds.has(questionId)) {
+        await addQuestion({ selectionPeriodId: periodId, questionId: questionId as Id<"questions"> })
+      }
+    }
+
+    // Remove deselected questions
+    for (const questionId of existingQuestionIds) {
+      if (!newQuestionIds.has(questionId)) {
+        await removeQuestion({ selectionPeriodId: periodId, questionId: questionId as Id<"questions"> })
+      }
+    }
+
     closeDialog()
   }
 
@@ -67,6 +97,7 @@ const EditPeriodFormWrapper: React.FC<{
     <SelectionPeriodForm
       topics={topics}
       categories={categories}
+      questions={questions}
       initialValues={{
         title: editingPeriod.title,
         selection_period_id: editingPeriod.semesterId,
@@ -74,6 +105,7 @@ const EditPeriodFormWrapper: React.FC<{
         end_deadline: new Date(editingPeriod.closeDate),
         topicIds: [...existingTopicIds],
         minimizeCategoryIds: [...existingMinimizeCategoryIds],
+        questionIds: [...existingQuestionIds],
         rankingsEnabled: editingPeriod.rankingsEnabled ?? true,
       }}
       onSubmit={handleSubmit}
@@ -128,6 +160,10 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
     setAssignmentsDialogOpen(true)
   }
 
+  // Collapsible section states
+  const [criteriaExpanded, setCriteriaExpanded] = React.useState(false)
+  const [questionsExpanded, setQuestionsExpanded] = React.useState(false)
+
   return (
     <div className="space-y-6">
       {/* Header with Create Button */}
@@ -142,6 +178,188 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
         </Button>
       </div>
 
+      {/* Question Categories Collapsible Section */}
+      <Card>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setCriteriaExpanded(!criteriaExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {criteriaExpanded ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronRight className="h-5 w-5" />
+              )}
+              <CardTitle className="text-lg">Question Categories</CardTitle>
+              <Badge variant="secondary">{vm.distributionRules$.value.length}</Badge>
+            </div>
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                vm.ruleDialog.open()
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Category
+            </Button>
+          </div>
+          <CardDescription className="ml-7">
+            Categories for grouping questions and defining assignment criteria.
+          </CardDescription>
+        </CardHeader>
+        {criteriaExpanded && (
+          <CardContent>
+            {vm.distributionRules$.value.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No question categories yet. Add one to get started.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Criterion</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vm.distributionRules$.value.map((c) => (
+                    <TableRow key={c.key}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{c.description}</TableCell>
+                      <TableCell>
+                        <Badge variant={c.criterionBadgeVariant}>
+                          {c.criterionDisplay}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={c.edit}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={c.remove}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Questions Collapsible Section */}
+      <Card>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setQuestionsExpanded(!questionsExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {questionsExpanded ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronRight className="h-5 w-5" />
+              )}
+              <CardTitle className="text-lg">Questions</CardTitle>
+              <Badge variant="secondary">{vm.questions$.value.length}</Badge>
+            </div>
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                vm.questionDialog.open()
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Question
+            </Button>
+          </div>
+          <CardDescription className="ml-7">
+            Survey questions asked to all students during the selection process.
+          </CardDescription>
+        </CardHeader>
+        {questionsExpanded && (
+          <CardContent>
+            {vm.questions$.value.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No questions yet. Add one to get started.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Question</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vm.questions$.value.map((q) => (
+                    <TableRow key={q.key}>
+                      <TableCell>{q.questionText}</TableCell>
+                      <TableCell>
+                        {q.characteristicName ? (
+                          <Badge variant="outline">{q.characteristicName}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={q.kindVariant}>{q.kindDisplay}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={q.edit}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={q.remove}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Project Assignments Table - Clean table format */}
       {vm.periods$.value.length === 0 ? (
         <Card className="border-0 shadow-sm">
@@ -151,8 +369,9 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           </CardHeader>
         </Card>
       ) : (
-        <div className="rounded-md border">
-          <Table>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-0">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Title</TableHead>
@@ -216,10 +435,19 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
-                            <Key className="mr-2 h-4 w-4" />
-                            Manage Access Codes
+                          <DropdownMenuItem onClick={() => {
+                            vm.copyShareableLink(period.shareableSlug)
+                            toast.success("Invite link copied to clipboard")
+                          }}>
+                            <Link className="mr-2 h-4 w-4" />
+                            Copy Invite Link
                           </DropdownMenuItem>
+                          {period.accessMode === "code" && (
+                            <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
+                              <Key className="mr-2 h-4 w-4" />
+                              Manage Access Codes
+                            </DropdownMenuItem>
+                          )}
                           {period.statusDisplay === "Assigned" && (
                             <DropdownMenuItem onClick={() => handleViewGroups(period.key as Id<"selectionPeriods">, period.title)}>
                               <Users className="mr-2 h-4 w-4" />
@@ -242,12 +470,13 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               })}
             </TableBody>
           </Table>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Create Dialog */}
       <Dialog open={vm.createDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createDialog.close()}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Project Assignment</DialogTitle>
             <DialogDescription>
@@ -258,10 +487,40 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           </DialogHeader>
           {Option.isSome(vm.createdPeriod$.value) ? (
             <div className="space-y-4">
-              <PeriodStudentAllowListManager
-                selectionPeriodId={vm.createdPeriod$.value.value.id}
-                periodTitle={vm.createdPeriod$.value.value.title}
-              />
+              {/* Shareable Link Section */}
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-sm">Share with Students</h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const createdPeriod = vm.createdPeriod$.value
+                      if (Option.isSome(createdPeriod)) {
+                        vm.copyShareableLink(createdPeriod.value.shareableSlug)
+                        toast.success("Link copied!")
+                      }
+                    }}
+                  >
+                    <Copy className="mr-2 h-3 w-3" />
+                    Copy Link
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Students can use this link to access this selection period directly
+                </p>
+                <code className="block p-2 bg-background rounded border text-xs break-all">
+                  {Option.isSome(vm.createdPeriod$.value) && `${window.location.origin}/student/join/${vm.createdPeriod$.value.value.shareableSlug}`}
+                </code>
+              </div>
+
+              {/* Student Access Codes - only shown for "code" access mode */}
+              {Option.isSome(vm.createdPeriod$.value) && vm.createdPeriod$.value.value.accessMode === "code" && (
+                <PeriodStudentAllowListManager
+                  selectionPeriodId={vm.createdPeriod$.value.value.id}
+                  periodTitle={vm.createdPeriod$.value.value.title}
+                />
+              )}
               <div className="flex justify-end pt-4 border-t">
                 <Button onClick={vm.finishCreation}>
                   Done
@@ -272,6 +531,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <SelectionPeriodForm
               topics={vm.topics$.value}
               categories={vm.categories$.value}
+              questions={vm.questionsForForm$.value}
               onSubmit={vm.onCreateSubmit}
             />
           )}
@@ -280,7 +540,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
 
       {/* Edit Dialog */}
       <Dialog open={vm.editDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editDialog.close()}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Project Assignment</DialogTitle>
             <DialogDescription>
@@ -292,9 +552,13 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               editingPeriod={vm.editDialog.editingPeriod$.value.value}
               topics={vm.topics$.value}
               categories={vm.categories$.value}
+              questions={vm.questionsForForm$.value}
               existingTopicIds={vm.existingTopicIds$.value}
               existingMinimizeCategoryIds={vm.existingMinimizeCategoryIds$.value}
+              existingQuestionIds={vm.existingQuestionIds$.value}
               updatePeriod={vm.updatePeriod}
+              addQuestion={vm.addQuestion}
+              removeQuestion={vm.removeQuestion}
               closeDialog={vm.editDialog.close}
             />
           )}
@@ -308,7 +572,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           setSelectedPeriodForCodes(null)
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Student Access Codes</DialogTitle>
             <DialogDescription>
@@ -331,7 +595,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           setSelectedPeriodForAssignments(null)
         }
       }}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assignment Groups</DialogTitle>
             <DialogDescription>
@@ -344,6 +608,46 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               showFullQualityNames={true}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Question Dialog */}
+      <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingQuestion$.value) ? "Edit Question" : "Create Question"}
+            </DialogTitle>
+          </DialogHeader>
+          <QuestionForm
+            onSubmit={vm.onQuestionSubmit}
+            existingCharacteristicNames={[...vm.existingCharacteristicNames$.value]}
+            initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
+              question: q.question,
+              kind: q.kind,
+              characteristicName: q.category ?? "", // Map DB field to form field
+            })))}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Question Category Dialog */}
+      <Dialog open={vm.ruleDialog.isOpen$.value} onOpenChange={(open) => !open && vm.ruleDialog.close()}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingRule$.value) ? "Edit Question Category" : "Create Question Category"}
+            </DialogTitle>
+          </DialogHeader>
+          <ConstraintForm
+            onSubmit={vm.onRuleSubmit}
+            mode="distribution"
+            initialValues={Option.getOrUndefined(Option.map(vm.editingRule$.value, c => ({
+              name: c.name,
+              description: c.description || "",
+              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
+            })))}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -2,12 +2,13 @@ import { v } from "convex/values"
 import type { Infer } from "convex/values"
 
 /**
- * Convex validator for Category objects.
+ * Convex validator for Constraint objects.
  *
  * @category Validators
  * @since 0.2.0
  */
-export const Category = v.object({
+export const Constraint = v.object({
+  userId: v.string(),
   name: v.string(),
   description: v.optional(v.string()),
   semesterId: v.string(),
@@ -16,46 +17,58 @@ export const Category = v.object({
   criterionType: v.optional(v.union(
     v.literal("prerequisite"),
     v.literal("minimize"),
-    v.literal("pull")
+    v.literal("pull"),
+    v.literal("maximize"),
+    v.literal("push")
   )),
-  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement
+  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement (legacy)
   minRatio: v.optional(v.number()),
+  // For prerequisite: minimum number of students with this trait per group
+  minStudents: v.optional(v.number()),
+  // For maximize: maximum number of students with this trait per group
+  maxStudents: v.optional(v.number()),
 })
 
 /**
- * Category type representing a question category.
+ * Constraint type representing a question constraint.
  *
  * @category Types
  * @since 0.2.0
  */
-export type Category = Readonly<Infer<typeof Category>>
+export type Constraint = Readonly<Infer<typeof Constraint>>
 
 /**
- * Creates a new Category.
+ * Creates a new Constraint.
  *
  * @category Constructors
  * @since 0.2.0
  * @example
- * import * as Category from "./schemas/Category"
+ * import * as Constraint from "./schemas/Constraint"
  *
- * const category = Category.make({
+ * const constraint = Constraint.make({
  *   name: "Technical Skills",
  *   description: "Questions about technical abilities",
  *   semesterId: "2024-spring"
  * })
  */
 export const make = (params: {
+  readonly userId: string
   readonly name: string
   readonly description?: string
   readonly semesterId: string
   readonly createdAt?: number
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push" | null
   readonly minRatio?: number
-}): Category => ({
+  readonly minStudents?: number
+  readonly maxStudents?: number
+}): Constraint => ({
+  userId: params.userId,
   name: params.name,
   description: params.description,
   semesterId: params.semesterId,
   createdAt: params.createdAt ?? Date.now(),
   criterionType: params.criterionType ?? undefined,
   minRatio: params.minRatio,
+  minStudents: params.minStudents,
+  maxStudents: params.maxStudents,
 } as const)

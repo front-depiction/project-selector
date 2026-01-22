@@ -1,0 +1,277 @@
+"use client"
+import * as React from "react"
+import { toast } from "sonner"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
+import { Button } from "@/components/ui/button"
+import {
+    Form,
+    FormControl,
+    FormDescription,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
+
+const formSchema = z.object({
+    name: z.string().min(1, "Constraint name is required").min(2, "Constraint name must be at least 2 characters"),
+    description: z.string().optional(),
+    criterionType: z.enum(["prerequisite", "maximize", "minimize", "pull", "push"], {
+        message: "Please select how this category should be used"
+    }),
+    minStudents: z.number().min(1).optional(),
+    maxStudents: z.number().min(1).optional(),
+}).refine((data) => {
+    // If prerequisite is selected, minStudents is required
+    if (data.criterionType === "prerequisite") {
+        return data.minStudents !== undefined && data.minStudents !== null
+    }
+    return true
+}, {
+    message: "Minimum students per group is required for Required Minimum criterion",
+    path: ["minStudents"],
+}).refine((data) => {
+    // If maximize (Maximum Limit) is selected, maxStudents is required
+    if (data.criterionType === "maximize") {
+        return data.maxStudents !== undefined && data.maxStudents !== null
+    }
+    return true
+}, {
+    message: "Maximum students per group is required for Maximum Limit criterion",
+    path: ["maxStudents"],
+})
+
+export type ConstraintFormValues = z.infer<typeof formSchema>
+
+export default function ConstraintForm({
+    initialValues,
+    onSubmit,
+    mode,
+}: {
+    initialValues?: Partial<ConstraintFormValues>
+    onSubmit: (values: ConstraintFormValues) => void | Promise<void>
+    mode?: "distribution" | "topicSpecific" | null
+}) {
+    const [selectedCriterionType, setSelectedCriterionType] = React.useState<ConstraintFormValues["criterionType"] | undefined>(
+        initialValues?.criterionType ?? (mode === "distribution" ? "minimize" : undefined)
+    )
+
+    const form = useForm<ConstraintFormValues>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            name: initialValues?.name ?? "",
+            description: initialValues?.description ?? "",
+            criterionType: initialValues?.criterionType ?? (mode === "distribution" ? "minimize" : undefined),
+            minStudents: initialValues?.minStudents,
+            maxStudents: initialValues?.maxStudents,
+        },
+    })
+
+    async function handleSubmit(values: ConstraintFormValues) {
+        try {
+            await onSubmit(values)
+        } catch (error) {
+            console.error("Form submission error", error)
+            toast.error("Failed to submit the form. Please try again.")
+        }
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+                {mode === "distribution" && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+                        <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
+                            Balanced Distribution Criterion
+                        </h4>
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                            This criterion helps ensure students are evenly distributed across groups based on
+                            a specific characteristic (e.g., gender, experience level, programming background).
+                            The algorithm will try to balance this characteristic across all formed groups.
+                        </p>
+                    </div>
+                )}
+
+                <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Constraint Name</FormLabel>
+                            <FormControl>
+                                <Input
+                                    placeholder={mode === "distribution"
+                                        ? "e.g., Gender, Experience Level, Programming Background"
+                                        : "e.g., Technical Skills, Soft Skills"}
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormDescription>
+                                {mode === "distribution"
+                                    ? "A short name for this balanced distribution criterion (e.g., \"Gender\", \"Experience Level\")"
+                                    : "A short name for this constraint (e.g., \"Technical Skills\")"}
+                            </FormDescription>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                {mode !== "distribution" && (
+                    <>
+                        <FormField
+                            control={form.control}
+                            name="criterionType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Criterion Type <span className="text-red-500">*</span></FormLabel>
+                                    <Select
+                                        value={field.value}
+                                        onValueChange={(value) => {
+                                            const typedValue = value as "prerequisite" | "maximize" | "minimize" | "pull" | "push"
+                                            field.onChange(typedValue)
+                                            setSelectedCriterionType(typedValue)
+                                        }}
+                                    >
+                                        <FormControl>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue placeholder="Select criterion type..." />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="prerequisite" textValue="Required Minimum">
+                                                <div className="flex flex-col py-1 text-left">
+                                                    <span className="font-medium">Required Minimum</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        At least X students with this trait per group
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="maximize" textValue="Maximum Limit">
+                                                <div className="flex flex-col py-1 text-left">
+                                                    <span className="font-medium">Maximum Limit</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        At most X students with this trait per group
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="minimize" textValue="Balance Evenly">
+                                                <div className="flex flex-col py-1 text-left">
+                                                    <span className="font-medium">Balance Evenly</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Distribute students evenly across all groups
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="pull" textValue="Maximize Together">
+                                                <div className="flex flex-col py-1 text-left">
+                                                    <span className="font-medium">Maximize Together</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Try to group students with this trait together
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="push" textValue="Minimize Together">
+                                                <div className="flex flex-col py-1 text-left">
+                                                    <span className="font-medium">Minimize Together</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Try to spread students with this trait apart
+                                                    </span>
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        {selectedCriterionType === "prerequisite" && (
+                            <FormField
+                                control={form.control}
+                                name="minStudents"
+                                render={({ field: minField }) => (
+                                    <FormItem>
+                                        <FormLabel>Minimum Students per Group <span className="text-red-500">*</span></FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                placeholder="Enter minimum count..."
+                                                {...minField}
+                                                onChange={(e) => {
+                                                    const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                    minField.onChange(value)
+                                                }}
+                                                value={minField.value ?? ""}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+
+                        {selectedCriterionType === "maximize" && (
+                            <FormField
+                                control={form.control}
+                                name="maxStudents"
+                                render={({ field: maxField }) => (
+                                    <FormItem>
+                                        <FormLabel>Maximum Students per Group <span className="text-red-500">*</span></FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                placeholder="Enter maximum count..."
+                                                {...maxField}
+                                                onChange={(e) => {
+                                                    const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                    maxField.onChange(value)
+                                                }}
+                                                value={maxField.value ?? ""}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+                    </>
+                )}
+
+
+                <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Description (Optional)</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                    placeholder={mode === "distribution"
+                                        ? "e.g., Ensures gender diversity is balanced across all groups"
+                                        : "Optional description for this constraint"}
+                                    {...field}
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+
+                <Button type="submit">Save Constraint</Button>
+            </form>
+        </Form>
+    )
+}

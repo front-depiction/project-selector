@@ -1,5 +1,6 @@
 import { v } from "convex/values"
 import type { Infer } from "convex/values"
+import type { Id } from "../_generated/dataModel"
 
 /**
  * Convex validator for TopicTeacherAllowList entries.
@@ -31,12 +32,12 @@ export type TopicTeacherAllowList = Readonly<Infer<typeof TopicTeacherAllowList>
  * @since 0.2.0
  */
 export const make = (params: {
-  readonly topicId: string
+  readonly topicId: Id<"topics">
   readonly email: string
   readonly addedBy: string
   readonly note?: string
 }): TopicTeacherAllowList => ({
-  topicId: params.topicId as any,
+  topicId: params.topicId,
   email: params.email.toLowerCase().trim(),
   note: params.note,
   addedAt: Date.now(),

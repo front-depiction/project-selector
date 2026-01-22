@@ -19,15 +19,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 export type Item = {
   text: string
   checked: boolean
-  id: number
+  id: string | number
   description: string
 }
 
 interface SortableListItemProps {
   item: Item
   order: number
-  onCompleteItem: (id: number) => void
-  onRemoveItem: (id: number) => void
+  onCompleteItem: (id: string | number) => void
+  onRemoveItem: (id: string | number) => void
   renderExtra?: (item: Item) => React.ReactNode
   isExpanded?: boolean
   className?: string
@@ -248,13 +248,13 @@ SortableListItem.displayName = "SortableListItem"
 
 interface SortableListProps {
   items: Item[]
-  setItems: Dispatch<SetStateAction<Item[]>>
-  onCompleteItem: (id: number) => void
+  setItems: Dispatch<SetStateAction<Item[]>> | ((items: Item[] | ((prev: Item[]) => Item[])) => void)
+  onCompleteItem: (id: string | number) => void
   renderItem: (
     item: Item,
     order: number,
-    onCompleteItem: (id: number) => void,
-    onRemoveItem: (id: number) => void
+    onCompleteItem: (id: string | number) => void,
+    onRemoveItem: (id: string | number) => void
   ) => ReactNode
 }
 
@@ -275,7 +275,7 @@ function SortableList({
         >
           <AnimatePresence>
             {items?.map((item, index) =>
-              renderItem(item, index, onCompleteItem, (id: number) =>
+              renderItem(item, index, onCompleteItem, (id: string | number) =>
                 setItems((items) => items.filter((item) => item.id !== id))
               )
             )}

@@ -73,15 +73,37 @@ async function getQuestionIdsForPeriod(
 }
 
 /**
- * Helper function to get full question documents for a period based on linked categories.
+ * Helper function to get full question documents for a period.
+ *
+ * Questions come from two sources:
+ * 1. Explicitly linked via selectionQuestions table
+ * 2. Derived from linked categories (minimizeCategoryIds on period, constraintIds on topics)
  */
 async function getQuestionsForPeriodHelper(
   ctx: QueryCtx | MutationCtx,
   selectionPeriodId: Id<"selectionPeriods">
 ): Promise<Doc<"questions">[]> {
-  // Get the period
+  const results: Doc<"questions">[] = []
+  const includedQuestionIds = new Set<string>()
+
+  // 1. Get explicitly linked questions from selectionQuestions table
+  const explicitLinks = await ctx.db
+    .query("selectionQuestions")
+    .withIndex("by_selection_period", q => q.eq("selectionPeriodId", selectionPeriodId))
+    .collect()
+
+  // Add explicitly linked questions first (sorted by order)
+  for (const link of explicitLinks.sort((a, b) => a.order - b.order)) {
+    const question = await ctx.db.get(link.questionId)
+    if (question) {
+      includedQuestionIds.add(link.questionId)
+      results.push(question)
+    }
+  }
+
+  // 2. Get derived questions from categories (for backwards compatibility)
   const period = await ctx.db.get(selectionPeriodId)
-  if (!period) return []
+  if (!period) return results
 
   // Get all topics for this semester
   const topics = await ctx.db
@@ -91,12 +113,12 @@ async function getQuestionsForPeriodHelper(
 
   // Collect all category IDs from period and topics
   const categoryIds = new Set<Id<"categories">>()
-  
+
   // From period (balance distribution - minimize categories)
   if (period.minimizeCategoryIds) {
     period.minimizeCategoryIds.forEach(id => categoryIds.add(id))
   }
-  
+
   // From topics (topic-specific criteria - prerequisite and pull categories)
   for (const topic of topics) {
     if (topic.constraintIds) {
@@ -104,28 +126,34 @@ async function getQuestionsForPeriodHelper(
     }
   }
 
-  // If no categories are linked, return empty array
-  if (categoryIds.size === 0) return []
+  // If categories are linked, add derived questions
+  if (categoryIds.size > 0) {
+    // Get category names from those IDs
+    const categoryNames = new Set<string>()
+    for (const categoryId of categoryIds) {
+      const category = await ctx.db.get(categoryId)
+      if (category) {
+        categoryNames.add(category.name)
+      }
+    }
 
-  // Get category names from those IDs
-  const categoryNames = new Set<string>()
-  for (const categoryId of categoryIds) {
-    const category = await ctx.db.get(categoryId)
-    if (category) {
-      categoryNames.add(category.name)
+    if (categoryNames.size > 0) {
+      // Get questions matching those category names (same semester)
+      const allQuestions = await ctx.db
+        .query("questions")
+        .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
+        .collect()
+
+      // Add derived questions that aren't already included
+      const derivedQuestions = allQuestions.filter(q =>
+        categoryNames.has(q.category) && !includedQuestionIds.has(q._id)
+      )
+
+      results.push(...derivedQuestions)
     }
   }
 
-  // If no valid category names found, return empty array
-  if (categoryNames.size === 0) return []
-
-  // Get questions matching those category names (same semester)
-  const allQuestions = await ctx.db
-    .query("questions")
-    .withIndex("by_semester", q => q.eq("semesterId", period.semesterId))
-    .collect()
-
-  return allQuestions.filter(q => categoryNames.has(q.category))
+  return results
 }
 
 export const getAnswers = query({
@@ -521,7 +549,7 @@ export const getStudentAnswersForTeacher = query({
     // Create a map of questionId -> answer
     const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
 
-    // Sort questions by category then createdAt for consistent ordering
+    // Sort questions by characteristicName (stored as 'category' in DB) then createdAt for consistent ordering
     const sortedQuestions = [...questions].sort((a, b) => {
       const catCompare = a.category.localeCompare(b.category)
       if (catCompare !== 0) return catCompare
@@ -534,7 +562,7 @@ export const getStudentAnswersForTeacher = query({
       order: index,
       questionText: q.question,
       kind: q.kind,
-      category: q.category,
+      characteristicName: q.category, // Map DB field to semantic name
       answer: answerMap.get(q._id as string) ?? null
     }))
   }
@@ -565,7 +593,7 @@ export const getQuestionsWithAnswersForStudent = query({
     // Create a map of questionId -> answer
     const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
 
-    // Sort questions by category then createdAt for consistent ordering
+    // Sort questions by characteristicName (stored as 'category' in DB) then createdAt for consistent ordering
     const sortedQuestions = [...questions].sort((a, b) => {
       const catCompare = a.category.localeCompare(b.category)
       if (catCompare !== 0) return catCompare
@@ -578,7 +606,7 @@ export const getQuestionsWithAnswersForStudent = query({
       order: index,
       questionText: q.question,
       kind: q.kind,
-      category: q.category,
+      characteristicName: q.category, // Map DB field to semantic name
       answer: answerMap.get(q._id as string) ?? null
     }))
   }
@@ -723,13 +751,7 @@ export const checkAndClosePeriodIfReady = internalMutation({
 
     // If all questionnaires are complete, close the period
     if (allComplete) {
-      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
-        semesterId: period.semesterId,
-        title: period.title,
-        description: period.description,
-        openDate: period.openDate,
-        closeDate: period.closeDate
-      }))
+      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
     }
   }
 })

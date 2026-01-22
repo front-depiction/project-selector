@@ -1,5 +1,6 @@
 import { v } from "convex/values"
 import type { Infer } from "convex/values"
+import type { Id } from "../_generated/dataModel"
 
 /**
  * Convex validator for Assignment objects.
@@ -26,26 +27,26 @@ export type Assignment = Readonly<Infer<typeof Assignment>>
 
 /**
  * Creates a new Assignment.
- * 
+ *
  * @category Constructors
  * @since 0.1.0
  * @example
  * import * as Assignment from "./schemas/Assignment"
- * 
+ *
  * const assignment = Assignment.make({
- *   periodId: "period_123" as any,
+ *   periodId: periodId,
  *   batchId: "batch_123_1234567890",
  *   studentId: "student123",
- *   topicId: "topic_456" as any,
+ *   topicId: topicId,
  *   assignedAt: Date.now(),
  *   originalRank: 2
  * })
  */
 export const make = (params: {
-  readonly periodId: any
+  readonly periodId: Id<"selectionPeriods">
   readonly batchId: string
   readonly studentId: string
-  readonly topicId: any
+  readonly topicId: Id<"topics">
   readonly assignedAt: number
   readonly originalRank?: number
 }): Assignment => ({

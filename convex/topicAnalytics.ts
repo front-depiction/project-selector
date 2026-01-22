@@ -3,7 +3,8 @@ import { v } from "convex/values"
 
 /**
  * Get comprehensive analytics for all topics including performance metrics.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.3.0
  */
@@ -12,11 +13,20 @@ export const getTopicPerformanceAnalytics = query({
     semesterId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    // Get topics for the semester
-    const topicsQuery = ctx.db.query("topics")
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Get topics for the semester owned by this user
+    const allUserTopics = await ctx.db
+      .query("topics")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
     const topics = args.semesterId
-      ? await topicsQuery.filter(q => q.eq(q.field("semesterId"), args.semesterId)).collect()
-      : await topicsQuery.collect()
+      ? allUserTopics.filter(t => t.semesterId === args.semesterId)
+      : allUserTopics
 
     // Get all preferences and ranking events
     const [preferences, rankingEvents] = await Promise.all([
@@ -108,7 +118,8 @@ export const getTopicPerformanceAnalytics = query({
 
 /**
  * Get detailed analytics for a single topic.
- * 
+ * Verifies the authenticated user owns the topic.
+ *
  * @category Queries
  * @since 0.3.0
  */
@@ -117,8 +128,16 @@ export const getTopicDetailedAnalytics = query({
     topicId: v.id("topics")
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const userId = identity.subject
+
     const topic = await ctx.db.get(args.topicId)
-    if (!topic) throw new Error("Topic not found")
+    if (!topic) return null
+
+    // Verify ownership
+    if (topic.userId !== userId) return null
 
     // Get all related data
     const [preferences, rankingEvents] = await Promise.all([
