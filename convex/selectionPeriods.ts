@@ -61,6 +61,17 @@ export const createPeriod = mutation({
         rankingsEnabled: args.rankingsEnabled,
         accessMode: args.accessMode,
       }))
+      // Mark onboarding step complete
+      const identity = await ctx.auth.getUserIdentity()
+      if (identity) {
+        const userId = identity.subject ?? identity.email ?? ""
+        if (userId) {
+          await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+            userId,
+            stepId: "create_period"
+          })
+        }
+      }
       return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
@@ -100,6 +111,17 @@ export const createPeriod = mutation({
         accessMode: args.accessMode,
       }))
 
+      // Mark onboarding step complete
+      const identity2 = await ctx.auth.getUserIdentity()
+      if (identity2) {
+        const userId = identity2.subject ?? identity2.email ?? ""
+        if (userId) {
+          await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+            userId,
+            stepId: "create_period"
+          })
+        }
+      }
       return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
@@ -137,6 +159,17 @@ export const createPeriod = mutation({
       accessMode: args.accessMode,
     }))
 
+    // Mark onboarding step complete
+    const identity3 = await ctx.auth.getUserIdentity()
+    if (identity3) {
+      const userId = identity3.subject ?? identity3.email ?? ""
+      if (userId) {
+        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+          userId,
+          stepId: "create_period"
+        })
+      }
+    }
     return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
   }
 })

@@ -90,73 +90,6 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
         </CardContent>
       </Card>
 
-      {/* Constraints Section */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Topic-Specific Criteria</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Prerequisites and maximization criteria that can be assigned to specific topics.
-            </p>
-          </div>
-          <Button size="sm" onClick={vm.openConstraintCategoryDialog}>
-            <Plus className="h-4 w-4 mr-2" />Add Category
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {vm.constraintCategories$.value.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Criterion</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vm.constraintCategories$.value.map((c) => (
-                  <TableRow key={c.key}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell>{c.description}</TableCell>
-                    <TableCell>
-                      <Badge variant={c.criterionBadgeVariant}>
-                        {c.criterionDisplay}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={c.edit}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-red-600"
-                            onClick={c.remove}
-                          >
-                            <Trash className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Questions Section */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -225,7 +158,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
 
       {/* Dialogs */}
       <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
@@ -237,17 +170,16 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              semester_id: "default",
-              criterionType: c.criterionType ?? undefined,
-              minRatio: c.minRatio !== undefined ? Math.round(c.minRatio * 100) : undefined,
-              target: c.target !== undefined ? Math.round(c.target * 100) : undefined,
+              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
+              minStudents: c.minRatio !== undefined ? Math.round(c.minRatio) : undefined,
+              maxStudents: c.target !== undefined ? Math.round(c.target) : undefined,
             })))}
           />
         </DialogContent>
       </Dialog>
 
       <Dialog open={vm.questionDialog.isOpen$.value} onOpenChange={(open) => !open && vm.questionDialog.close()}>
-        <DialogContent>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {Option.isSome(vm.editingQuestion$.value) ? "Edit Question" : "Create Question"}

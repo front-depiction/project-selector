@@ -1,6 +1,8 @@
-import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
+import { signal, computed, ReadonlySignal, batch, Signal } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriodFormValues, TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
+import type { QuestionFormValues } from "@/components/forms/question-form"
+import type { CategoryFormValues } from "@/components/forms/category-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { SelectionPeriodWithStats, Assignment } from "./index"
 import { format } from "date-fns"
@@ -58,6 +60,57 @@ export interface AssignmentRowVM {
   readonly isMatched: boolean
   readonly statusDisplay: string
   readonly rankBadgeVariant: "default" | "secondary"
+}
+
+/**
+ * View Model for a question item in the collapsible section
+ */
+export interface QuestionItemVM {
+  readonly key: string
+  readonly questionText: string
+  readonly kindDisplay: string
+  readonly kindVariant: "secondary" | "outline"
+  readonly category?: string
+  readonly edit: () => void
+  readonly remove: () => void
+}
+
+/**
+ * View Model for a category item (minimize categories for balanced distribution)
+ */
+export interface CategoryItemVM {
+  readonly key: string
+  readonly name: string
+  readonly description: string
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionDisplay: string
+  readonly criterionBadgeVariant: "default" | "secondary" | "outline"
+  readonly minRatio?: number
+  readonly target?: number
+  readonly edit: () => void
+  readonly remove: () => void
+}
+
+/**
+ * Question data structure from Convex
+ */
+export interface Question {
+  readonly _id: string
+  readonly question: string
+  readonly kind: "boolean" | "0to6"
+  readonly category?: string
+}
+
+/**
+ * Category data structure from Convex
+ */
+export interface Category {
+  readonly _id: string
+  readonly name: string
+  readonly description?: string
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly minRatio?: number
+  readonly target?: number
 }
 
 /**
@@ -120,6 +173,37 @@ export interface PeriodsViewVM {
   readonly updatePeriod: PeriodsViewVMDeps["updatePeriod"]
   readonly addQuestion: PeriodsViewVMDeps["addQuestion"]
   readonly removeQuestion: PeriodsViewVMDeps["removeQuestion"]
+
+  // ============================================================================
+  // Question & Category Management (collapsible sections)
+  // ============================================================================
+
+  /** All questions for the questions section */
+  readonly questions$: ReadonlySignal<readonly QuestionItemVM[]>
+
+  /** Minimize categories for balanced distribution section */
+  readonly minimizeCategories$: ReadonlySignal<readonly CategoryItemVM[]>
+
+  /** Existing category names for question form dropdown */
+  readonly existingCategoryNames$: ReadonlySignal<readonly string[]>
+
+  /** Question dialog state */
+  readonly questionDialog: DialogVM
+
+  /** Category dialog state (for minimize categories) */
+  readonly categoryDialog: DialogVM
+
+  /** Currently editing question (None = creating new) */
+  readonly editingQuestion$: ReadonlySignal<Option.Option<Question>>
+
+  /** Currently editing category (None = creating new) */
+  readonly editingCategory$: ReadonlySignal<Option.Option<Category>>
+
+  /** Question form submission handler */
+  readonly onQuestionSubmit: (values: QuestionFormValues) => void
+
+  /** Category form submission handler */
+  readonly onCategorySubmit: (values: CategoryFormValues) => void
 }
 
 // ============================================================================
@@ -183,6 +267,58 @@ export interface PeriodsViewVMDeps {
     selectionPeriodId: Id<"selectionPeriods">
     questionId: Id<"questions">
   }) => Promise<any>
+
+  // ============================================================================
+  // Question & Category Management Dependencies
+  // ============================================================================
+
+  /** Signal of questions data from Convex */
+  readonly questionsData$: ReadonlySignal<readonly Question[] | undefined>
+
+  /** Signal of category names from Convex (for question form dropdown) */
+  readonly categoryNamesData$: ReadonlySignal<readonly string[] | undefined>
+
+  /** Mutation to create a question */
+  readonly createQuestion: (args: {
+    question: string
+    kind: "boolean" | "0to6"
+    category?: string
+    semesterId: string
+  }) => Promise<any>
+
+  /** Mutation to update a question */
+  readonly updateQuestion: (args: {
+    id: Id<"questions">
+    question?: string
+    kind?: "boolean" | "0to6"
+    category?: string
+  }) => Promise<any>
+
+  /** Mutation to delete a question */
+  readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
+
+  /** Mutation to create a category */
+  readonly createCategory: (args: {
+    name: string
+    description?: string
+    semesterId: string
+    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    minRatio?: number
+    target?: number
+  }) => Promise<any>
+
+  /** Mutation to update a category */
+  readonly updateCategory: (args: {
+    id: Id<"categories">
+    name?: string
+    description?: string
+    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    minRatio?: number
+    target?: number
+  }) => Promise<any>
+
+  /** Mutation to delete a category */
+  readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -454,6 +590,171 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     })
   }
 
+  // ============================================================================
+  // Question & Category Management
+  // ============================================================================
+
+  // Dialog state for questions
+  const questionDialogOpen$ = signal(false)
+  const editingQuestion$ = signal<Option.Option<Question>>(Option.none())
+
+  // Dialog state for categories
+  const categoryDialogOpen$ = signal(false)
+  const editingCategory$ = signal<Option.Option<Category>>(Option.none())
+
+  // Computed: questions list for table
+  const questions$ = computed((): readonly QuestionItemVM[] =>
+    (deps.questionsData$?.value ?? []).map((q): QuestionItemVM => ({
+      key: q._id,
+      questionText: q.question,
+      kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
+      kindVariant: q.kind === "boolean" ? "secondary" : "outline",
+      category: q.category,
+      remove: () => {
+        deps.deleteQuestion({ id: q._id as Id<"questions"> }).catch(console.error)
+      },
+      edit: () => {
+        editingQuestion$.value = Option.some(q)
+        questionDialogOpen$.value = true
+      }
+    }))
+  )
+
+  // Helper function to map category to CategoryItemVM
+  const mapCategoryToVM = (c: Category): CategoryItemVM => {
+    const criterionType = c.criterionType
+    let criterionDisplay = "None"
+    let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
+
+    if (criterionType === "prerequisite") {
+      criterionDisplay = c.minRatio !== undefined
+        ? `Required Min: ${Math.round(c.minRatio * 100)}%`
+        : "Required Minimum"
+      criterionBadgeVariant = "default"
+    } else if (criterionType === "minimize") {
+      criterionDisplay = c.target !== undefined
+        ? `Balance: Target ${Math.round(c.target * 100)}%`
+        : "Balance Evenly"
+      criterionBadgeVariant = "secondary"
+    } else if (criterionType === "pull") {
+      criterionDisplay = "Maximize"
+      criterionBadgeVariant = "default"
+    }
+
+    return {
+      key: c._id,
+      name: c.name,
+      description: c.description ?? "",
+      criterionType: c.criterionType,
+      criterionDisplay,
+      criterionBadgeVariant,
+      minRatio: c.minRatio,
+      target: c.target,
+      remove: () => {
+        deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+      },
+      edit: () => {
+        editingCategory$.value = Option.some(c)
+        categoryDialogOpen$.value = true
+      }
+    }
+  }
+
+  // Computed: minimize categories for balanced distribution section
+  const minimizeCategories$ = computed((): readonly CategoryItemVM[] =>
+    (deps.categoriesData$.value ?? [])
+      .filter((c: Category) => c.criterionType === "minimize")
+      .map(mapCategoryToVM)
+  )
+
+  // Computed: existing category names (for question form dropdown)
+  const existingCategoryNames$ = computed(() => deps.categoryNamesData$?.value ?? [])
+
+  // Question dialog
+  const questionDialog: DialogVM = {
+    isOpen$: questionDialogOpen$,
+    open: () => {
+      editingQuestion$.value = Option.none()
+      questionDialogOpen$.value = true
+    },
+    close: () => {
+      questionDialogOpen$.value = false
+      editingQuestion$.value = Option.none()
+    },
+  }
+
+  // Category dialog
+  const categoryDialog: DialogVM = {
+    isOpen$: categoryDialogOpen$,
+    open: () => {
+      editingCategory$.value = Option.none()
+      categoryDialogOpen$.value = true
+    },
+    close: () => {
+      categoryDialogOpen$.value = false
+      editingCategory$.value = Option.none()
+    },
+  }
+
+  // Form submission handlers
+  const onQuestionSubmit = (values: QuestionFormValues): void => {
+    Option.match(editingQuestion$.value, {
+      onNone: () => {
+        deps.createQuestion({
+          question: values.question,
+          kind: values.kind,
+          category: values.category,
+          semesterId: "default",
+        })
+          .then(() => {
+            questionDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingQuestionValue) => {
+        deps.updateQuestion({
+          id: editingQuestionValue._id as Id<"questions">,
+          question: values.question,
+          kind: values.kind,
+          category: values.category || undefined
+        })
+          .then(() => {
+            questionDialog.close()
+          })
+          .catch(console.error)
+      }
+    })
+  }
+
+  const onCategorySubmit = (values: CategoryFormValues): void => {
+    Option.match(editingCategory$.value, {
+      onNone: () => {
+        deps.createCategory({
+          name: values.name,
+          description: values.description || undefined,
+          semesterId: "default",
+          criterionType: "minimize", // Always minimize for this section
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingCategoryValue) => {
+        deps.updateCategory({
+          id: editingCategoryValue._id as Id<"categories">,
+          name: values.name,
+          description: values.description || undefined,
+          criterionType: "minimize", // Always minimize for this section
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      }
+    })
+  }
+
   return {
     currentPeriod$,
     assignments$,
@@ -474,6 +775,17 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     updatePeriod: deps.updatePeriod,
     addQuestion: deps.addQuestion,
     removeQuestion: deps.removeQuestion,
+
+    // Question & Category Management
+    questions$,
+    minimizeCategories$,
+    existingCategoryNames$,
+    questionDialog,
+    categoryDialog,
+    editingQuestion$,
+    editingCategory$,
+    onQuestionSubmit,
+    onCategorySubmit,
   }
 }
 
@@ -503,6 +815,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
   )
   const questionsData = useQuery(api.questions.getAllQuestions, {})
   const templatesData = useQuery(api.questionTemplates.getAllTemplatesWithQuestionIds, {})
+  const categoriesData = useQuery(api.categories.getAllCategories, {})
+  const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
 
   // We need to create a signal for editingPeriod to track which period is being edited
   // so we can fetch its questions
@@ -523,6 +837,12 @@ export function usePeriodsViewVM(): PeriodsViewVM {
   const setActivePeriodMutation = useMutation(api.selectionPeriods.setActivePeriod)
   const addQuestionMutation = useMutation(api.selectionQuestions.addQuestion)
   const removeQuestionMutation = useMutation(api.selectionQuestions.removeQuestion)
+  const createQuestionMutation = useMutation(api.questions.createQuestion)
+  const updateQuestionMutation = useMutation(api.questions.updateQuestion)
+  const deleteQuestionMutation = useMutation(api.questions.deleteQuestion)
+  const createCategoryMutation = useMutation(api.categories.createCategory)
+  const updateCategoryMutation = useMutation(api.categories.updateCategory)
+  const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
 
   // Wrap data in signals for the factory
   const deps = React.useMemo(() => {
@@ -538,12 +858,13 @@ export function usePeriodsViewVM(): PeriodsViewVM {
         status: "assigned"
       }))
     })
-    const questionsData$ = computed(() => questionsData)
+    const questionsData$ = computed(() => questionsData as any)
     const templatesData$ = computed(() => templatesData)
     const existingQuestionsData$ = computed(() => existingQuestionsData)
     const topicsData$ = computed(() => [])
     const existingTopicsData$ = computed(() => [])
-    const categoriesData$ = computed(() => [])
+    const categoriesData$ = computed(() => categoriesData as any)
+    const categoryNamesData$ = computed(() => categoryNamesData)
 
     return {
       periodsData$,
@@ -561,6 +882,14 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       setActivePeriod: setActivePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
+      // Question & Category Management
+      categoryNamesData$,
+      createQuestion: createQuestionMutation as any,
+      updateQuestion: updateQuestionMutation,
+      deleteQuestion: deleteQuestionMutation,
+      createCategory: createCategoryMutation as any,
+      updateCategory: updateCategoryMutation as any,
+      deleteCategory: deleteCategoryMutation,
     }
   }, [
     periodsData,
@@ -569,12 +898,20 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     questionsData,
     templatesData,
     existingQuestionsData,
+    categoriesData,
+    categoryNamesData,
     createPeriodMutation,
     updatePeriodMutation,
     deletePeriodMutation,
     setActivePeriodMutation,
     addQuestionMutation,
     removeQuestionMutation,
+    createQuestionMutation,
+    updateQuestionMutation,
+    deleteQuestionMutation,
+    createCategoryMutation,
+    updateCategoryMutation,
+    deleteCategoryMutation,
   ])
 
   // Create the VM once

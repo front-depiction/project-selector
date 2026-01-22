@@ -177,7 +177,7 @@ export default function SelectionPeriodForm({
 
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-w-3xl mx-auto max-h-[70vh] overflow-y-auto pr-2">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 max-w-3xl mx-auto max-h-[70vh] overflow-y-auto pr-2 pb-6">
 
                 <div className="grid grid-cols-12 gap-4">
 
@@ -383,7 +383,7 @@ export default function SelectionPeriodForm({
                     <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
                         {categories.length === 0 ? (
                             <p className="text-sm text-muted-foreground py-8 text-center">
-                                No balance distribution categories available. Create categories with "Balance Evenly" criterion in the Questionnaires tab first.
+                                No balance distribution categories available. Create them in the "Selection-Wide Criteria" section above.
                             </p>
                         ) : (
                             <div className="space-y-2">

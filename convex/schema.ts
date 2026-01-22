@@ -86,5 +86,5 @@ export default defineSchema({
 
   // Tracks teacher onboarding progress
   teacherOnboarding: defineTable(TeacherOnboarding.TeacherOnboarding)
-    .index("by_visitorId", ["visitorId"]),
+    .index("by_userId", ["userId"]),
 })

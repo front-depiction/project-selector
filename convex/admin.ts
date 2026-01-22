@@ -907,6 +907,18 @@ export const createTopic = mutation({
       Array.from({ length: count }, () => ctx.db.insert("topics", topicData))
     )
 
+    // Mark onboarding step complete
+    const identity = await ctx.auth.getUserIdentity()
+    if (identity) {
+      const userId = identity.subject ?? identity.email ?? ""
+      if (userId) {
+        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+          userId,
+          stepId: "create_topics"
+        })
+      }
+    }
+
     // Return the first ID for backward compatibility
     return ids[0]
   }

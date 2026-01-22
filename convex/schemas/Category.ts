@@ -16,10 +16,16 @@ export const Category = v.object({
   criterionType: v.optional(v.union(
     v.literal("prerequisite"),
     v.literal("minimize"),
-    v.literal("pull")
+    v.literal("pull"),
+    v.literal("maximize"),
+    v.literal("push")
   )),
-  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement
+  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement (legacy)
   minRatio: v.optional(v.number()),
+  // For prerequisite: minimum number of students with this trait per group
+  minStudents: v.optional(v.number()),
+  // For maximize: maximum number of students with this trait per group
+  maxStudents: v.optional(v.number()),
 })
 
 /**
@@ -49,8 +55,10 @@ export const make = (params: {
   readonly description?: string
   readonly semesterId: string
   readonly createdAt?: number
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push" | null
   readonly minRatio?: number
+  readonly minStudents?: number
+  readonly maxStudents?: number
 }): Category => ({
   name: params.name,
   description: params.description,
@@ -58,4 +66,6 @@ export const make = (params: {
   createdAt: params.createdAt ?? Date.now(),
   criterionType: params.criterionType ?? undefined,
   minRatio: params.minRatio,
+  minStudents: params.minStudents,
+  maxStudents: params.maxStudents,
 } as const)

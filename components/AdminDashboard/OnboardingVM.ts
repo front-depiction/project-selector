@@ -51,35 +51,35 @@ export interface OnboardingVMDeps {
 
 const ONBOARDING_STEP_DEFINITIONS: readonly Omit<OnboardingStep, "isComplete">[] = [
   {
-    id: "create-topics",
+    id: "create_topics",
     title: "Create Topics",
-    description: "Topics are the projects or subjects that students will choose from. For example: 'Machine Learning Project', 'Web Development', or 'Data Analysis'. Add at least one topic to get started.",
+    description: "Topics are the projects or subjects that students will choose from. For example: 'Machine Learning Project', 'Web Development', or 'Data Analysis'. You can also configure topic-specific criteria here. Add at least one topic to get started.",
     actionLabel: "Add your first topic",
     targetView: "topics",
   },
   {
-    id: "create-questions",
+    id: "create_questions",
     title: "Create Questions",
-    description: "Questions help you learn about your students so you can form balanced groups. For example: 'Do you have programming experience?' or 'Rate your teamwork skills'. These answers help match students fairly.",
+    description: "Questions help you learn about your students so you can form balanced groups. For example: 'Do you have programming experience?' or 'Rate your teamwork skills'. These answers help match students fairly. Questions can be configured in the Project Assignments (Periods) tab.",
     actionLabel: "Set up questions",
-    targetView: "questionnaires",
+    targetView: "periods",
   },
   {
-    id: "create-period",
+    id: "create_period",
     title: "Create a Selection Period",
     description: "A selection period is a time window when students can sign up and choose their preferred topics. You'll set a start date and end date. Think of it like opening registration for a class.",
     actionLabel: "Create selection period",
     targetView: "periods",
   },
   {
-    id: "add-students",
+    id: "add_students",
     title: "Invite Students",
     description: "Generate access codes or share a link so students can join. Each student gets a unique code to enter the selection. You can also let students use their own student ID.",
     actionLabel: "Set up student access",
     targetView: "periods",
   },
   {
-    id: "run-assignment",
+    id: "run_assignment",
     title: "Assign Students to Topics",
     description: "Once students have submitted their preferences, click 'Assign' to automatically match students to topics based on their choices and questionnaire answers. The system finds the fairest assignment possible.",
     actionLabel: "View assignments",

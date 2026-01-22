@@ -40,7 +40,6 @@ import { PeriodsView } from "./PeriodsView"
 import { TopicsView } from "./TopicsView"
 import { StudentsView } from "./StudentsView"
 import { SettingsView } from "./SettingsView"
-import { QuestionnairesView } from "./QuestionnairesView"
 import { HelpView } from "./HelpView"
 import { OnboardingCard } from "./OnboardingCard"
 import { useQuery } from "convex/react"
@@ -433,8 +432,6 @@ const MainContent: React.FC = () => {
       return <TopicsView vm={vm.topicsView} />
     case "students":
       return <StudentsView vm={vm.studentsView} />
-    case "questionnaires":
-      return <QuestionnairesView vm={vm.questionnairesView} />
     case "settings":
       return <SettingsView vm={vm.settingsView} />
     case "help":

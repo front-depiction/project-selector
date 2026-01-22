@@ -7,7 +7,6 @@ import {
   FileText,
   Users,
   Settings,
-  ClipboardList,
   GraduationCap,
   HelpCircle,
 } from "lucide-react"
@@ -54,12 +53,6 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       title: "Project Assignments",
       description: "Selection periods & results",
       icon: Calendar,
-    },
-    {
-      id: "questionnaires" as AD.ViewType,
-      title: "Questionnaires",
-      description: "Student survey questions",
-      icon: ClipboardList,
     },
     {
       id: "students" as AD.ViewType,

@@ -75,6 +75,19 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
     vm.questionnaireDialog.close()
   }
 
+  // Sort student groups: open periods first, then by closeDate descending
+  // NOTE: This useMemo must be called before any early returns to satisfy React's Rules of Hooks
+  const studentGroups = React.useMemo(() => {
+    const groups = [...vm.studentGroups$.value]
+    return groups.sort((a, b) => {
+      const aIsOpen = SelectionPeriod.isOpen(a.period)
+      const bIsOpen = SelectionPeriod.isOpen(b.period)
+      if (aIsOpen && !bIsOpen) return -1
+      if (!aIsOpen && bIsOpen) return 1
+      return (b.period.closeDate || 0) - (a.period.closeDate || 0)
+    })
+  }, [vm.studentGroups$.value])
+
   if (vm.isLoading$.value) {
     return (
       <div className="space-y-6">
@@ -88,31 +101,24 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
     )
   }
 
-  // Sort student groups: open periods first, then by closeDate descending
-  const studentGroups = React.useMemo(() => {
-    const groups = [...vm.studentGroups$.value]
-    return groups.sort((a, b) => {
-      const aIsOpen = SelectionPeriod.isOpen(a.period)
-      const bIsOpen = SelectionPeriod.isOpen(b.period)
-      if (aIsOpen && !bIsOpen) return -1
-      if (!aIsOpen && bIsOpen) return 1
-      return (b.period.closeDate || 0) - (a.period.closeDate || 0)
-    })
-  }, [vm.studentGroups$.value])
-
   // Keep all sections collapsed by default
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Students</h2>
+      {/* Header with description */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Students</h2>
+          <p className="text-muted-foreground mt-1">View student progress and manage questionnaire responses</p>
+        </div>
+      </div>
 
       {studentGroups.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <p className="text-center text-muted-foreground">
-              No students found. Generate access codes for students to join a project assignment.
-            </p>
-          </CardContent>
+        <Card className="border-0 shadow-sm">
+          <CardHeader>
+            <CardTitle>No Students</CardTitle>
+            <CardDescription>Generate access codes for students to join a project assignment.</CardDescription>
+          </CardHeader>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -122,20 +128,20 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
             const isOpen = SelectionPeriod.isOpen(group.period)
 
             return (
-              <div key={periodId} className="border rounded-lg">
+              <Card key={periodId}>
                 {/* Clickable Section Header */}
-                <button
+                <CardHeader
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => toggleGroup(periodId)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold">{group.period.title}</h3>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      {group.period.title}
                       <Badge variant="outline" className="text-muted-foreground">
                         {group.students.length} {group.students.length === 1 ? "Student" : "Students"}
                       </Badge>
@@ -149,26 +155,29 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
                           {new Date(group.period.closeDate).toLocaleDateString()}
                         </Badge>
                       )}
-                    </div>
+                    </CardTitle>
                   </div>
-                </button>
+                  <CardDescription className="ml-7">
+                    Student questionnaire progress for this project assignment period.
+                  </CardDescription>
+                </CardHeader>
 
                 {/* Collapsible Students Table */}
                 {isExpanded && (
-                  <div className="border-t">
+                  <CardContent>
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="pl-6">Access Code</TableHead>
+                          <TableHead>Access Code</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Progress</TableHead>
-                          <TableHead className="w-[100px] pr-6">Actions</TableHead>
+                          <TableHead className="w-[100px]">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {group.students.map((student) => (
                           <TableRow key={student.key}>
-                            <TableCell className="pl-6 font-medium">{student.studentIdDisplay}</TableCell>
+                            <TableCell className="font-medium">{student.studentIdDisplay}</TableCell>
                             <TableCell>
                               {student.isCompleted ? (
                                 <Badge variant="default" className="bg-green-600 hover:bg-green-700">
@@ -188,7 +197,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell className="pr-6">
+                            <TableCell>
                               <Button variant="ghost" size="icon" onClick={student.edit} title="Edit questionnaire">
                                 <Edit2 className="h-4 w-4" />
                               </Button>
@@ -197,9 +206,9 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                  </CardContent>
                 )}
-              </div>
+              </Card>
             )
           })}
         </div>
@@ -209,7 +218,7 @@ export const StudentsView: React.FC<{ vm: StudentsViewVM }> = ({ vm }) => {
       <Dialog open={vm.questionnaireDialog.isOpen$.value} onOpenChange={(open) => {
         if (!open) vm.questionnaireDialog.close()
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Questionnaire for Student: {vm.selectedStudentId$.value}

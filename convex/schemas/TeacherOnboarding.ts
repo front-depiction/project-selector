@@ -36,7 +36,7 @@ export const ONBOARDING_STEPS: readonly OnboardingStep[] = [
  * @since 0.3.0
  */
 export const TeacherOnboarding = v.object({
-  visitorId: v.string(),  // Could be visitorId or email, unique per teacher/visitor
+  userId: v.string(),  // User ID from authentication (identity.subject or identity.email)
   completedSteps: v.array(v.string()),  // Array of step IDs completed
   dismissedAt: v.optional(v.number()),  // Timestamp if user dismissed onboarding
   lastUpdated: v.number(),
@@ -59,14 +59,14 @@ export type TeacherOnboarding = Readonly<Infer<typeof TeacherOnboarding>>
  * import * as TeacherOnboarding from "./schemas/TeacherOnboarding"
  *
  * const onboarding = TeacherOnboarding.make({
- *   visitorId: "teacher@example.com"
+ *   userId: "user123"
  * })
  */
 export const make = (params: {
-  readonly visitorId: string
+  readonly userId: string
   readonly completedSteps?: readonly string[]
 }): TeacherOnboarding => ({
-  visitorId: params.visitorId,
+  userId: params.userId,
   completedSteps: params.completedSteps ? [...params.completedSteps] : [],
   dismissedAt: undefined,
   lastUpdated: Date.now(),

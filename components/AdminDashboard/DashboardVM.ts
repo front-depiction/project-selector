@@ -13,7 +13,6 @@ import { toast } from "sonner"
 import * as Loadable from "@/lib/Loadable"
 import { createPeriodsViewVM } from "./PeriodsViewVM"
 import { createTopicsViewVM } from "./TopicsViewVM"
-import { createQuestionnairesViewVM } from "./QuestionnairesViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
 import { createStudentsViewVM } from "./StudentsViewVM"
 import { createOnboardingVM, type OnboardingVM } from "./OnboardingVM"
@@ -21,7 +20,7 @@ import { createOnboardingVM, type OnboardingVM } from "./OnboardingVM"
 // View Model Types
 // ============================================================================
 
-export type ViewType = "overview" | "periods" | "topics" | "students" | "questionnaires" | "settings" | "help"
+export type ViewType = "overview" | "periods" | "topics" | "students" | "settings" | "help"
 
 export type SelectionPeriodWithStats = Doc<"selectionPeriods"> & {
   studentCount?: number
@@ -116,7 +115,6 @@ export interface DashboardVM {
   // Child View Models
   readonly periodsView: import("./PeriodsViewVM").PeriodsViewVM
   readonly topicsView: import("./TopicsViewVM").TopicsViewVM
-  readonly questionnairesView: import("./QuestionnairesViewVM").QuestionnairesViewVM
   readonly settingsView: import("./SettingsViewVM").SettingsViewVM
   readonly studentsView: import("./StudentsViewVM").StudentsViewVM
   readonly onboardingVM: OnboardingVM
@@ -236,8 +234,8 @@ export function useDashboardVM(): DashboardVM {
     {}
   )
 
-  // Onboarding data - uses computeOnboardingStatus for auto-detection
-  const onboardingStatusData = useQuery(api.teacherOnboarding.computeOnboardingStatus, {})
+  // Onboarding data - uses getOnboardingProgress for auth-based tracking with auto-detection
+  const onboardingProgressData = useQuery(api.teacherOnboarding.getOnboardingProgress, {})
 
   // ============================================================================
   // CONVEX MUTATIONS - Root VM owns all mutations
@@ -273,6 +271,10 @@ export function useDashboardVM(): DashboardVM {
   const setupExperimentMutation = useMutation(api.admin.setupExperiment)
   const generateRandomAnswersMutation = useMutation(api.admin.generateRandomAnswers)
 
+  // Onboarding mutations - auth-based (no visitorId needed)
+  const markOnboardingStepCompleteMutation = useMutation(api.teacherOnboarding.markStepComplete)
+  const dismissOnboardingMutation = useMutation(api.teacherOnboarding.dismissOnboarding)
+
   // ============================================================================
   // DATA SIGNALS - Updated when query data changes
   // ============================================================================
@@ -291,7 +293,7 @@ export function useDashboardVM(): DashboardVM {
     studentsData$: signal<typeof studentsData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
-    onboardingStatusData$: signal<typeof onboardingStatusData>(undefined),
+    onboardingProgressData$: signal<typeof onboardingProgressData>(undefined),
   }).current
 
   // Update signals when query data changes - must be in useEffect to avoid setState during render
@@ -310,9 +312,9 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.studentsData$.value = studentsData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
-      dataSignals.onboardingStatusData$.value = onboardingStatusData
+      dataSignals.onboardingProgressData$.value = onboardingProgressData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, onboardingStatusData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -543,7 +545,7 @@ export function useDashboardVM(): DashboardVM {
   })
 
   // Helper: valid view types for URL parsing
-  const validViews: ViewType[] = ["overview", "periods", "topics", "students", "questionnaires", "settings", "help"]
+  const validViews: ViewType[] = ["overview", "periods", "topics", "students", "settings", "help"]
 
   // Actions
   const setActiveView = (view: ViewType, updateUrl = true): void => {
@@ -661,6 +663,15 @@ export function useDashboardVM(): DashboardVM {
       deletePeriod: deletePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
+      // Question & Category Management
+      questionsData$: dataSignals.questionsData$ as any,
+      categoryNamesData$: dataSignals.categoryNamesData$,
+      createQuestion: createQuestionMutation as any,
+      updateQuestion: updateQuestionMutation,
+      deleteQuestion: deleteQuestionMutation,
+      createCategory: createCategoryMutation as any,
+      updateCategory: updateCategoryMutation as any,
+      deleteCategory: deleteCategoryMutation,
     })
 
     const topicsView = createTopicsViewVM({
@@ -669,24 +680,8 @@ export function useDashboardVM(): DashboardVM {
       createTopic: createTopicMutation as any, // Type cast to handle constraintIds type mismatch
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
-    })
-
-    const questionnairesView = createQuestionnairesViewVM({
-      questions$: dataSignals.questionsData$ as any, // Type cast to handle "0to6" vs "numeric" mismatch
-      templates$: dataSignals.templatesData$,
-      categories$: dataSignals.categoriesData$,
-      existingCategories$: dataSignals.categoryNamesData$,
-      createQuestion: createQuestionMutation as any, // Type cast to handle category optional vs required mismatch
-      updateQuestion: updateQuestionMutation,
-      deleteQuestion: deleteQuestionMutation,
-      createTemplate: createTemplateMutation,
-      updateTemplate: updateTemplateMutation,
-      deleteTemplate: deleteTemplateMutation,
-      getTemplateWithQuestions: (args) => convex.query(api.questionTemplates.getTemplateWithQuestions, args) as Promise<any>,
-      addQuestionToTemplate: addQuestionToTemplateMutation,
-      reorderTemplateQuestions: reorderTemplateQuestionsMutation,
-      createCategory: createCategoryMutation as any, // Type cast to handle criterionType null vs optional mismatch
-      updateCategory: updateCategoryMutation as any, // Type cast to handle criterionType null vs optional mismatch
+      createCategory: createCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
+      updateCategory: updateCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
       deleteCategory: deleteCategoryMutation,
     })
 
@@ -702,49 +697,23 @@ export function useDashboardVM(): DashboardVM {
       saveAnswersAsTeacher: saveAnswersAsTeacherMutation,
     })
 
-    // Onboarding VM - transform onboarding status data to expected format
-    const onboardingData$ = computed(() => {
-      const statusData = dataSignals.onboardingStatusData$.value
-      if (!statusData) return null
-      return {
-        completedSteps: statusData.completedSteps,
-        dismissedAt: undefined, // computeOnboardingStatus doesn't track dismissal
-      }
-    })
-
-    // Local state for dismissed (persisted in localStorage since we don't have visitorId)
-    const isDismissedLocal$ = signal<boolean>(
-      typeof window !== "undefined"
-        ? localStorage.getItem("onboarding_dismissed") === "true"
-        : false
-    )
-
+    // Onboarding VM - uses auth-based getOnboardingProgress which includes dismissal status
     const onboardingVM = createOnboardingVM({
       onboardingData$: computed(() => {
-        const statusData = dataSignals.onboardingStatusData$.value
-        if (!statusData) return null
-        // Check local dismissal state
-        if (typeof window !== "undefined" && localStorage.getItem("onboarding_dismissed") === "true") {
-          return {
-            completedSteps: statusData.completedSteps,
-            dismissedAt: Date.now(),
-          }
-        }
+        const progressData = dataSignals.onboardingProgressData$.value
+        if (!progressData) return null
         return {
-          completedSteps: statusData.completedSteps,
-          dismissedAt: undefined,
+          completedSteps: progressData.completedSteps,
+          dismissedAt: progressData.dismissedAt,
         }
       }),
       markStepComplete: async ({ stepId }) => {
-        // Steps are auto-completed based on data existence, so this is a no-op
-        console.log("Step auto-completed:", stepId)
+        // Call the auth-based mutation (no visitorId needed)
+        await markOnboardingStepCompleteMutation({ stepId })
       },
       dismissOnboarding: async () => {
-        // Store dismissal in localStorage
-        if (typeof window !== "undefined") {
-          localStorage.setItem("onboarding_dismissed", "true")
-        }
-        isDismissedLocal$.value = true
+        // Call the auth-based mutation (no visitorId needed)
+        await dismissOnboardingMutation({})
       },
       setActiveView: (view: string) => {
         const viewType = view as ViewType
@@ -790,7 +759,7 @@ export function useDashboardVM(): DashboardVM {
     }
 
     // Helper: valid view types for URL parsing (scoped to block)
-    const validViewsInner: ViewType[] = ["overview", "periods", "topics", "students", "questionnaires", "settings", "help"]
+    const validViewsInner: ViewType[] = ["overview", "periods", "topics", "students", "settings", "help"]
 
     // Actions - with URL update support
     const setActiveViewInner = (view: ViewType, updateUrl = true): void => {
@@ -928,7 +897,6 @@ export function useDashboardVM(): DashboardVM {
       // Child VMs
       periodsView,
       topicsView,
-      questionnairesView,
       settingsView,
       studentsView,
       onboardingVM,

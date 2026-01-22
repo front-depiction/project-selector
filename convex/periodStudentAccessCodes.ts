@@ -1,6 +1,7 @@
 import { mutation, query, QueryCtx } from "./_generated/server"
 import { v } from "convex/values"
 import type { Id } from "./_generated/dataModel"
+import { internal } from "./_generated/api"
 
 /**
  * Helper function to get question IDs for a period based on linked categories.
@@ -148,6 +149,18 @@ export const generateStudentAccessCodes = mutation({
       })
 
       generatedCodes.push(code)
+    }
+
+    // Mark onboarding step complete
+    const onboardingIdentity = await ctx.auth.getUserIdentity()
+    if (onboardingIdentity) {
+      const userId = onboardingIdentity.subject ?? onboardingIdentity.email ?? ""
+      if (userId) {
+        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+          userId,
+          stepId: "add_students"
+        })
+      }
     }
 
     return {

@@ -11,8 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Plus } from "lucide-react"
+import { Plus, Edit, Trash2 as Trash, MoreVertical, ChevronDown, ChevronRight } from "lucide-react"
 import TopicForm from "@/components/forms/topic-form"
+import CategoryForm from "@/components/forms/category-form"
 import type { TopicsViewVM } from "./TopicsViewVM"
 import { useSignals } from "@preact/signals-react/runtime"
 import {
@@ -31,7 +32,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Edit, Trash2 as Trash, MoreVertical } from "lucide-react"
 
 // ============================================================================
 // TOPICS VIEW - Clean table-based layout with View Model pattern
@@ -44,20 +44,10 @@ interface TopicsViewProps {
 export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   useSignals()
 
-  // Track which project assignments are expanded
-  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set())
+  // Track collapsible section state
+  const [criteriaExpanded, setCriteriaExpanded] = React.useState(false)
 
-  const toggleGroup = (semesterId: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev)
-      if (next.has(semesterId)) {
-        next.delete(semesterId)
-      } else {
-        next.add(semesterId)
-      }
-      return next
-    })
-  }
+  const criteriaCount = vm.constraintCategories$.value.length
 
   return (
     <div className="space-y-6">
@@ -72,6 +62,93 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
           Create Topic
         </Button>
       </div>
+
+      {/* Topic-Specific Criteria Collapsible Section */}
+      <Card>
+        <CardHeader
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setCriteriaExpanded(!criteriaExpanded)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {criteriaExpanded ? (
+                <ChevronDown className="h-5 w-5" />
+              ) : (
+                <ChevronRight className="h-5 w-5" />
+              )}
+              <CardTitle className="text-lg">Topic-Specific Criteria</CardTitle>
+              <Badge variant="secondary">{criteriaCount}</Badge>
+            </div>
+            <Button
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                vm.categoryDialog.open()
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Category
+            </Button>
+          </div>
+          <CardDescription className="ml-7">
+            Prerequisites and maximization criteria that can be assigned to specific topics.
+          </CardDescription>
+        </CardHeader>
+        {criteriaExpanded && (
+          <CardContent>
+            {vm.constraintCategories$.value.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Criterion</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vm.constraintCategories$.value.map((c) => (
+                    <TableRow key={c.key}>
+                      <TableCell className="font-medium">{c.name}</TableCell>
+                      <TableCell>{c.description}</TableCell>
+                      <TableCell>
+                        <Badge variant={c.criterionBadgeVariant}>
+                          {c.criterionDisplay}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={c.edit}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={c.remove}
+                            >
+                              <Trash className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Topics Table */}
       {vm.topics$.value.length === 0 ? (
@@ -130,7 +207,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
 
       {/* Create Topic Dialog */}
       <Dialog open={vm.createTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.createTopicDialog.close()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create Topic</DialogTitle>
             <DialogDescription>
@@ -143,7 +220,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
 
       {/* Edit Topic Dialog */}
       <Dialog open={vm.editTopicDialog.isOpen$.value} onOpenChange={(open) => !open && vm.editTopicDialog.close()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Topic</DialogTitle>
             <DialogDescription>
@@ -161,6 +238,29 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
               onSubmit={vm.onEditTopicSubmit}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Dialog */}
+      <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
+            </DialogTitle>
+          </DialogHeader>
+          <CategoryForm
+            onSubmit={vm.onCategorySubmit}
+            mode="constraint"
+            initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
+              name: c.name,
+              description: c.description || "",
+              // Map database "pull" to form "maximize"
+              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
+              minStudents: c.minStudents,
+              maxStudents: c.maxStudents,
+            })))}
+          />
         </DialogContent>
       </Dialog>
     </div>

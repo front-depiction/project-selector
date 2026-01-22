@@ -1,6 +1,7 @@
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { TopicFormValues } from "@/components/forms/topic-form"
+import type { CategoryFormValues } from "@/components/forms/category-form"
 import * as Option from "effect/Option"
 import { toast } from "sonner"
 
@@ -22,6 +23,29 @@ export interface ConstraintOptionVM {
   readonly id?: string
 }
 
+export interface CategoryItemVM {
+  readonly key: string
+  readonly name: string
+  readonly description: string
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
+  readonly criterionDisplay: string
+  readonly criterionBadgeVariant: "default" | "secondary" | "outline"
+  readonly edit: () => void
+  readonly remove: () => void
+}
+
+export interface Category {
+  readonly _id: string
+  readonly name: string
+  readonly description?: string
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
+  readonly minStudents?: number
+  readonly maxStudents?: number
+  // Legacy fields from database (may still exist)
+  readonly minRatio?: number
+  readonly target?: number
+}
+
 export interface DialogVM {
   readonly isOpen$: ReadonlySignal<boolean>
   readonly open: () => void
@@ -40,10 +64,14 @@ export interface EditTopicDialogVM extends DialogVM {
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
   readonly constraintOptions$: ReadonlySignal<readonly ConstraintOptionVM[]>
+  readonly constraintCategories$: ReadonlySignal<readonly CategoryItemVM[]>
+  readonly editingCategory$: ReadonlySignal<Option.Option<Category>>
   readonly createTopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
+  readonly categoryDialog: DialogVM
   readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
+  readonly onCategorySubmit: (values: CategoryFormValues) => void
 }
 
 // ============================================================================
@@ -66,6 +94,23 @@ export interface TopicsViewVMDeps {
     description: string
   }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
+  readonly createCategory: (args: {
+    name: string
+    description?: string
+    semesterId: string
+    criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
+    minStudents?: number
+    maxStudents?: number
+  }) => Promise<any>
+  readonly updateCategory: (args: {
+    id: Id<"categories">
+    name?: string
+    description?: string
+    criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
+    minStudents?: number
+    maxStudents?: number
+  }) => Promise<any>
+  readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -79,17 +124,22 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     createTopic,
     updateTopic,
     deleteTopic,
+    createCategory,
+    updateCategory,
+    deleteCategory,
   } = deps
 
   // Signals created once
   const createTopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
+  const categoryDialogOpen$ = signal(false)
   const editingTopic$ = signal<Option.Option<{
     id: Id<"topics">
     title: string
     description: string
     semesterId: string
   }>>(Option.none())
+  const editingCategory$ = signal<Option.Option<Category>>(Option.none())
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
@@ -133,17 +183,62 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   })
 
 
-  // Computed: constraint options for form (topic-specific: pull and prerequisite only)
+  // Computed: constraint options for form (topic-specific: maximize/pull and prerequisite only)
   const constraintOptions$ = computed((): readonly ConstraintOptionVM[] => {
     const categories = categories$.value ?? []
     return categories
-      .filter((cat: any) => cat.criterionType === "pull" || cat.criterionType === "prerequisite")
+      .filter((cat: any) => cat.criterionType === "maximize" || cat.criterionType === "pull" || cat.criterionType === "prerequisite")
       .map((cat: any): ConstraintOptionVM => ({
         value: cat._id,
         label: cat.name,
         id: cat._id,
       }))
   })
+
+  // Helper function to map category to CategoryItemVM
+  const mapCategoryToVM = (c: Category): CategoryItemVM => {
+    const criterionType = c.criterionType
+    let criterionDisplay = "None"
+    let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
+
+    if (criterionType === "prerequisite") {
+      criterionDisplay = c.minStudents !== undefined
+        ? `Required Min: ${c.minStudents} students`
+        : "Required Minimum"
+      criterionBadgeVariant = "default"
+    } else if (criterionType === "minimize") {
+      criterionDisplay = "Balance Evenly"
+      criterionBadgeVariant = "secondary"
+    } else if (criterionType === "maximize" || criterionType === "pull") {
+      criterionDisplay = c.maxStudents !== undefined
+        ? `Maximum Limit: ${c.maxStudents} students`
+        : "Maximum Limit"
+      criterionBadgeVariant = "default"
+    }
+
+    return {
+      key: c._id,
+      name: c.name,
+      description: c.description ?? "—",
+      criterionType: c.criterionType,
+      criterionDisplay,
+      criterionBadgeVariant,
+      remove: () => {
+        deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+      },
+      edit: () => {
+        editingCategory$.value = Option.some(c)
+        categoryDialogOpen$.value = true
+      }
+    }
+  }
+
+  // Computed: constraint categories (prerequisite, maximize/pull)
+  const constraintCategories$ = computed((): readonly CategoryItemVM[] =>
+    (categories$.value ?? [])
+      .filter((c: any) => c.criterionType === "prerequisite" || c.criterionType === "maximize" || c.criterionType === "pull")
+      .map(mapCategoryToVM)
+  )
 
   // Create topic dialog
   const createTopicDialog: DialogVM = {
@@ -167,6 +262,21 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       batch(() => {
         editTopicDialogOpen$.value = false
         editingTopic$.value = Option.none()
+      })
+    },
+  }
+
+  // Category dialog
+  const categoryDialog: DialogVM = {
+    isOpen$: categoryDialogOpen$,
+    open: () => {
+      editingCategory$.value = Option.none()
+      categoryDialogOpen$.value = true
+    },
+    close: () => {
+      batch(() => {
+        categoryDialogOpen$.value = false
+        editingCategory$.value = Option.none()
       })
     },
   }
@@ -205,12 +315,49 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     })
   }
 
+  const onCategorySubmit = (values: CategoryFormValues): void => {
+    Option.match(editingCategory$.value, {
+      onNone: () => {
+        createCategory({
+          name: values.name,
+          description: values.description || undefined,
+          semesterId: "default",
+          criterionType: values.criterionType ?? undefined,
+          minStudents: values.minStudents,
+          maxStudents: values.maxStudents,
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      },
+      onSome: (editingCat) => {
+        updateCategory({
+          id: editingCat._id as Id<"categories">,
+          name: values.name,
+          description: values.description || undefined,
+          criterionType: values.criterionType ?? undefined,
+          minStudents: values.minStudents,
+          maxStudents: values.maxStudents,
+        })
+          .then(() => {
+            categoryDialog.close()
+          })
+          .catch(console.error)
+      }
+    })
+  }
+
   return {
     topics$: sortedTopics$,
     constraintOptions$,
+    constraintCategories$,
+    editingCategory$,
     createTopicDialog,
     editTopicDialog,
+    categoryDialog,
     onTopicSubmit,
     onEditTopicSubmit,
+    onCategorySubmit,
   }
 }

@@ -31,7 +31,7 @@ export interface CategoryItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
   readonly criterionDisplay: string
   readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly edit: () => void
@@ -87,7 +87,7 @@ export interface Category {
   readonly _id: string
   readonly name: string
   readonly description?: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
   readonly minRatio?: number
   readonly target?: number
 }
@@ -106,19 +106,19 @@ export interface QuestionnairesViewDeps {
   readonly getTemplateWithQuestions: (args: { id: Id<"questionTemplates"> }) => Promise<any>
   readonly addQuestionToTemplate: (args: { templateId: Id<"questionTemplates">; questionId: Id<"questions"> }) => Promise<any>
   readonly reorderTemplateQuestions: (args: { templateId: Id<"questionTemplates">; questionIds: Id<"questions">[] }) => Promise<any>
-  readonly createCategory: (args: { 
+  readonly createCategory: (args: {
     name: string
     description?: string
     semesterId: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
     minRatio?: number
     target?: number
   }) => Promise<any>
-  readonly updateCategory: (args: { 
+  readonly updateCategory: (args: {
     id: Id<"categories">
     name?: string
     description?: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
     minRatio?: number
     target?: number
   }) => Promise<any>
@@ -380,10 +380,15 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
 
   const onCategorySubmit = (values: CategoryFormValues): void => {
     // Auto-set criterion type based on dialog mode if not editing
-    let criterionType = values.criterionType
+    let criterionType: "prerequisite" | "minimize" | "pull" | "push" | undefined =
+      values.criterionType === "maximize" ? "pull" : values.criterionType
     if (EffectOption.isNone(editingCategory$.value) && categoryDialogMode$.value) {
-      criterionType = categoryDialogMode$.value === "minimize" ? "minimize" : values.criterionType
+      criterionType = categoryDialogMode$.value === "minimize" ? "minimize" : criterionType
     }
+
+    // Map form values to DB schema
+    const minRatio = values.minStudents
+    const target = values.maxStudents
 
     EffectOption.match(editingCategory$.value, {
       onNone: () => {
@@ -392,8 +397,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           description: values.description || undefined,
           semesterId: "default",
           criterionType: criterionType ?? undefined,
-          minRatio: values.minRatio,
-          target: values.target,
+          minRatio,
+          target,
         })
           .then(() => {
             categoryDialog.close()
@@ -406,8 +411,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           name: values.name,
           description: values.description || undefined,
           criterionType: criterionType ?? undefined,
-          minRatio: values.minRatio,
-          target: values.target,
+          minRatio,
+          target,
         })
           .then(() => {
             categoryDialog.close()

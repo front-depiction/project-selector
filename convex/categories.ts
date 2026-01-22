@@ -29,9 +29,13 @@ export const createCategory = mutation({
     criterionType: v.optional(v.union(
       v.literal("prerequisite"),
       v.literal("minimize"),
-      v.literal("pull")
+      v.literal("pull"),
+      v.literal("maximize"),
+      v.literal("push")
     )),
     minRatio: v.optional(v.number()),
+    minStudents: v.optional(v.number()),
+    maxStudents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Check if category with same name already exists for this semester
@@ -45,12 +49,14 @@ export const createCategory = mutation({
       throw new Error(`Category "${args.name}" already exists for this semester`)
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio
+    // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
     const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
 
     return await ctx.db.insert("categories", Category.make({
       ...args,
       minRatio,
+      minStudents: args.minStudents,
+      maxStudents: args.maxStudents,
     }))
   },
 })
@@ -66,9 +72,13 @@ export const updateCategory = mutation({
     criterionType: v.optional(v.union(
       v.literal("prerequisite"),
       v.literal("minimize"),
-      v.literal("pull")
+      v.literal("pull"),
+      v.literal("maximize"),
+      v.literal("push")
     )),
     minRatio: v.optional(v.number()),
+    minStudents: v.optional(v.number()),
+    maxStudents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { id, ...updates } = args
@@ -92,7 +102,7 @@ export const updateCategory = mutation({
       }
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio
+    // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
     const patchData: any = { ...updates }
     if (updates.minRatio !== undefined) {
       patchData.minRatio = updates.minRatio / 100
@@ -103,6 +113,8 @@ export const updateCategory = mutation({
       // Also clear related fields if criterion type is removed
       if (updates.criterionType === null) {
         patchData.minRatio = undefined
+        patchData.minStudents = undefined
+        patchData.maxStudents = undefined
       }
     }
 
