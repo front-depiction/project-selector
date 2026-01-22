@@ -15,7 +15,7 @@ import {
 import { Edit, MoreVertical, Trash2 as Trash, Plus } from "lucide-react"
 import type { QuestionnairesViewVM } from "./QuestionnairesViewVM"
 import QuestionForm from "@/components/forms/question-form"
-import CategoryForm from "@/components/forms/category-form"
+import ConstraintForm from "@/components/forms/constraint-form"
 import * as Option from "effect/Option"
 
 export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm }) => {
@@ -106,7 +106,7 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
               <TableHeader>
                 <TableRow>
                   <TableHead>Question</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Characteristic</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
@@ -116,8 +116,8 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
                   <TableRow key={q.key}>
                     <TableCell>{q.questionText}</TableCell>
                     <TableCell>
-                      {q.category ? (
-                        <Badge variant="outline">{q.category}</Badge>
+                      {q.characteristicName ? (
+                        <Badge variant="outline">{q.characteristicName}</Badge>
                       ) : (
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
@@ -164,9 +164,9 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
               {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
             </DialogTitle>
           </DialogHeader>
-          <CategoryForm
+          <ConstraintForm
             onSubmit={vm.onCategorySubmit}
-            mode={vm.categoryDialogMode$.value}
+            mode={vm.categoryDialogMode$.value === "minimize" ? "distribution" : vm.categoryDialogMode$.value === "constraint" ? "topicSpecific" : null}
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
@@ -187,11 +187,11 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
           </DialogHeader>
           <QuestionForm
             onSubmit={vm.onQuestionSubmit}
-            existingCategories={[...vm.existingCategories$.value]}
+            existingCharacteristicNames={[...vm.existingCharacteristicNames$.value]}
             initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
               question: q.question,
               kind: q.kind,
-              category: q.category,
+              characteristicName: q.category, // Map DB field to form field
               semester_id: "default"
             })))}
           />

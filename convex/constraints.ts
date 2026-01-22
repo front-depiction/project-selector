@@ -1,11 +1,11 @@
 import { v } from "convex/values"
 import { query, mutation, internalQuery } from "./_generated/server"
-import * as Category from "./schemas/Category"
+import * as Constraint from "./schemas/Constraint"
 
 /**
- * Get all categories
+ * Get all constraints
  */
-export const getAllCategories = query({
+export const getAllConstraints = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (args.semesterId !== undefined) {
@@ -19,9 +19,9 @@ export const getAllCategories = query({
 })
 
 /**
- * Create a new category
+ * Create a new constraint
  */
-export const createCategory = mutation({
+export const createConstraint = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
@@ -38,7 +38,7 @@ export const createCategory = mutation({
     maxStudents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    // Check if category with same name already exists for this semester
+    // Check if constraint with same name already exists for this semester
     const existing = await ctx.db
       .query("categories")
       .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId))
@@ -46,13 +46,13 @@ export const createCategory = mutation({
       .first()
 
     if (existing) {
-      throw new Error(`Category "${args.name}" already exists for this semester`)
+      throw new Error(`Constraint "${args.name}" already exists for this semester`)
     }
 
     // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
     const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
 
-    return await ctx.db.insert("categories", Category.make({
+    return await ctx.db.insert("categories", Constraint.make({
       ...args,
       minRatio,
       minStudents: args.minStudents,
@@ -62,9 +62,9 @@ export const createCategory = mutation({
 })
 
 /**
- * Update a category
+ * Update a constraint
  */
-export const updateCategory = mutation({
+export const updateConstraint = mutation({
   args: {
     id: v.id("categories"),
     name: v.optional(v.string()),
@@ -85,20 +85,20 @@ export const updateCategory = mutation({
 
     // If updating name, check for duplicates
     if (updates.name) {
-      const category = await ctx.db.get(id)
-      if (!category) throw new Error("Category not found")
+      const constraint = await ctx.db.get(id)
+      if (!constraint) throw new Error("Constraint not found")
 
-      const allCategories = await ctx.db
+      const allConstraints = await ctx.db
         .query("categories")
-        .withIndex("by_semester", (q) => q.eq("semesterId", category.semesterId))
+        .withIndex("by_semester", (q) => q.eq("semesterId", constraint.semesterId))
         .collect()
 
-      const existing = allCategories.find(
+      const existing = allConstraints.find(
         (c) => c._id !== id && c.name.toLowerCase() === updates.name!.toLowerCase()
       )
 
       if (existing) {
-        throw new Error(`Category "${updates.name}" already exists for this semester`)
+        throw new Error(`Constraint "${updates.name}" already exists for this semester`)
       }
     }
 
@@ -123,22 +123,22 @@ export const updateCategory = mutation({
 })
 
 /**
- * Delete a category
+ * Delete a constraint
  */
-export const deleteCategory = mutation({
+export const deleteConstraint = mutation({
   args: { id: v.id("categories") },
   handler: async (ctx, args) => {
-    const category = await ctx.db.get(args.id)
-    if (!category) throw new Error("Category not found")
+    const constraint = await ctx.db.get(args.id)
+    if (!constraint) throw new Error("Constraint not found")
 
-    // Check if any questions are using this category
+    // Check if any questions are using this constraint
     const allQuestions = await ctx.db.query("questions").collect()
-    const questionsUsingCategory = allQuestions.filter((q) => q.category === category.name)
+    const questionsUsingConstraint = allQuestions.filter((q) => q.category === constraint.name)
 
     // Unassign the questions
-    if (questionsUsingCategory.length > 0) {
+    if (questionsUsingConstraint.length > 0) {
       await Promise.all(
-        questionsUsingCategory.map((q) =>
+        questionsUsingConstraint.map((q) =>
           ctx.db.patch(q._id, { category: undefined })
         )
       )
@@ -149,26 +149,26 @@ export const deleteCategory = mutation({
 })
 
 /**
- * Get category names only (for dropdowns)
+ * Get constraint names only (for dropdowns)
  */
-export const getCategoryNames = query({
+export const getConstraintNames = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const categories = args.semesterId
+    const constraints = args.semesterId
       ? await ctx.db
         .query("categories")
         .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId!))
         .collect()
       : await ctx.db.query("categories").collect()
 
-    return categories.map((c) => c.name).sort()
+    return constraints.map((c) => c.name).sort()
   },
 })
 
 /**
- * Internal query to get all categories for a semester (for CP-SAT solver)
+ * Internal query to get all constraints for a semester (for CP-SAT solver)
  */
-export const getAllCategoriesForSolver = internalQuery({
+export const getAllConstraintsForSolver = internalQuery({
   args: { semesterId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db

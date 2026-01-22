@@ -38,6 +38,7 @@ const formSchema = z.object({
     minimizeCategoryIds: z.array(z.string()).optional(),
     rankingsEnabled: z.boolean(),
     accessMode: z.enum(["code", "student_id"]),
+    codeLength: z.number().min(4).max(12),
 }).refine((data) => data.end_deadline > data.start_deadline, {
     message: "End date must be after start date",
     path: ["end_deadline"],
@@ -89,6 +90,7 @@ export default function SelectionPeriodForm({
             minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
             rankingsEnabled: initialValues?.rankingsEnabled ?? true,
             accessMode: initialValues?.accessMode ?? "code",
+            codeLength: initialValues?.codeLength ?? 6,
         },
     })
 
@@ -104,6 +106,7 @@ export default function SelectionPeriodForm({
             topicIds: initialValues.topicIds,
             rankingsEnabled: initialValues.rankingsEnabled,
             accessMode: initialValues.accessMode,
+            codeLength: initialValues.codeLength,
         })
         return key
     }, [initialValues])
@@ -122,6 +125,7 @@ export default function SelectionPeriodForm({
                 minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
                 rankingsEnabled: initialValues.rankingsEnabled ?? true,
                 accessMode: initialValues.accessMode ?? "code",
+                codeLength: initialValues.codeLength ?? 6,
             })
         }
     }, [initialValuesKey, form])
@@ -141,6 +145,7 @@ export default function SelectionPeriodForm({
     const topicIds = useWatch({ control: form.control, name: "topicIds" })
     const minimizeCategoryIds = useWatch({ control: form.control, name: "minimizeCategoryIds" })
     const semesterId = useWatch({ control: form.control, name: "selection_period_id" })
+    const accessMode = useWatch({ control: form.control, name: "accessMode" })
 
     // Filter topics by selected semester (if semesterId is provided)
     const filteredTopics = useMemo(() => {
@@ -311,6 +316,31 @@ export default function SelectionPeriodForm({
                         </FormItem>
                     )}
                 />
+
+                {accessMode === "code" && (
+                    <FormField
+                        control={form.control}
+                        name="codeLength"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Code Length</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="number"
+                                        min={4}
+                                        max={12}
+                                        {...field}
+                                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 6)}
+                                    />
+                                </FormControl>
+                                <FormDescription>
+                                    Number of characters for access codes (4-12, default 6)
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                )}
 
                 {/* Topics Section */}
                 <div className="space-y-4">

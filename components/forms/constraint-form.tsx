@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 
 const formSchema = z.object({
-    name: z.string().min(1, "Category name is required").min(2, "Category name must be at least 2 characters"),
+    name: z.string().min(1, "Constraint name is required").min(2, "Constraint name must be at least 2 characters"),
     description: z.string().optional(),
     criterionType: z.enum(["prerequisite", "maximize", "minimize", "pull", "push"], {
         message: "Please select how this category should be used"
@@ -52,33 +52,33 @@ const formSchema = z.object({
     path: ["maxStudents"],
 })
 
-export type CategoryFormValues = z.infer<typeof formSchema>
+export type ConstraintFormValues = z.infer<typeof formSchema>
 
-export default function CategoryForm({
+export default function ConstraintForm({
     initialValues,
     onSubmit,
     mode,
 }: {
-    initialValues?: Partial<CategoryFormValues>
-    onSubmit: (values: CategoryFormValues) => void | Promise<void>
-    mode?: "minimize" | "constraint" | null
+    initialValues?: Partial<ConstraintFormValues>
+    onSubmit: (values: ConstraintFormValues) => void | Promise<void>
+    mode?: "distribution" | "topicSpecific" | null
 }) {
-    const [selectedCriterionType, setSelectedCriterionType] = React.useState<CategoryFormValues["criterionType"] | undefined>(
-        initialValues?.criterionType ?? (mode === "minimize" ? "minimize" : undefined)
+    const [selectedCriterionType, setSelectedCriterionType] = React.useState<ConstraintFormValues["criterionType"] | undefined>(
+        initialValues?.criterionType ?? (mode === "distribution" ? "minimize" : undefined)
     )
 
-    const form = useForm<CategoryFormValues>({
+    const form = useForm<ConstraintFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             name: initialValues?.name ?? "",
             description: initialValues?.description ?? "",
-            criterionType: initialValues?.criterionType ?? (mode === "minimize" ? "minimize" : undefined),
+            criterionType: initialValues?.criterionType ?? (mode === "distribution" ? "minimize" : undefined),
             minStudents: initialValues?.minStudents,
             maxStudents: initialValues?.maxStudents,
         },
     })
 
-    async function handleSubmit(values: CategoryFormValues) {
+    async function handleSubmit(values: ConstraintFormValues) {
         try {
             await onSubmit(values)
         } catch (error) {
@@ -90,7 +90,7 @@ export default function CategoryForm({
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                {mode === "minimize" && (
+                {mode === "distribution" && (
                     <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
                         <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">
                             Balanced Distribution Criterion
@@ -108,26 +108,26 @@ export default function CategoryForm({
                     name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Category Name</FormLabel>
+                            <FormLabel>Constraint Name</FormLabel>
                             <FormControl>
                                 <Input
-                                    placeholder={mode === "minimize"
+                                    placeholder={mode === "distribution"
                                         ? "e.g., Gender, Experience Level, Programming Background"
                                         : "e.g., Technical Skills, Soft Skills"}
                                     {...field}
                                 />
                             </FormControl>
                             <FormDescription>
-                                {mode === "minimize"
+                                {mode === "distribution"
                                     ? "A short name for this balanced distribution criterion (e.g., \"Gender\", \"Experience Level\")"
-                                    : "A short name for this category (e.g., \"Technical Skills\")"}
+                                    : "A short name for this constraint (e.g., \"Technical Skills\")"}
                             </FormDescription>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
 
-                {mode !== "minimize" && (
+                {mode !== "distribution" && (
                     <>
                         <FormField
                             control={form.control}
@@ -259,9 +259,9 @@ export default function CategoryForm({
                             <FormLabel>Description (Optional)</FormLabel>
                             <FormControl>
                                 <Textarea
-                                    placeholder={mode === "minimize"
+                                    placeholder={mode === "distribution"
                                         ? "e.g., Ensures gender diversity is balanced across all groups"
-                                        : "Optional description for this category"}
+                                        : "Optional description for this constraint"}
                                     {...field}
                                 />
                             </FormControl>
@@ -270,7 +270,7 @@ export default function CategoryForm({
                     )}
                 />
 
-                <Button type="submit">Save Category</Button>
+                <Button type="submit">Save Constraint</Button>
             </form>
         </Form>
     )

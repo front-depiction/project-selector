@@ -26,6 +26,7 @@ export const createPeriod = mutation({
     rankingsEnabled: v.optional(v.boolean()),
     topicIds: v.optional(v.array(v.id("topics"))),
     accessMode: v.optional(v.union(v.literal("code"), v.literal("student_id"))),
+    codeLength: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     // Validate dates
@@ -60,6 +61,7 @@ export const createPeriod = mutation({
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
         accessMode: args.accessMode,
+        codeLength: args.codeLength,
       }))
       // Mark onboarding step complete
       const identity = await ctx.auth.getUserIdentity()
@@ -88,6 +90,7 @@ export const createPeriod = mutation({
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
         accessMode: args.accessMode,
+        codeLength: args.codeLength,
       }))
 
       // 2. Schedule closing
@@ -109,6 +112,7 @@ export const createPeriod = mutation({
         minimizeCategoryIds: args.minimizeCategoryIds,
         rankingsEnabled: args.rankingsEnabled,
         accessMode: args.accessMode,
+        codeLength: args.codeLength,
       }))
 
       // Mark onboarding step complete
@@ -136,6 +140,7 @@ export const createPeriod = mutation({
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
       accessMode: args.accessMode,
+      codeLength: args.codeLength,
     }))
 
     // Schedule open
@@ -157,6 +162,7 @@ export const createPeriod = mutation({
       minimizeCategoryIds: args.minimizeCategoryIds,
       rankingsEnabled: args.rankingsEnabled,
       accessMode: args.accessMode,
+      codeLength: args.codeLength,
     }))
 
     // Mark onboarding step complete
@@ -539,6 +545,74 @@ export const getPeriodBySlug = query({
       description: period.description,
       shareableSlug: period.shareableSlug,
       accessMode: period.accessMode ?? "code",
+    }
+  }
+})
+
+/**
+ * Gets a selection period by its shareable slug with detailed status.
+ * Returns the period info if joinable, or a specific status explaining why not.
+ *
+ * This is a public query intended for student access via shareable links.
+ *
+ * @category Queries
+ * @since 0.1.0
+ */
+export const getPeriodBySlugWithStatus = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args): Promise<
+    | { status: "open"; period: { _id: Id<"selectionPeriods">; title: string; description: string; shareableSlug: string; accessMode: "code" | "student_id"; codeLength: number } }
+    | { status: "not_found" }
+    | { status: "inactive"; title: string; openDate: number }
+    | { status: "closed"; title: string; closeDate: number }
+    | { status: "assigned"; title: string }
+  > => {
+    // Validate slug format
+    if (!isShareableSlug(args.slug)) {
+      return { status: "not_found" }
+    }
+
+    // Query by index
+    const period = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_slug", q => q.eq("shareableSlug", args.slug))
+      .first()
+
+    if (!period) {
+      return { status: "not_found" }
+    }
+
+    // Return appropriate status based on period kind
+    switch (period.kind) {
+      case "open":
+        return {
+          status: "open",
+          period: {
+            _id: period._id,
+            title: period.title,
+            description: period.description,
+            shareableSlug: period.shareableSlug,
+            accessMode: period.accessMode ?? "code",
+            codeLength: period.codeLength ?? 6,
+          }
+        }
+      case "inactive":
+        return {
+          status: "inactive",
+          title: period.title,
+          openDate: period.openDate,
+        }
+      case "closed":
+        return {
+          status: "closed",
+          title: period.title,
+          closeDate: period.closeDate,
+        }
+      case "assigned":
+        return {
+          status: "assigned",
+          title: period.title,
+        }
     }
   }
 })

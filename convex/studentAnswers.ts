@@ -521,7 +521,7 @@ export const getStudentAnswersForTeacher = query({
     // Create a map of questionId -> answer
     const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
 
-    // Sort questions by category then createdAt for consistent ordering
+    // Sort questions by characteristicName (stored as 'category' in DB) then createdAt for consistent ordering
     const sortedQuestions = [...questions].sort((a, b) => {
       const catCompare = a.category.localeCompare(b.category)
       if (catCompare !== 0) return catCompare
@@ -534,7 +534,7 @@ export const getStudentAnswersForTeacher = query({
       order: index,
       questionText: q.question,
       kind: q.kind,
-      category: q.category,
+      characteristicName: q.category, // Map DB field to semantic name
       answer: answerMap.get(q._id as string) ?? null
     }))
   }
@@ -565,7 +565,7 @@ export const getQuestionsWithAnswersForStudent = query({
     // Create a map of questionId -> answer
     const answerMap = new Map(answers.map(a => [a.questionId as string, a]))
 
-    // Sort questions by category then createdAt for consistent ordering
+    // Sort questions by characteristicName (stored as 'category' in DB) then createdAt for consistent ordering
     const sortedQuestions = [...questions].sort((a, b) => {
       const catCompare = a.category.localeCompare(b.category)
       if (catCompare !== 0) return catCompare
@@ -578,7 +578,7 @@ export const getQuestionsWithAnswersForStudent = query({
       order: index,
       questionText: q.question,
       kind: q.kind,
-      category: q.category,
+      characteristicName: q.category, // Map DB field to semantic name
       answer: answerMap.get(q._id as string) ?? null
     }))
   }

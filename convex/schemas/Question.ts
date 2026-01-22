@@ -3,22 +3,28 @@ import type { Infer } from "convex/values"
 
 /**
  * Boolean question variant
+ *
+ * Note: The database field is named `category` but in TypeScript we use
+ * `characteristicName` to better describe its purpose (linking to Category entities).
  */
 export const BooleanQuestion = v.object({
   question: v.string(),
   kind: v.literal("boolean"),
-  category: v.string(), // e.g., "Technical Skills", "Soft Skills", "Interests"
+  category: v.string(), // DB field name; represents characteristicName (e.g., "Technical Skills", "Soft Skills")
   semesterId: v.string(),
   createdAt: v.number(),
 })
 
 /**
  * 0-to-6 rating question variant
+ *
+ * Note: The database field is named `category` but in TypeScript we use
+ * `characteristicName` to better describe its purpose (linking to Category entities).
  */
 export const ZeroToSixQuestion = v.object({
   question: v.string(),
   kind: v.literal("0to6"),
-  category: v.string(), // e.g., "Technical Skills", "Soft Skills", "Interests"
+  category: v.string(), // DB field name; represents characteristicName (e.g., "Technical Skills", "Soft Skills")
   semesterId: v.string(),
   createdAt: v.number(),
 })
@@ -55,22 +61,33 @@ export type ZeroToSixQuestion = Readonly<Infer<typeof ZeroToSixQuestion>>
  * const question = Question.make({
  *   question: "Do you enjoy working in teams?",
  *   kind: "boolean",
+ *   characteristicName: "Soft Skills",
  *   semesterId: "2024-spring"
  * })
  */
 export const make = (params: {
   readonly question: string
   readonly kind: "boolean" | "0to6"
-  readonly category: string
+  /** The characteristic/category name this question belongs to */
+  readonly characteristicName: string
   readonly semesterId: string
   readonly createdAt?: number
 }): Question => ({
   question: params.question,
   kind: params.kind,
-  category: params.category,
+  category: params.characteristicName, // Map to DB field name
   semesterId: params.semesterId,
   createdAt: params.createdAt ?? Date.now()
 } as const)
+
+/**
+ * Gets the characteristic name from a Question.
+ * This is a helper to access the `category` DB field with the semantic name.
+ *
+ * @category Accessors
+ * @since 0.1.0
+ */
+export const getCharacteristicName = (question: Question): string => question.category
 
 /**
  * Type guards with narrowing

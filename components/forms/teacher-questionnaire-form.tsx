@@ -105,9 +105,9 @@ export default function TeacherQuestionnaireForm({
         <div className="max-h-[60vh] space-y-8 overflow-y-auto pr-4">
           {questions.map((question) => {
             const hasAnswer = question.answer !== null
-            const categoryBadge = question.category ? (
+            const characteristicBadge = question.characteristicName ? (
               <Badge variant="outline" className="ml-2">
-                {question.category}
+                {question.characteristicName}
               </Badge>
             ) : null
 
@@ -122,7 +122,7 @@ export default function TeacherQuestionnaireForm({
                       <FormLabel className="text-base font-semibold">
                         {question.questionText}
                       </FormLabel>
-                      {categoryBadge}
+                      {characteristicBadge}
                       {hasAnswer && (
                         <Badge variant="secondary" className="ml-auto">
                           Previously answered

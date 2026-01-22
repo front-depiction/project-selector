@@ -1,7 +1,7 @@
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { TopicFormValues } from "@/components/forms/topic-form"
-import type { CategoryFormValues } from "@/components/forms/category-form"
+import type { ConstraintFormValues } from "@/components/forms/constraint-form"
 import * as Option from "effect/Option"
 import { toast } from "sonner"
 
@@ -23,7 +23,7 @@ export interface ConstraintOptionVM {
   readonly id?: string
 }
 
-export interface CategoryItemVM {
+export interface ConstraintItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
@@ -34,7 +34,7 @@ export interface CategoryItemVM {
   readonly remove: () => void
 }
 
-export interface Category {
+export interface Constraint {
   readonly _id: string
   readonly name: string
   readonly description?: string
@@ -64,14 +64,14 @@ export interface EditTopicDialogVM extends DialogVM {
 export interface TopicsViewVM {
   readonly topics$: ReadonlySignal<readonly TopicItemVM[]>
   readonly constraintOptions$: ReadonlySignal<readonly ConstraintOptionVM[]>
-  readonly constraintCategories$: ReadonlySignal<readonly CategoryItemVM[]>
-  readonly editingCategory$: ReadonlySignal<Option.Option<Category>>
+  readonly topicConstraints$: ReadonlySignal<readonly ConstraintItemVM[]>
+  readonly editingConstraint$: ReadonlySignal<Option.Option<Constraint>>
   readonly createTopicDialog: DialogVM
   readonly editTopicDialog: EditTopicDialogVM
-  readonly categoryDialog: DialogVM
+  readonly constraintDialog: DialogVM
   readonly onTopicSubmit: (values: TopicFormValues) => Promise<void>
   readonly onEditTopicSubmit: (values: TopicFormValues) => void
-  readonly onCategorySubmit: (values: CategoryFormValues) => void
+  readonly onConstraintSubmit: (values: ConstraintFormValues) => void
 }
 
 // ============================================================================
@@ -80,7 +80,7 @@ export interface TopicsViewVM {
 
 export interface TopicsViewVMDeps {
   readonly topics$: ReadonlySignal<readonly any[] | undefined>
-  readonly categories$: ReadonlySignal<readonly any[] | undefined>
+  readonly constraints$: ReadonlySignal<readonly any[] | undefined>
   readonly createTopic: (args: {
     title: string
     description: string
@@ -94,7 +94,7 @@ export interface TopicsViewVMDeps {
     description: string
   }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
-  readonly createCategory: (args: {
+  readonly createConstraint: (args: {
     name: string
     description?: string
     semesterId: string
@@ -102,7 +102,7 @@ export interface TopicsViewVMDeps {
     minStudents?: number
     maxStudents?: number
   }) => Promise<any>
-  readonly updateCategory: (args: {
+  readonly updateConstraint: (args: {
     id: Id<"categories">
     name?: string
     description?: string
@@ -110,7 +110,7 @@ export interface TopicsViewVMDeps {
     minStudents?: number
     maxStudents?: number
   }) => Promise<any>
-  readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
+  readonly deleteConstraint: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -120,26 +120,26 @@ export interface TopicsViewVMDeps {
 export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   const {
     topics$,
-    categories$,
+    constraints$,
     createTopic,
     updateTopic,
     deleteTopic,
-    createCategory,
-    updateCategory,
-    deleteCategory,
+    createConstraint,
+    updateConstraint,
+    deleteConstraint,
   } = deps
 
   // Signals created once
   const createTopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
-  const categoryDialogOpen$ = signal(false)
+  const constraintDialogOpen$ = signal(false)
   const editingTopic$ = signal<Option.Option<{
     id: Id<"topics">
     title: string
     description: string
     semesterId: string
   }>>(Option.none())
-  const editingCategory$ = signal<Option.Option<Category>>(Option.none())
+  const editingConstraint$ = signal<Option.Option<Constraint>>(Option.none())
 
   // Action: open edit dialog with topic data
   const openEditDialog = (topicId: string) => {
@@ -185,8 +185,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
 
   // Computed: constraint options for form (topic-specific: maximize/pull and prerequisite only)
   const constraintOptions$ = computed((): readonly ConstraintOptionVM[] => {
-    const categories = categories$.value ?? []
-    return categories
+    const constraintsData = constraints$.value ?? []
+    return constraintsData
       .filter((cat: any) => cat.criterionType === "maximize" || cat.criterionType === "pull" || cat.criterionType === "prerequisite")
       .map((cat: any): ConstraintOptionVM => ({
         value: cat._id,
@@ -195,8 +195,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       }))
   })
 
-  // Helper function to map category to CategoryItemVM
-  const mapCategoryToVM = (c: Category): CategoryItemVM => {
+  // Helper function to map constraint to ConstraintItemVM
+  const mapConstraintToVM = (c: Constraint): ConstraintItemVM => {
     const criterionType = c.criterionType
     let criterionDisplay = "None"
     let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
@@ -224,20 +224,20 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       criterionDisplay,
       criterionBadgeVariant,
       remove: () => {
-        deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+        deleteConstraint({ id: c._id as Id<"categories"> }).catch(console.error)
       },
       edit: () => {
-        editingCategory$.value = Option.some(c)
-        categoryDialogOpen$.value = true
+        editingConstraint$.value = Option.some(c)
+        constraintDialogOpen$.value = true
       }
     }
   }
 
-  // Computed: constraint categories (prerequisite, maximize/pull)
-  const constraintCategories$ = computed((): readonly CategoryItemVM[] =>
-    (categories$.value ?? [])
+  // Computed: topic constraints (prerequisite, maximize/pull)
+  const topicConstraints$ = computed((): readonly ConstraintItemVM[] =>
+    (constraints$.value ?? [])
       .filter((c: any) => c.criterionType === "prerequisite" || c.criterionType === "maximize" || c.criterionType === "pull")
-      .map(mapCategoryToVM)
+      .map(mapConstraintToVM)
   )
 
   // Create topic dialog
@@ -266,17 +266,17 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     },
   }
 
-  // Category dialog
-  const categoryDialog: DialogVM = {
-    isOpen$: categoryDialogOpen$,
+  // Constraint dialog
+  const constraintDialog: DialogVM = {
+    isOpen$: constraintDialogOpen$,
     open: () => {
-      editingCategory$.value = Option.none()
-      categoryDialogOpen$.value = true
+      editingConstraint$.value = Option.none()
+      constraintDialogOpen$.value = true
     },
     close: () => {
       batch(() => {
-        categoryDialogOpen$.value = false
-        editingCategory$.value = Option.none()
+        constraintDialogOpen$.value = false
+        editingConstraint$.value = Option.none()
       })
     },
   }
@@ -315,10 +315,10 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     })
   }
 
-  const onCategorySubmit = (values: CategoryFormValues): void => {
-    Option.match(editingCategory$.value, {
+  const onConstraintSubmit = (values: ConstraintFormValues): void => {
+    Option.match(editingConstraint$.value, {
       onNone: () => {
-        createCategory({
+        createConstraint({
           name: values.name,
           description: values.description || undefined,
           semesterId: "default",
@@ -327,13 +327,13 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           maxStudents: values.maxStudents,
         })
           .then(() => {
-            categoryDialog.close()
+            constraintDialog.close()
           })
           .catch(console.error)
       },
-      onSome: (editingCat) => {
-        updateCategory({
-          id: editingCat._id as Id<"categories">,
+      onSome: (editingCon) => {
+        updateConstraint({
+          id: editingCon._id as Id<"categories">,
           name: values.name,
           description: values.description || undefined,
           criterionType: values.criterionType ?? undefined,
@@ -341,7 +341,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           maxStudents: values.maxStudents,
         })
           .then(() => {
-            categoryDialog.close()
+            constraintDialog.close()
           })
           .catch(console.error)
       }
@@ -351,13 +351,13 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   return {
     topics$: sortedTopics$,
     constraintOptions$,
-    constraintCategories$,
-    editingCategory$,
+    topicConstraints$,
+    editingConstraint$,
     createTopicDialog,
     editTopicDialog,
-    categoryDialog,
+    constraintDialog,
     onTopicSubmit,
     onEditTopicSubmit,
-    onCategorySubmit,
+    onConstraintSubmit,
   }
 }

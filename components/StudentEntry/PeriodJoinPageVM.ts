@@ -1,5 +1,6 @@
 import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import * as Option from "effect/Option"
+import { format } from "date-fns"
 import type { Id } from "@/convex/_generated/dataModel"
 
 // ============================================================================
@@ -19,6 +20,23 @@ export interface PeriodInfo {
   readonly description: string
   readonly shareableSlug: string
   readonly accessMode: "code" | "student_id"
+  readonly codeLength: number
+}
+
+/** Response type from getPeriodBySlugWithStatus query */
+export type PeriodStatusResponse =
+  | { status: "open"; period: PeriodInfo }
+  | { status: "not_found" }
+  | { status: "inactive"; title: string; openDate: number }
+  | { status: "closed"; title: string; closeDate: number }
+  | { status: "assigned"; title: string }
+
+/** Error type for display in UI */
+export type PeriodErrorType = "not_found" | "inactive" | "closed" | "assigned"
+
+export interface PeriodError {
+  readonly type: PeriodErrorType
+  readonly message: string
 }
 
 export interface PeriodJoinPageVM {
@@ -29,8 +47,8 @@ export interface PeriodJoinPageVM {
   /** Whether the period data is still loading */
   readonly isLoading$: ReadonlySignal<boolean>
 
-  /** Error message if period loading failed */
-  readonly error$: ReadonlySignal<Option.Option<string>>
+  /** Error with type and message if period is not joinable */
+  readonly error$: ReadonlySignal<Option.Option<PeriodError>>
 
   /** Current access code input value */
   readonly accessCode$: ReadonlySignal<string>
@@ -42,8 +60,8 @@ export interface PeriodJoinPageVM {
   readonly codeError$: ReadonlySignal<Option.Option<string>>
 
   // Actions
-  /** Update the access code input value */
-  readonly setAccessCode: (code: string) => void
+  /** Update the access code input value. Pass accessMode to ensure correct behavior. */
+  readonly setAccessCode: (code: string, accessMode?: "code" | "student_id") => void
 
   /** Submit the access code for validation */
   readonly submitCode: () => Promise<void>
@@ -54,8 +72,8 @@ export interface PeriodJoinPageVM {
 // ============================================================================
 
 export interface PeriodJoinPageVMDeps {
-  /** Signal of period data from Convex (null = not found, undefined = loading) */
-  readonly periodData$: ReadonlySignal<PeriodInfo | null | undefined>
+  /** Signal of period status response from Convex (undefined = loading) */
+  readonly periodStatusData$: ReadonlySignal<PeriodStatusResponse | undefined>
 
   /** Async function to validate the access code against the period */
   readonly validateAccessCode: (args: {
@@ -68,46 +86,88 @@ export interface PeriodJoinPageVMDeps {
 }
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatDateForMessage(timestamp: number): string {
+  return format(new Date(timestamp), "MMMM d, yyyy 'at' h:mm a")
+}
+
+function createErrorFromStatus(data: PeriodStatusResponse): Option.Option<PeriodError> {
+  switch (data.status) {
+    case "open":
+      return Option.none()
+    case "not_found":
+      return Option.some({
+        type: "not_found" as const,
+        message: "Selection period not found.",
+      })
+    case "inactive":
+      return Option.some({
+        type: "inactive" as const,
+        message: `This selection period hasn't opened yet. It will be available on ${formatDateForMessage(data.openDate)}.`,
+      })
+    case "closed":
+      return Option.some({
+        type: "closed" as const,
+        message: `This selection period has closed. Submissions ended on ${formatDateForMessage(data.closeDate)}.`,
+      })
+    case "assigned":
+      return Option.some({
+        type: "assigned" as const,
+        message: "Assignments have already been made for this selection period.",
+      })
+  }
+}
+
+// ============================================================================
 // Factory Function - creates the View Model
 // ============================================================================
 
 export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPageVM {
-  const { periodData$, validateAccessCode, onSuccess } = deps
+  const { periodStatusData$, validateAccessCode, onSuccess } = deps
 
   // State signals - created once in the factory
   const accessCode$ = signal("")
   const isValidating$ = signal(false)
   const codeError$ = signal<Option.Option<string>>(Option.none())
 
-  // Computed: Transform periodData to Option type
+  // Computed: Transform periodStatusData to Option<PeriodInfo> when status is "open"
   const periodInfo$ = computed((): Option.Option<PeriodInfo> => {
-    const data = periodData$.value
-    // undefined = loading, null = not found, object = found
-    if (data === undefined || data === null) {
+    const data = periodStatusData$.value
+    // undefined = loading
+    if (data === undefined) {
       return Option.none()
     }
-    return Option.some(data)
-  })
-
-  // Computed: Loading state (undefined means still loading)
-  const isLoading$ = computed((): boolean => {
-    return periodData$.value === undefined
-  })
-
-  // Computed: Error state (null means not found)
-  const error$ = computed((): Option.Option<string> => {
-    const data = periodData$.value
-    // Only show error when loading is complete (not undefined) and data is null
-    if (data === null) {
-      return Option.some("Selection period not found or is no longer available")
+    // Only return period info if status is "open"
+    if (data.status === "open") {
+      return Option.some(data.period)
     }
     return Option.none()
   })
 
+  // Computed: Loading state (undefined means still loading)
+  const isLoading$ = computed((): boolean => {
+    return periodStatusData$.value === undefined
+  })
+
+  // Computed: Error state with type and specific message
+  const error$ = computed((): Option.Option<PeriodError> => {
+    const data = periodStatusData$.value
+    // Still loading - no error yet
+    if (data === undefined) {
+      return Option.none()
+    }
+    return createErrorFromStatus(data)
+  })
+
   // Action: Set access code with alphanumeric validation
-  const setAccessCode = (newValue: string): void => {
+  const setAccessCode = (newValue: string, explicitAccessMode?: "code" | "student_id"): void => {
     const periodInfo = periodInfo$.value
-    const accessMode = Option.isSome(periodInfo) ? periodInfo.value.accessMode : "code"
+    // Use explicit access mode if provided, otherwise derive from period info
+    const accessMode = explicitAccessMode ?? (Option.isSome(periodInfo) ? periodInfo.value.accessMode : "code")
+    // Use dynamic code length from period info, fallback to default
+    const codeLength = Option.isSome(periodInfo) ? periodInfo.value.codeLength : ACCESS_CODE_LENGTH
 
     // For student_id mode, accept any input without length restrictions
     if (accessMode === "student_id") {
@@ -121,12 +181,12 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     // Code mode: Remove non-alphanumeric characters and convert to uppercase
     const cleaned = newValue.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
 
-    if (cleaned.length > ACCESS_CODE_LENGTH) {
+    if (cleaned.length > codeLength) {
       batch(() => {
         codeError$.value = Option.some(
-          `Access code must be exactly ${ACCESS_CODE_LENGTH} characters`
+          `Access code must be exactly ${codeLength} characters`
         )
-        accessCode$.value = cleaned.slice(0, ACCESS_CODE_LENGTH)
+        accessCode$.value = cleaned.slice(0, codeLength)
       })
     } else {
       batch(() => {
@@ -136,7 +196,7 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     }
 
     // Auto-submit when valid length is reached (code mode only)
-    if (cleaned.length === ACCESS_CODE_LENGTH && ALPHANUMERIC.test(cleaned)) {
+    if (cleaned.length === codeLength && ALPHANUMERIC.test(cleaned)) {
       submitCode()
     }
   }
@@ -153,6 +213,7 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     }
 
     const accessMode = periodInfo.value.accessMode
+    const codeLength = periodInfo.value.codeLength
 
     // For student_id mode, just validate non-empty and save
     if (accessMode === "student_id") {
@@ -171,9 +232,9 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
 
     // Code mode validation
     // Validate code length
-    if (currentCode.length !== ACCESS_CODE_LENGTH) {
+    if (currentCode.length !== codeLength) {
       codeError$.value = Option.some(
-        `Access code must be exactly ${ACCESS_CODE_LENGTH} characters`
+        `Access code must be exactly ${codeLength} characters`
       )
       return
     }

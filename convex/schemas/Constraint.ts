@@ -2,12 +2,12 @@ import { v } from "convex/values"
 import type { Infer } from "convex/values"
 
 /**
- * Convex validator for Category objects.
+ * Convex validator for Constraint objects.
  *
  * @category Validators
  * @since 0.2.0
  */
-export const Category = v.object({
+export const Constraint = v.object({
   name: v.string(),
   description: v.optional(v.string()),
   semesterId: v.string(),
@@ -29,22 +29,22 @@ export const Category = v.object({
 })
 
 /**
- * Category type representing a question category.
+ * Constraint type representing a question constraint.
  *
  * @category Types
  * @since 0.2.0
  */
-export type Category = Readonly<Infer<typeof Category>>
+export type Constraint = Readonly<Infer<typeof Constraint>>
 
 /**
- * Creates a new Category.
+ * Creates a new Constraint.
  *
  * @category Constructors
  * @since 0.2.0
  * @example
- * import * as Category from "./schemas/Category"
+ * import * as Constraint from "./schemas/Constraint"
  *
- * const category = Category.make({
+ * const constraint = Constraint.make({
  *   name: "Technical Skills",
  *   description: "Questions about technical abilities",
  *   semesterId: "2024-spring"
@@ -59,7 +59,7 @@ export const make = (params: {
   readonly minRatio?: number
   readonly minStudents?: number
   readonly maxStudents?: number
-}): Category => ({
+}): Constraint => ({
   name: params.name,
   description: params.description,
   semesterId: params.semesterId,

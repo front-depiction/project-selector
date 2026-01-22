@@ -9,8 +9,8 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Loader2, AlertCircle, KeyRound, Sparkles, User } from "lucide-react"
-import type { PeriodJoinPageVM } from "./PeriodJoinPageVM"
+import { Loader2, AlertCircle, KeyRound, Sparkles, User, Clock, CheckCircle2, XCircle, HelpCircle } from "lucide-react"
+import type { PeriodJoinPageVM, PeriodError, PeriodErrorType } from "./PeriodJoinPageVM"
 
 // ============================================================================
 // TYPES
@@ -60,30 +60,94 @@ const LoadingState: React.FC = () => (
 // COMPONENTS - Error State
 // ============================================================================
 
-const ErrorState: React.FC<{ message: string }> = ({ message }) => (
-  <Frame>
-    <Card className="w-full border-destructive/20 shadow-lg">
-      <CardHeader className="text-center pb-2">
-        <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-          <AlertCircle className="h-10 w-10 text-destructive" />
-        </div>
-        <CardTitle className="text-2xl font-bold">Unable to Load</CardTitle>
-        <CardDescription className="text-base mt-2">
-          {message}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            Please check the link and try again, or contact your instructor.
-          </AlertDescription>
-        </Alert>
-      </CardContent>
-    </Card>
-  </Frame>
-)
+interface ErrorStateConfig {
+  readonly icon: React.ReactNode
+  readonly title: string
+  readonly borderColor: string
+  readonly iconBgColor: string
+  readonly alertVariant: "destructive" | "default"
+  readonly alertTitle: string
+  readonly alertDescription: string
+}
+
+function getErrorStateConfig(errorType: PeriodErrorType): ErrorStateConfig {
+  switch (errorType) {
+    case "inactive":
+      return {
+        icon: <Clock className="h-10 w-10 text-amber-600" />,
+        title: "Not Yet Open",
+        borderColor: "border-amber-500/20",
+        iconBgColor: "bg-amber-500/10",
+        alertVariant: "default",
+        alertTitle: "Coming Soon",
+        alertDescription: "Check back when the selection period opens, or contact your instructor for more details.",
+      }
+    case "closed":
+      return {
+        icon: <XCircle className="h-10 w-10 text-muted-foreground" />,
+        title: "Selection Closed",
+        borderColor: "border-muted",
+        iconBgColor: "bg-muted",
+        alertVariant: "default",
+        alertTitle: "Period Ended",
+        alertDescription: "The submission window for this selection period has passed.",
+      }
+    case "assigned":
+      return {
+        icon: <CheckCircle2 className="h-10 w-10 text-green-600" />,
+        title: "Assignments Complete",
+        borderColor: "border-green-500/20",
+        iconBgColor: "bg-green-500/10",
+        alertVariant: "default",
+        alertTitle: "Already Assigned",
+        alertDescription: "Final assignments have been made. Contact your instructor if you have questions.",
+      }
+    case "not_found":
+    default:
+      return {
+        icon: <HelpCircle className="h-10 w-10 text-destructive" />,
+        title: "Not Found",
+        borderColor: "border-destructive/20",
+        iconBgColor: "bg-destructive/10",
+        alertVariant: "destructive",
+        alertTitle: "Error",
+        alertDescription: "Please check the link and try again, or contact your instructor.",
+      }
+  }
+}
+
+interface ErrorStateProps {
+  readonly error: PeriodError
+}
+
+const ErrorState: React.FC<ErrorStateProps> = ({ error }) => {
+  const config = getErrorStateConfig(error.type)
+
+  return (
+    <Frame>
+      <Card className={`w-full ${config.borderColor} shadow-lg`}>
+        <CardHeader className="text-center pb-2">
+          <div className={`mx-auto mb-4 h-16 w-16 rounded-full ${config.iconBgColor} flex items-center justify-center`}>
+            {config.icon}
+          </div>
+          <CardTitle className="text-2xl font-bold">{config.title}</CardTitle>
+          <CardDescription className="text-base mt-2">
+            {error.message}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert variant={config.alertVariant}>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{config.alertTitle}</AlertTitle>
+            <AlertDescription>
+              {config.alertDescription}
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    </Frame>
+  )
+}
 
 // ============================================================================
 // COMPONENTS - Period Header
@@ -117,7 +181,8 @@ interface CodeEntryFormProps {
   readonly isValidating: boolean
   readonly codeError: Option.Option<string>
   readonly accessMode: "code" | "student_id"
-  readonly onCodeChange: (code: string) => void
+  readonly codeLength: number
+  readonly onCodeChange: (code: string, accessMode?: "code" | "student_id") => void
   readonly onSubmit: () => void
 }
 
@@ -126,6 +191,7 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
   isValidating,
   codeError,
   accessMode,
+  codeLength,
   onCodeChange,
   onSubmit,
 }) => (
@@ -149,16 +215,16 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
         <>
           <div className="flex justify-center">
             <InputOTP
-              maxLength={6}
+              maxLength={codeLength}
               value={accessCode}
-              onChange={onCodeChange}
+              onChange={(value) => onCodeChange(value, "code")}
               disabled={isValidating}
               containerClassName="justify-center"
               className="text-2xl sm:text-3xl"
               pattern="[A-Za-z0-9]*"
             >
               <InputOTPGroup>
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: codeLength }).map((_, i) => (
                   <InputOTPSlot key={i} index={i} className="uppercase h-12 w-10 text-lg" />
                 ))}
               </InputOTPGroup>
@@ -166,7 +232,7 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
           </div>
 
           <p className="text-xs text-muted-foreground text-center mt-2">
-            Letters & numbers only - 6 characters
+            Letters & numbers only - {codeLength} characters
           </p>
         </>
       ) : (
@@ -180,7 +246,7 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
           <Input
             type="text"
             value={accessCode}
-            onChange={(e) => onCodeChange(e.target.value)}
+            onChange={(e) => onCodeChange(e.target.value, "student_id")}
             placeholder="Enter your student ID"
             className="text-center text-lg uppercase"
             disabled={isValidating}
@@ -237,10 +303,10 @@ export function PeriodJoinPage({ vm }: PeriodJoinPageProps): React.ReactElement 
     return <LoadingState />
   }
 
-  // Error state (period not found)
+  // Error state (period not found, inactive, closed, or assigned)
   const errorResult = Option.match(vm.error$.value, {
     onNone: () => null,
-    onSome: (errorMessage) => <ErrorState message={errorMessage} />,
+    onSome: (error) => <ErrorState error={error} />,
   })
 
   if (errorResult) {
@@ -249,7 +315,7 @@ export function PeriodJoinPage({ vm }: PeriodJoinPageProps): React.ReactElement 
 
   // Main view - period info with code entry
   return Option.match(vm.periodInfo$.value, {
-    onNone: () => <ErrorState message="Period information not available" />,
+    onNone: () => <ErrorState error={{ type: "not_found", message: "Period information not available." }} />,
     onSome: (period) => (
       <Frame>
         <Card className="w-full border-primary/10 shadow-lg bg-gradient-to-b from-card to-card/95">
@@ -262,6 +328,7 @@ export function PeriodJoinPage({ vm }: PeriodJoinPageProps): React.ReactElement 
             isValidating={vm.isValidating$.value}
             codeError={vm.codeError$.value}
             accessMode={period.accessMode}
+            codeLength={period.codeLength}
             onCodeChange={vm.setAccessCode}
             onSubmit={vm.submitCode}
           />

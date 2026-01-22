@@ -3,7 +3,7 @@ import * as EffectOption from "effect/Option"
 import type { Id } from "@/convex/_generated/dataModel"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { TemplateFormValues, QuestionOption } from "@/components/forms/template-form"
-import type { CategoryFormValues } from "@/components/forms/category-form"
+import type { ConstraintFormValues } from "@/components/forms/constraint-form"
 
 // ============================================================================
 // View Model Types
@@ -14,7 +14,7 @@ export interface QuestionItemVM {
   readonly questionText: string
   readonly kindDisplay: string
   readonly kindVariant: "secondary" | "outline"
-  readonly category?: string
+  readonly characteristicName?: string
   readonly edit: () => void
   readonly remove: () => void
 }
@@ -60,10 +60,10 @@ export interface QuestionnairesViewVM {
   readonly openMinimizeCategoryDialog: () => void
   readonly openConstraintCategoryDialog: () => void
   readonly availableQuestions$: ReadonlySignal<readonly QuestionOption[]>
-  readonly existingCategories$: ReadonlySignal<readonly string[]>
+  readonly existingCharacteristicNames$: ReadonlySignal<readonly string[]>
   readonly onQuestionSubmit: (values: QuestionFormValues) => void
   readonly onTemplateSubmit: (values: TemplateFormValues) => void
-  readonly onCategorySubmit: (values: CategoryFormValues) => void
+  readonly onCategorySubmit: (values: ConstraintFormValues) => void
 }
 
 // ============================================================================
@@ -74,8 +74,12 @@ export interface Question {
   readonly _id: string
   readonly question: string
   readonly kind: "boolean" | "0to6"
+  /** The characteristic name (stored as 'category' in DB) */
   readonly category?: string
 }
+
+/** Helper to get the characteristic name from a Question */
+const getCharacteristicName = (q: Question): string | undefined => q.category
 
 export interface Template {
   readonly _id: string
@@ -96,9 +100,9 @@ export interface QuestionnairesViewDeps {
   readonly questions$: Signal<Question[] | undefined>
   readonly templates$: Signal<Template[] | undefined>
   readonly categories$: Signal<Category[] | undefined>
-  readonly existingCategories$: Signal<string[] | undefined>
-  readonly createQuestion: (args: { question: string; kind: "boolean" | "0to6"; category?: string; semesterId: string }) => Promise<any>
-  readonly updateQuestion: (args: { id: Id<"questions">; question?: string; kind?: "boolean" | "0to6"; category?: string }) => Promise<any>
+  readonly existingCharacteristicNames$: Signal<string[] | undefined>
+  readonly createQuestion: (args: { question: string; kind: "boolean" | "0to6"; characteristicName?: string; semesterId: string }) => Promise<any>
+  readonly updateQuestion: (args: { id: Id<"questions">; question?: string; kind?: "boolean" | "0to6"; characteristicName?: string }) => Promise<any>
   readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
   readonly createTemplate: (args: { title: string; description?: string; semesterId: string }) => Promise<any>
   readonly updateTemplate: (args: { id: Id<"questionTemplates">; title?: string; description?: string }) => Promise<any>
@@ -106,7 +110,7 @@ export interface QuestionnairesViewDeps {
   readonly getTemplateWithQuestions: (args: { id: Id<"questionTemplates"> }) => Promise<any>
   readonly addQuestionToTemplate: (args: { templateId: Id<"questionTemplates">; questionId: Id<"questions"> }) => Promise<any>
   readonly reorderTemplateQuestions: (args: { templateId: Id<"questionTemplates">; questionIds: Id<"questions">[] }) => Promise<any>
-  readonly createCategory: (args: {
+  readonly createConstraint: (args: {
     name: string
     description?: string
     semesterId: string
@@ -114,7 +118,7 @@ export interface QuestionnairesViewDeps {
     minRatio?: number
     target?: number
   }) => Promise<any>
-  readonly updateCategory: (args: {
+  readonly updateConstraint: (args: {
     id: Id<"categories">
     name?: string
     description?: string
@@ -122,7 +126,7 @@ export interface QuestionnairesViewDeps {
     minRatio?: number
     target?: number
   }) => Promise<any>
-  readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
+  readonly deleteConstraint: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -150,7 +154,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       questionText: q.question,
       kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
-      category: q.category,
+      characteristicName: getCharacteristicName(q),
       remove: () => {
         deps.deleteQuestion({ id: q._id as Id<"questions"> }).catch(console.error)
       },
@@ -161,8 +165,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     }))
   )
 
-  // Computed: existing categories (for question form dropdown)
-  const existingCategories$ = computed(() => deps.existingCategories$.value ?? [])
+  // Computed: existing characteristic names (for question form dropdown)
+  const existingCharacteristicNames$ = computed(() => deps.existingCharacteristicNames$.value ?? [])
 
   // Helper function to map category to CategoryItemVM
   const mapCategoryToVM = (c: Category): CategoryItemVM => {
@@ -193,7 +197,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       criterionDisplay,
       criterionBadgeVariant,
       remove: () => {
-        deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+        deps.deleteConstraint({ id: c._id as Id<"categories"> }).catch(console.error)
       },
       edit: () => {
         editingCategory$.value = EffectOption.some(c)
@@ -313,7 +317,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
         deps.createQuestion({
           question: values.question,
           kind: values.kind,
-          category: values.category,
+          characteristicName: values.characteristicName,
           semesterId: "default",
         })
           .then(() => {
@@ -326,7 +330,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           id: editingQuestion._id as Id<"questions">,
           question: values.question,
           kind: values.kind,
-          category: values.category || undefined
+          characteristicName: values.characteristicName || undefined
         })
           .then(() => {
             questionDialog.close()
@@ -378,7 +382,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     })
   }
 
-  const onCategorySubmit = (values: CategoryFormValues): void => {
+  const onCategorySubmit = (values: ConstraintFormValues): void => {
     // Auto-set criterion type based on dialog mode if not editing
     let criterionType: "prerequisite" | "minimize" | "pull" | "push" | undefined =
       values.criterionType === "maximize" ? "pull" : values.criterionType
@@ -392,7 +396,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
 
     EffectOption.match(editingCategory$.value, {
       onNone: () => {
-        deps.createCategory({
+        deps.createConstraint({
           name: values.name,
           description: values.description || undefined,
           semesterId: "default",
@@ -406,7 +410,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           .catch(console.error)
       },
       onSome: (editingCategory) => {
-        deps.updateCategory({
+        deps.updateConstraint({
           id: editingCategory._id as Id<"categories">,
           name: values.name,
           description: values.description || undefined,
@@ -439,7 +443,7 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     openMinimizeCategoryDialog,
     openConstraintCategoryDialog,
     availableQuestions$,
-    existingCategories$,
+    existingCharacteristicNames$,
     onQuestionSubmit,
     onTemplateSubmit,
     onCategorySubmit,

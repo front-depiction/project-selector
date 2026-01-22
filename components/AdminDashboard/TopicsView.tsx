@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Plus, Edit, Trash2 as Trash, MoreVertical, ChevronDown, ChevronRight } from "lucide-react"
 import TopicForm from "@/components/forms/topic-form"
-import CategoryForm from "@/components/forms/category-form"
+import ConstraintForm from "@/components/forms/constraint-form"
 import type { TopicsViewVM } from "./TopicsViewVM"
 import { useSignals } from "@preact/signals-react/runtime"
 import {
@@ -47,7 +47,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
   // Track collapsible section state
   const [criteriaExpanded, setCriteriaExpanded] = React.useState(false)
 
-  const criteriaCount = vm.constraintCategories$.value.length
+  const criteriaCount = vm.topicConstraints$.value.length
 
   return (
     <div className="space-y-6">
@@ -63,7 +63,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
         </Button>
       </div>
 
-      {/* Topic-Specific Criteria Collapsible Section */}
+      {/* Topic Constraints Collapsible Section */}
       <Card>
         <CardHeader
           className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -76,27 +76,27 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
               ) : (
                 <ChevronRight className="h-5 w-5" />
               )}
-              <CardTitle className="text-lg">Topic-Specific Criteria</CardTitle>
+              <CardTitle className="text-lg">Topic Constraints</CardTitle>
               <Badge variant="secondary">{criteriaCount}</Badge>
             </div>
             <Button
               size="sm"
               onClick={(e) => {
                 e.stopPropagation()
-                vm.categoryDialog.open()
+                vm.constraintDialog.open()
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Category
+              Add Constraint
             </Button>
           </div>
           <CardDescription className="ml-7">
-            Prerequisites and maximization criteria that can be assigned to specific topics.
+            Constraints that apply to specific topics during group assignment.
           </CardDescription>
         </CardHeader>
         {criteriaExpanded && (
           <CardContent>
-            {vm.constraintCategories$.value.length === 0 ? (
+            {vm.topicConstraints$.value.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No constraints yet. Add one to get started.</p>
             ) : (
               <Table>
@@ -109,7 +109,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vm.constraintCategories$.value.map((c) => (
+                  {vm.topicConstraints$.value.map((c) => (
                     <TableRow key={c.key}>
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>{c.description}</TableCell>
@@ -241,18 +241,18 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Category Dialog */}
-      <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
+      {/* Constraint Dialog */}
+      <Dialog open={vm.constraintDialog.isOpen$.value} onOpenChange={(open) => !open && vm.constraintDialog.close()}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
+              {Option.isSome(vm.editingConstraint$.value) ? "Edit Constraint" : "Create Constraint"}
             </DialogTitle>
           </DialogHeader>
-          <CategoryForm
-            onSubmit={vm.onCategorySubmit}
-            mode="constraint"
-            initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
+          <ConstraintForm
+            onSubmit={vm.onConstraintSubmit}
+            mode="topicSpecific"
+            initialValues={Option.getOrUndefined(Option.map(vm.editingConstraint$.value, c => ({
               name: c.name,
               description: c.description || "",
               // Map database "pull" to form "maximize"

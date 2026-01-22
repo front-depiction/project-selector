@@ -80,7 +80,7 @@ export const solveAssignment = internalAction({
     }
 
     // Fetch categories for criterion types
-    const allCategories = await ctx.runQuery(internal.categories.getAllCategoriesForSolver, {
+    const allCategories = await ctx.runQuery(internal.constraints.getAllConstraintsForSolver, {
       semesterId: period.semesterId
     })
 

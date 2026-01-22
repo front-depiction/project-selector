@@ -36,7 +36,7 @@ import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentA
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { AssignNowButton } from "@/components/admin/AssignNowButton"
 import QuestionForm from "@/components/forms/question-form"
-import CategoryForm from "@/components/forms/category-form"
+import ConstraintForm from "@/components/forms/constraint-form"
 import type { PeriodsViewVM } from "./PeriodsViewVM"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useSignals } from "@preact/signals-react/runtime"
@@ -149,7 +149,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
         </Button>
       </div>
 
-      {/* Selection-Wide Criteria Collapsible Section */}
+      {/* Distribution Rules Collapsible Section */}
       <Card>
         <CardHeader
           className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -162,29 +162,29 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               ) : (
                 <ChevronRight className="h-5 w-5" />
               )}
-              <CardTitle className="text-lg">Selection-Wide Criteria</CardTitle>
-              <Badge variant="secondary">{vm.minimizeCategories$.value.length}</Badge>
+              <CardTitle className="text-lg">Distribution Rules</CardTitle>
+              <Badge variant="secondary">{vm.distributionRules$.value.length}</Badge>
             </div>
             <Button
               size="sm"
               onClick={(e) => {
                 e.stopPropagation()
-                vm.categoryDialog.open()
+                vm.ruleDialog.open()
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Category
+              Add Rule
             </Button>
           </div>
           <CardDescription className="ml-7">
-            Balanced distribution criteria applied to the entire selection to ensure even distribution across groups.
+            Rules for balanced student distribution across all groups.
           </CardDescription>
         </CardHeader>
         {criteriaExpanded && (
           <CardContent>
-            {vm.minimizeCategories$.value.length === 0 ? (
+            {vm.distributionRules$.value.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                No balanced distribution criteria yet. Add one to get started.
+                No distribution rules yet. Add one to get started.
               </p>
             ) : (
               <Table>
@@ -197,7 +197,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vm.minimizeCategories$.value.map((c) => (
+                  {vm.distributionRules$.value.map((c) => (
                     <TableRow key={c.key}>
                       <TableCell className="font-medium">{c.name}</TableCell>
                       <TableCell>{c.description}</TableCell>
@@ -290,8 +290,8 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                     <TableRow key={q.key}>
                       <TableCell>{q.questionText}</TableCell>
                       <TableCell>
-                        {q.category ? (
-                          <Badge variant="outline">{q.category}</Badge>
+                        {q.characteristicName ? (
+                          <Badge variant="outline">{q.characteristicName}</Badge>
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
@@ -413,10 +413,12 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                             <Link className="mr-2 h-4 w-4" />
                             Copy Invite Link
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
-                            <Key className="mr-2 h-4 w-4" />
-                            Manage Access Codes
-                          </DropdownMenuItem>
+                          {period.accessMode === "code" && (
+                            <DropdownMenuItem onClick={() => handleManageAccessCodes(period.key as Id<"selectionPeriods">, period.title)}>
+                              <Key className="mr-2 h-4 w-4" />
+                              Manage Access Codes
+                            </DropdownMenuItem>
+                          )}
                           {period.statusDisplay === "Assigned" && (
                             <DropdownMenuItem onClick={() => handleViewGroups(period.key as Id<"selectionPeriods">, period.title)}>
                               <Users className="mr-2 h-4 w-4" />
@@ -483,8 +485,8 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
                 </code>
               </div>
 
-              {/* Existing PeriodStudentAllowListManager */}
-              {Option.isSome(vm.createdPeriod$.value) && (
+              {/* Student Access Codes - only shown for "code" access mode */}
+              {Option.isSome(vm.createdPeriod$.value) && vm.createdPeriod$.value.value.accessMode === "code" && (
                 <PeriodStudentAllowListManager
                   selectionPeriodId={vm.createdPeriod$.value.value.id}
                   periodTitle={vm.createdPeriod$.value.value.title}
@@ -585,28 +587,28 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
           </DialogHeader>
           <QuestionForm
             onSubmit={vm.onQuestionSubmit}
-            existingCategories={[...vm.existingCategoryNames$.value]}
+            existingCharacteristicNames={[...vm.existingCharacteristicNames$.value]}
             initialValues={Option.getOrUndefined(Option.map(vm.editingQuestion$.value, q => ({
               question: q.question,
               kind: q.kind,
-              category: q.category,
+              characteristicName: q.category ?? "", // Map DB field to form field
             })))}
           />
         </DialogContent>
       </Dialog>
 
-      {/* Category Dialog */}
-      <Dialog open={vm.categoryDialog.isOpen$.value} onOpenChange={(open) => !open && vm.categoryDialog.close()}>
+      {/* Distribution Rule Dialog */}
+      <Dialog open={vm.ruleDialog.isOpen$.value} onOpenChange={(open) => !open && vm.ruleDialog.close()}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {Option.isSome(vm.editingCategory$.value) ? "Edit Category" : "Create Category"}
+              {Option.isSome(vm.editingRule$.value) ? "Edit Distribution Rule" : "Create Distribution Rule"}
             </DialogTitle>
           </DialogHeader>
-          <CategoryForm
-            onSubmit={vm.onCategorySubmit}
-            mode="minimize"
-            initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
+          <ConstraintForm
+            onSubmit={vm.onRuleSubmit}
+            mode="distribution"
+            initialValues={Option.getOrUndefined(Option.map(vm.editingRule$.value, c => ({
               name: c.name,
               description: c.description || "",
               criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,

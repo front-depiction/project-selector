@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { signal } from "@preact/signals-react"
-import { PeriodJoinPage, createPeriodJoinPageVM } from "@/components/StudentEntry"
+import { PeriodJoinPage, createPeriodJoinPageVM, type PeriodStatusResponse } from "@/components/StudentEntry"
 
 /**
  * Hook to create PeriodJoinPage VM with Convex queries
@@ -14,25 +14,25 @@ import { PeriodJoinPage, createPeriodJoinPageVM } from "@/components/StudentEntr
 function usePeriodJoinPageVM(slug: string) {
   const router = useRouter()
 
-  // Query period by slug
-  const periodData = useQuery(api.selectionPeriods.getPeriodBySlug, { slug })
+  // Query period by slug with detailed status
+  const periodStatusData = useQuery(api.selectionPeriods.getPeriodBySlugWithStatus, { slug })
 
   // Mutation for validating access code
   const validateCode = useMutation(api.periodStudentAccessCodes.validateAccessCodeForPeriod)
 
-  // Create stable signal for period data - follows LandingPage pattern
-  const periodData$ = React.useMemo(() => signal(periodData), [])
+  // Create stable signal for period status data - follows LandingPage pattern
+  const periodStatusData$ = React.useMemo(() => signal<PeriodStatusResponse | undefined>(periodStatusData), [])
 
   // Sync signal with query data
   React.useEffect(() => {
-    periodData$.value = periodData
-  }, [periodData, periodData$])
+    periodStatusData$.value = periodStatusData
+  }, [periodStatusData, periodStatusData$])
 
   // Create VM once with stable dependencies
   const vm = React.useMemo(
     () =>
       createPeriodJoinPageVM({
-        periodData$,
+        periodStatusData$,
         validateAccessCode: async (args) => {
           return validateCode(args)
         },
@@ -41,7 +41,7 @@ function usePeriodJoinPageVM(slug: string) {
           router.push("/student/select")
         },
       }),
-    [periodData$, validateCode, router]
+    [periodStatusData$, validateCode, router]
   )
 
   return vm

@@ -12,7 +12,7 @@ import * as StudentAnswer from "./schemas/StudentAnswer"
 import * as User from "./schemas/User"
 import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
-import * as Category from "./schemas/Category"
+import * as Constraint from "./schemas/Constraint"
 import * as TeacherOnboarding from "./schemas/TeacherOnboarding"
 
 export default defineSchema({
@@ -47,7 +47,7 @@ export default defineSchema({
   questionTemplates: defineTable(QuestionTemplate.QuestionTemplate)
     .index("by_semester", ["semesterId"]),
 
-  categories: defineTable(Category.Category)
+  categories: defineTable(Constraint.Constraint)
     .index("by_semester", ["semesterId"])
     .index("by_name", ["name"]),
 

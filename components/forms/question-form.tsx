@@ -41,35 +41,36 @@ import { cn } from "@/lib/utils"
 const formSchema = z.object({
     question: z.string().min(3, "Question must be at least 3 characters"),
     kind: z.enum(["boolean", "0to6"]),
-    category: z.string().min(1, "Please select a category for this question"),
+    characteristicName: z.string().min(1, "Please select a characteristic for this question"),
 })
 
 export type QuestionFormValues = z.infer<typeof formSchema>
 
 export default function QuestionForm({
     initialValues,
-    existingCategories = [],
+    existingCharacteristicNames = [],
     onSubmit,
 }: {
     initialValues?: Partial<QuestionFormValues>
-    existingCategories?: string[]
+    /** List of existing characteristic names to choose from */
+    existingCharacteristicNames?: string[]
     onSubmit: (values: QuestionFormValues) => void | Promise<void>
 }) {
-    const [categoryOpen, setCategoryOpen] = React.useState(false)
+    const [characteristicOpen, setCharacteristicOpen] = React.useState(false)
 
     const form = useForm<QuestionFormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             question: initialValues?.question ?? "",
             kind: initialValues?.kind ?? "boolean",
-            category: initialValues?.category ?? (existingCategories.length > 0 ? existingCategories[0] : ""),
+            characteristicName: initialValues?.characteristicName ?? (existingCharacteristicNames.length > 0 ? existingCharacteristicNames[0] : ""),
         },
     })
 
-    // Sort categories alphabetically
-    const sortedCategories = React.useMemo(() => {
-        return [...existingCategories].sort()
-    }, [existingCategories])
+    // Sort characteristic names alphabetically
+    const sortedCharacteristicNames = React.useMemo(() => {
+        return [...existingCharacteristicNames].sort()
+    }, [existingCharacteristicNames])
 
     async function handleSubmit(values: QuestionFormValues) {
         try {
@@ -126,35 +127,35 @@ export default function QuestionForm({
 
                 <FormField
                     control={form.control}
-                    name="category"
+                    name="characteristicName"
                     render={({ field }) => (
                         <FormItem className="flex flex-col">
-                            <FormLabel>Category <span className="text-red-500">*</span></FormLabel>
-                            <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+                            <FormLabel>Characteristic <span className="text-red-500">*</span></FormLabel>
+                            <Popover open={characteristicOpen} onOpenChange={setCharacteristicOpen}>
                                 <PopoverTrigger asChild>
                                     <FormControl>
                                         <Button
                                             variant="outline"
                                             role="combobox"
-                                            aria-expanded={categoryOpen}
+                                            aria-expanded={characteristicOpen}
                                             className={cn(
                                                 "w-full justify-between",
                                                 !field.value && "text-muted-foreground"
                                             )}
                                         >
-                                            {field.value || "Select category"}
+                                            {field.value || "Select characteristic"}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </FormControl>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-full p-0" align="start">
                                     <Command>
-                                        <CommandInput placeholder="Search categories..." />
+                                        <CommandInput placeholder="Search characteristics..." />
                                         <CommandList>
                                             <CommandEmpty>
                                                 <div className="p-4 text-center">
                                                     <p className="text-sm text-muted-foreground">
-                                                        No categories found.
+                                                        No characteristics found.
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-1">
                                                         Create a category in the Categories section below.
@@ -162,22 +163,22 @@ export default function QuestionForm({
                                                 </div>
                                             </CommandEmpty>
                                             <CommandGroup>
-                                                {sortedCategories.map((category) => (
+                                                {sortedCharacteristicNames.map((characteristicName) => (
                                                     <CommandItem
-                                                        key={category}
-                                                        value={category}
+                                                        key={characteristicName}
+                                                        value={characteristicName}
                                                         onSelect={() => {
-                                                            form.setValue("category", category)
-                                                            setCategoryOpen(false)
+                                                            form.setValue("characteristicName", characteristicName)
+                                                            setCharacteristicOpen(false)
                                                         }}
                                                     >
                                                         <Check
                                                             className={cn(
                                                                 "mr-2 h-4 w-4",
-                                                                field.value === category ? "opacity-100" : "opacity-0"
+                                                                field.value === characteristicName ? "opacity-100" : "opacity-0"
                                                             )}
                                                         />
-                                                        {category}
+                                                        {characteristicName}
                                                     </CommandItem>
                                                 ))}
                                             </CommandGroup>
@@ -186,7 +187,7 @@ export default function QuestionForm({
                                 </PopoverContent>
                             </Popover>
                             <FormDescription>
-                                Every question must belong to a category. Create categories in the Categories section first, then select one here.
+                                Every question must belong to a characteristic. Create categories in the Categories section first, then select one here.
                             </FormDescription>
                             <FormMessage />
                         </FormItem>

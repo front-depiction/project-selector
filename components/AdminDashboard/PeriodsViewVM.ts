@@ -2,7 +2,7 @@ import { signal, computed, ReadonlySignal, batch, Signal } from "@preact/signals
 import type { Id } from "@/convex/_generated/dataModel"
 import type { SelectionPeriodFormValues, TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
 import type { QuestionFormValues } from "@/components/forms/question-form"
-import type { CategoryFormValues } from "@/components/forms/category-form"
+import type { ConstraintFormValues } from "@/components/forms/constraint-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { SelectionPeriodWithStats, Assignment } from "./index"
 import { format } from "date-fns"
@@ -44,6 +44,7 @@ export interface PeriodRowVM {
   readonly readyForAssignment: boolean // Whether all questionnaires are complete
   readonly shareableSlug: string
   readonly shareableLink: string // Full URL for student join page
+  readonly accessMode: "code" | "student_id" // How students access the period
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
@@ -70,15 +71,15 @@ export interface QuestionItemVM {
   readonly questionText: string
   readonly kindDisplay: string
   readonly kindVariant: "secondary" | "outline"
-  readonly category?: string
+  readonly characteristicName?: string
   readonly edit: () => void
   readonly remove: () => void
 }
 
 /**
- * View Model for a category item (minimize categories for balanced distribution)
+ * View Model for a constraint item (distribution rules for balanced distribution)
  */
-export interface CategoryItemVM {
+export interface ConstraintItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
@@ -98,8 +99,12 @@ export interface Question {
   readonly _id: string
   readonly question: string
   readonly kind: "boolean" | "0to6"
+  /** The characteristic name (stored as 'category' in DB) */
   readonly category?: string
 }
+
+/** Helper to get the characteristic name from a Question */
+const getCharacteristicName = (q: Question): string | undefined => q.category
 
 /**
  * Category data structure from Convex
@@ -155,6 +160,7 @@ export interface PeriodsViewVM {
     id: Id<"selectionPeriods">
     title: string
     shareableSlug: string
+    accessMode: "code" | "student_id"
   }>>
 
   /** Handle create period submission */
@@ -181,29 +187,29 @@ export interface PeriodsViewVM {
   /** All questions for the questions section */
   readonly questions$: ReadonlySignal<readonly QuestionItemVM[]>
 
-  /** Minimize categories for balanced distribution section */
-  readonly minimizeCategories$: ReadonlySignal<readonly CategoryItemVM[]>
+  /** Distribution rules for balanced distribution section */
+  readonly distributionRules$: ReadonlySignal<readonly ConstraintItemVM[]>
 
-  /** Existing category names for question form dropdown */
-  readonly existingCategoryNames$: ReadonlySignal<readonly string[]>
+  /** Existing characteristic names for question form dropdown */
+  readonly existingCharacteristicNames$: ReadonlySignal<readonly string[]>
 
   /** Question dialog state */
   readonly questionDialog: DialogVM
 
-  /** Category dialog state (for minimize categories) */
-  readonly categoryDialog: DialogVM
+  /** Rule dialog state (for distribution rules) */
+  readonly ruleDialog: DialogVM
 
   /** Currently editing question (None = creating new) */
   readonly editingQuestion$: ReadonlySignal<Option.Option<Question>>
 
-  /** Currently editing category (None = creating new) */
-  readonly editingCategory$: ReadonlySignal<Option.Option<Category>>
+  /** Currently editing rule (None = creating new) */
+  readonly editingRule$: ReadonlySignal<Option.Option<Category>>
 
   /** Question form submission handler */
   readonly onQuestionSubmit: (values: QuestionFormValues) => void
 
-  /** Category form submission handler */
-  readonly onCategorySubmit: (values: CategoryFormValues) => void
+  /** Rule form submission handler */
+  readonly onRuleSubmit: (values: ConstraintFormValues) => void
 }
 
 // ============================================================================
@@ -226,8 +232,8 @@ export interface PeriodsViewVMDeps {
   /** Signal of existing topics for editing period (filtered by semester) */
   readonly existingTopicsData$: ReadonlySignal<readonly any[] | undefined>
 
-  /** Signal of categories data from Convex */
-  readonly categoriesData$: ReadonlySignal<readonly any[] | undefined>
+  /** Signal of constraints data from Convex */
+  readonly constraintsData$: ReadonlySignal<readonly any[] | undefined>
 
   /** Mutation to create a period */
   readonly createPeriod: (args: {
@@ -239,6 +245,8 @@ export interface PeriodsViewVMDeps {
     minimizeCategoryIds?: Id<"categories">[]
     rankingsEnabled?: boolean
     topicIds?: Id<"topics">[]
+    accessMode?: "code" | "student_id"
+    codeLength?: number
   }) => Promise<{ periodId: Id<"selectionPeriods"> }>
 
   /** Mutation to update a period */
@@ -275,8 +283,8 @@ export interface PeriodsViewVMDeps {
   /** Signal of questions data from Convex */
   readonly questionsData$: ReadonlySignal<readonly Question[] | undefined>
 
-  /** Signal of category names from Convex (for question form dropdown) */
-  readonly categoryNamesData$: ReadonlySignal<readonly string[] | undefined>
+  /** Signal of constraint names from Convex (for question form dropdown) */
+  readonly constraintNamesData$: ReadonlySignal<readonly string[] | undefined>
 
   /** Mutation to create a question */
   readonly createQuestion: (args: {
@@ -297,8 +305,8 @@ export interface PeriodsViewVMDeps {
   /** Mutation to delete a question */
   readonly deleteQuestion: (args: { id: Id<"questions"> }) => Promise<any>
 
-  /** Mutation to create a category */
-  readonly createCategory: (args: {
+  /** Mutation to create a constraint */
+  readonly createConstraint: (args: {
     name: string
     description?: string
     semesterId: string
@@ -307,8 +315,8 @@ export interface PeriodsViewVMDeps {
     target?: number
   }) => Promise<any>
 
-  /** Mutation to update a category */
-  readonly updateCategory: (args: {
+  /** Mutation to update a constraint */
+  readonly updateConstraint: (args: {
     id: Id<"categories">
     name?: string
     description?: string
@@ -317,8 +325,8 @@ export interface PeriodsViewVMDeps {
     target?: number
   }) => Promise<any>
 
-  /** Mutation to delete a category */
-  readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
+  /** Mutation to delete a constraint */
+  readonly deleteConstraint: (args: { id: Id<"categories"> }) => Promise<any>
 }
 
 // ============================================================================
@@ -334,6 +342,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     id: Id<"selectionPeriods">
     title: string
     shareableSlug: string
+    accessMode: "code" | "student_id"
   }>>(Option.none())
 
   // Computed: current period (may be open or assigned)
@@ -411,6 +420,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         readyForAssignment: false, // Will be set by component-level query
         shareableSlug: period.shareableSlug,
         shareableLink: `${typeof window !== 'undefined' ? window.location.origin : ''}/student/join/${period.shareableSlug}`,
+        accessMode: period.accessMode ?? "code",
         onEdit: () => {
           batch(() => {
             editingPeriod$.value = Option.some(period)
@@ -466,8 +476,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
   // Computed: balance distribution categories (minimize only) for form
   const categories$ = computed((): readonly CategoryOption[] => {
-    const categoriesData = deps.categoriesData$.value ?? []
-    return categoriesData
+    const constraintsData = deps.constraintsData$.value ?? []
+    return constraintsData
       .filter((cat: any) => cat.criterionType === "minimize")
       .map((cat: any): CategoryOption => ({
         id: cat._id,
@@ -539,6 +549,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   // Form submission handlers
   const onCreateSubmit = (values: SelectionPeriodFormValues): void => {
     const periodTitle = values.title
+    const accessMode = values.accessMode
 
     deps.createPeriod({
       title: values.title,
@@ -550,6 +561,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       rankingsEnabled: values.rankingsEnabled,
       // Pass selected topic IDs to update their semesterId, linking them to this period
       topicIds: values.topicIds?.map(id => id as Id<"topics">),
+      accessMode,
+      codeLength: values.codeLength,
     })
       .then((result) => {
         const createdPeriodId = result.periodId
@@ -559,6 +572,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
           id: createdPeriodId,
           title: periodTitle,
           shareableSlug,
+          accessMode: (result as any).accessMode ?? accessMode,
         })
       })
       .catch((error) => {
@@ -598,9 +612,9 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const questionDialogOpen$ = signal(false)
   const editingQuestion$ = signal<Option.Option<Question>>(Option.none())
 
-  // Dialog state for categories
-  const categoryDialogOpen$ = signal(false)
-  const editingCategory$ = signal<Option.Option<Category>>(Option.none())
+  // Dialog state for distribution rules
+  const ruleDialogOpen$ = signal(false)
+  const editingRule$ = signal<Option.Option<Category>>(Option.none())
 
   // Computed: questions list for table
   const questions$ = computed((): readonly QuestionItemVM[] =>
@@ -609,7 +623,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       questionText: q.question,
       kindDisplay: q.kind === "boolean" ? "Yes/No" : "0-6",
       kindVariant: q.kind === "boolean" ? "secondary" : "outline",
-      category: q.category,
+      characteristicName: getCharacteristicName(q),
       remove: () => {
         deps.deleteQuestion({ id: q._id as Id<"questions"> }).catch(console.error)
       },
@@ -620,8 +634,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     }))
   )
 
-  // Helper function to map category to CategoryItemVM
-  const mapCategoryToVM = (c: Category): CategoryItemVM => {
+  // Helper function to map category to ConstraintItemVM
+  const mapCategoryToVM = (c: Category): ConstraintItemVM => {
     const criterionType = c.criterionType
     let criterionDisplay = "None"
     let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
@@ -651,24 +665,24 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       minRatio: c.minRatio,
       target: c.target,
       remove: () => {
-        deps.deleteCategory({ id: c._id as Id<"categories"> }).catch(console.error)
+        deps.deleteConstraint({ id: c._id as Id<"categories"> }).catch(console.error)
       },
       edit: () => {
-        editingCategory$.value = Option.some(c)
-        categoryDialogOpen$.value = true
+        editingRule$.value = Option.some(c)
+        ruleDialogOpen$.value = true
       }
     }
   }
 
-  // Computed: minimize categories for balanced distribution section
-  const minimizeCategories$ = computed((): readonly CategoryItemVM[] =>
-    (deps.categoriesData$.value ?? [])
+  // Computed: distribution rules for balanced distribution section
+  const distributionRules$ = computed((): readonly ConstraintItemVM[] =>
+    (deps.constraintsData$.value ?? [])
       .filter((c: Category) => c.criterionType === "minimize")
       .map(mapCategoryToVM)
   )
 
-  // Computed: existing category names (for question form dropdown)
-  const existingCategoryNames$ = computed(() => deps.categoryNamesData$?.value ?? [])
+  // Computed: existing characteristic names (for question form dropdown)
+  const existingCharacteristicNames$ = computed(() => deps.constraintNamesData$?.value ?? [])
 
   // Question dialog
   const questionDialog: DialogVM = {
@@ -683,16 +697,16 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     },
   }
 
-  // Category dialog
-  const categoryDialog: DialogVM = {
-    isOpen$: categoryDialogOpen$,
+  // Rule dialog (for distribution rules)
+  const ruleDialog: DialogVM = {
+    isOpen$: ruleDialogOpen$,
     open: () => {
-      editingCategory$.value = Option.none()
-      categoryDialogOpen$.value = true
+      editingRule$.value = Option.none()
+      ruleDialogOpen$.value = true
     },
     close: () => {
-      categoryDialogOpen$.value = false
-      editingCategory$.value = Option.none()
+      ruleDialogOpen$.value = false
+      editingRule$.value = Option.none()
     },
   }
 
@@ -703,7 +717,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         deps.createQuestion({
           question: values.question,
           kind: values.kind,
-          category: values.category,
+          category: values.characteristicName,
           semesterId: "default",
         })
           .then(() => {
@@ -716,7 +730,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
           id: editingQuestionValue._id as Id<"questions">,
           question: values.question,
           kind: values.kind,
-          category: values.category || undefined
+          category: values.characteristicName || undefined
         })
           .then(() => {
             questionDialog.close()
@@ -726,29 +740,29 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     })
   }
 
-  const onCategorySubmit = (values: CategoryFormValues): void => {
-    Option.match(editingCategory$.value, {
+  const onRuleSubmit = (values: ConstraintFormValues): void => {
+    Option.match(editingRule$.value, {
       onNone: () => {
-        deps.createCategory({
+        deps.createConstraint({
           name: values.name,
           description: values.description || undefined,
           semesterId: "default",
           criterionType: "minimize", // Always minimize for this section
         })
           .then(() => {
-            categoryDialog.close()
+            ruleDialog.close()
           })
           .catch(console.error)
       },
-      onSome: (editingCategoryValue) => {
-        deps.updateCategory({
-          id: editingCategoryValue._id as Id<"categories">,
+      onSome: (editingRuleValue) => {
+        deps.updateConstraint({
+          id: editingRuleValue._id as Id<"categories">,
           name: values.name,
           description: values.description || undefined,
           criterionType: "minimize", // Always minimize for this section
         })
           .then(() => {
-            categoryDialog.close()
+            ruleDialog.close()
           })
           .catch(console.error)
       }
@@ -778,14 +792,14 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
 
     // Question & Category Management
     questions$,
-    minimizeCategories$,
-    existingCategoryNames$,
+    distributionRules$,
+    existingCharacteristicNames$,
     questionDialog,
-    categoryDialog,
+    ruleDialog,
     editingQuestion$,
-    editingCategory$,
+    editingRule$,
     onQuestionSubmit,
-    onCategorySubmit,
+    onRuleSubmit,
   }
 }
 
@@ -815,8 +829,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
   )
   const questionsData = useQuery(api.questions.getAllQuestions, {})
   const templatesData = useQuery(api.questionTemplates.getAllTemplatesWithQuestionIds, {})
-  const categoriesData = useQuery(api.categories.getAllCategories, {})
-  const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
+  const constraintsData = useQuery(api.constraints.getAllConstraints, {})
+  const constraintNamesData = useQuery(api.constraints.getConstraintNames, {})
 
   // We need to create a signal for editingPeriod to track which period is being edited
   // so we can fetch its questions
@@ -840,9 +854,9 @@ export function usePeriodsViewVM(): PeriodsViewVM {
   const createQuestionMutation = useMutation(api.questions.createQuestion)
   const updateQuestionMutation = useMutation(api.questions.updateQuestion)
   const deleteQuestionMutation = useMutation(api.questions.deleteQuestion)
-  const createCategoryMutation = useMutation(api.categories.createCategory)
-  const updateCategoryMutation = useMutation(api.categories.updateCategory)
-  const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
+  const createConstraintMutation = useMutation(api.constraints.createConstraint)
+  const updateConstraintMutation = useMutation(api.constraints.updateConstraint)
+  const deleteConstraintMutation = useMutation(api.constraints.deleteConstraint)
 
   // Wrap data in signals for the factory
   const deps = React.useMemo(() => {
@@ -863,8 +877,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     const existingQuestionsData$ = computed(() => existingQuestionsData)
     const topicsData$ = computed(() => [])
     const existingTopicsData$ = computed(() => [])
-    const categoriesData$ = computed(() => categoriesData as any)
-    const categoryNamesData$ = computed(() => categoryNamesData)
+    const constraintsData$ = computed(() => constraintsData as any)
+    const constraintNamesData$ = computed(() => constraintNamesData)
 
     return {
       periodsData$,
@@ -875,21 +889,21 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       existingQuestionsData$,
       topicsData$,
       existingTopicsData$,
-      categoriesData$,
+      constraintsData$,
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
       setActivePeriod: setActivePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
-      // Question & Category Management
-      categoryNamesData$,
+      // Question & Constraint Management
+      constraintNamesData$,
       createQuestion: createQuestionMutation as any,
       updateQuestion: updateQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
-      createCategory: createCategoryMutation as any,
-      updateCategory: updateCategoryMutation as any,
-      deleteCategory: deleteCategoryMutation,
+      createConstraint: createConstraintMutation as any,
+      updateConstraint: updateConstraintMutation as any,
+      deleteConstraint: deleteConstraintMutation,
     }
   }, [
     periodsData,
@@ -898,8 +912,8 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     questionsData,
     templatesData,
     existingQuestionsData,
-    categoriesData,
-    categoryNamesData,
+    constraintsData,
+    constraintNamesData,
     createPeriodMutation,
     updatePeriodMutation,
     deletePeriodMutation,
@@ -909,9 +923,9 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     createQuestionMutation,
     updateQuestionMutation,
     deleteQuestionMutation,
-    createCategoryMutation,
-    updateCategoryMutation,
-    deleteCategoryMutation,
+    createConstraintMutation,
+    updateConstraintMutation,
+    deleteConstraintMutation,
   ])
 
   // Create the VM once

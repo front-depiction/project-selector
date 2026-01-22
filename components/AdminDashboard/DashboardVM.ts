@@ -227,8 +227,8 @@ export function useDashboardVM(): DashboardVM {
       ? { selectionPeriodId: editingPeriod$.value.value._id }
       : "skip"
   )
-  const categoriesData = useQuery(api.categories.getAllCategories, {})
-  const categoryNamesData = useQuery(api.categories.getCategoryNames, {})
+  const constraintsData = useQuery(api.constraints.getAllConstraints, {})
+  const constraintNamesData = useQuery(api.constraints.getConstraintNames, {})
   const studentsData = useQuery(
     api.studentAnswers.getAllPeriodsStudentsWithCompletionStatus,
     {}
@@ -261,9 +261,9 @@ export function useDashboardVM(): DashboardVM {
   const deleteTemplateMutation = useMutation(api.questionTemplates.deleteTemplate)
   const addQuestionToTemplateMutation = useMutation(api.templateQuestions.addQuestion)
   const reorderTemplateQuestionsMutation = useMutation(api.templateQuestions.reorder)
-  const createCategoryMutation = useMutation(api.categories.createCategory)
-  const updateCategoryMutation = useMutation(api.categories.updateCategory)
-  const deleteCategoryMutation = useMutation(api.categories.deleteCategory)
+  const createConstraintMutation = useMutation(api.constraints.createConstraint)
+  const updateConstraintMutation = useMutation(api.constraints.updateConstraint)
+  const deleteConstraintMutation = useMutation(api.constraints.deleteConstraint)
   const saveAnswersAsTeacherMutation = useMutation(api.studentAnswers.saveAnswersAsTeacher)
 
   const seedTestDataMutation = useMutation(api.admin.seedTestData)
@@ -288,8 +288,8 @@ export function useDashboardVM(): DashboardVM {
     questionsData$: signal<typeof questionsData>(undefined),
     templatesData$: signal<typeof templatesData>(undefined),
     existingQuestionsData$: signal<typeof existingQuestionsData>(undefined),
-    categoriesData$: signal<typeof categoriesData>(undefined),
-    categoryNamesData$: signal<typeof categoryNamesData>(undefined),
+    constraintsData$: signal<typeof constraintsData>(undefined),
+    constraintNamesData$: signal<typeof constraintNamesData>(undefined),
     studentsData$: signal<typeof studentsData>(undefined),
     statsData$: signal<typeof statsData>(undefined),
     topicAnalyticsData$: signal<typeof topicAnalyticsData>(undefined),
@@ -307,14 +307,14 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.questionsData$.value = questionsData
       dataSignals.templatesData$.value = templatesData
       dataSignals.existingQuestionsData$.value = existingQuestionsData
-      dataSignals.categoriesData$.value = categoriesData
-      dataSignals.categoryNamesData$.value = categoryNamesData
+      dataSignals.constraintsData$.value = constraintsData
+      dataSignals.constraintNamesData$.value = constraintNamesData
       dataSignals.studentsData$.value = studentsData
       dataSignals.statsData$.value = statsData
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
       dataSignals.onboardingProgressData$.value = onboardingProgressData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, categoriesData, categoryNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, constraintsData, constraintNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
@@ -657,7 +657,7 @@ export function useDashboardVM(): DashboardVM {
       }),
       topicsData$: dataSignals.topicsData$,
       existingTopicsData$: computed(() => []), // Will be computed based on editing period's semester
-      categoriesData$: dataSignals.categoriesData$, // Will be filtered to minimize in PeriodsViewVM
+      constraintsData$: dataSignals.constraintsData$, // Will be filtered to minimize in PeriodsViewVM
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
@@ -665,24 +665,24 @@ export function useDashboardVM(): DashboardVM {
       removeQuestion: removeQuestionMutation,
       // Question & Category Management
       questionsData$: dataSignals.questionsData$ as any,
-      categoryNamesData$: dataSignals.categoryNamesData$,
+      constraintNamesData$: dataSignals.constraintNamesData$,
       createQuestion: createQuestionMutation as any,
       updateQuestion: updateQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
-      createCategory: createCategoryMutation as any,
-      updateCategory: updateCategoryMutation as any,
-      deleteCategory: deleteCategoryMutation,
+      createConstraint: createConstraintMutation as any,
+      updateConstraint: updateConstraintMutation as any,
+      deleteConstraint: deleteConstraintMutation,
     })
 
     const topicsView = createTopicsViewVM({
       topics$: dataSignals.topicsData$,
-      categories$: dataSignals.categoriesData$, // Will be filtered to pull/prerequisite in TopicsViewVM
+      constraints$: dataSignals.constraintsData$, // Will be filtered to pull/prerequisite in TopicsViewVM
       createTopic: createTopicMutation as any, // Type cast to handle constraintIds type mismatch
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
-      createCategory: createCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
-      updateCategory: updateCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
-      deleteCategory: deleteCategoryMutation,
+      createConstraint: createConstraintMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
+      updateConstraint: updateConstraintMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
+      deleteConstraint: deleteConstraintMutation,
     })
 
     const settingsView = createSettingsViewVM({

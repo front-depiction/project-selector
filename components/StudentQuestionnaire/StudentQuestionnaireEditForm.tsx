@@ -164,9 +164,9 @@ export function StudentQuestionnaireEditForm({
                                 {question.questionText}
                               </FormLabel>
                               <div className="flex items-center gap-2">
-                                {question.category && (
+                                {question.characteristicName && (
                                   <Badge variant="outline" className="text-xs">
-                                    {question.category}
+                                    {question.characteristicName}
                                   </Badge>
                                 )}
                                 {hasAnswer && (

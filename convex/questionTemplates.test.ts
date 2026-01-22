@@ -31,7 +31,7 @@ async function createTestQuestions(
       question: `Test question ${i + 1}`,
       kind: i % 2 === 0 ? "boolean" : "0to6",
       semesterId,
-      category: "Test Category"
+      characteristicName: "Test Category"
     })
     questionIds.push(id)
   }
