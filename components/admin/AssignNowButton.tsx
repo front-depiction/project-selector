@@ -155,7 +155,7 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
       </AlertDialog>
 
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assignment Settings</DialogTitle>
             <DialogDescription>
