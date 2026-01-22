@@ -131,7 +131,8 @@ export interface DashboardVM {
   readonly updateTopicFromForm: (values: TopicFormValues) => void
 
   // Actions
-  readonly setActiveView: (view: ViewType) => void
+  readonly setActiveView: (view: ViewType, updateUrl?: boolean) => void
+  readonly syncFromUrl: (tab: string | null) => void
 
   // Legacy actions for backward compatibility (used by context/overview)
   readonly createPeriod: (data: PeriodFormData) => void
@@ -532,8 +533,27 @@ export function useDashboardVM(): DashboardVM {
     }))
   })
 
+  // Helper: valid view types for URL parsing
+  const validViews: ViewType[] = ["overview", "periods", "topics", "students", "questionnaires", "settings", "help"]
+
   // Actions
-  const setActiveView = (view: ViewType): void => {
+  const setActiveView = (view: ViewType, updateUrl = true): void => {
+    activeView$.value = view
+    // Update URL without page refresh
+    if (updateUrl && typeof window !== "undefined") {
+      const url = new URL(window.location.href)
+      if (view === "overview") {
+        url.searchParams.delete("tab")
+      } else {
+        url.searchParams.set("tab", view)
+      }
+      window.history.pushState({}, "", url.toString())
+    }
+  }
+
+  // Sync view from URL param
+  const syncFromUrl = (tab: string | null): void => {
+    const view = tab && validViews.includes(tab as ViewType) ? (tab as ViewType) : "overview"
     activeView$.value = view
   }
 
@@ -718,7 +738,18 @@ export function useDashboardVM(): DashboardVM {
         isDismissedLocal$.value = true
       },
       setActiveView: (view: string) => {
-        activeView$.value = view as ViewType
+        const viewType = view as ViewType
+        activeView$.value = viewType
+        // Update URL without page refresh
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href)
+          if (viewType === "overview") {
+            url.searchParams.delete("tab")
+          } else {
+            url.searchParams.set("tab", viewType)
+          }
+          window.history.pushState({}, "", url.toString())
+        }
       },
     })
 
@@ -749,8 +780,27 @@ export function useDashboardVM(): DashboardVM {
       }
     }
 
-    // Actions
-    const setActiveView = (view: ViewType): void => {
+    // Helper: valid view types for URL parsing (scoped to block)
+    const validViewsInner: ViewType[] = ["overview", "periods", "topics", "students", "questionnaires", "settings", "help"]
+
+    // Actions - with URL update support
+    const setActiveViewInner = (view: ViewType, updateUrl = true): void => {
+      activeView$.value = view
+      // Update URL without page refresh
+      if (updateUrl && typeof window !== "undefined") {
+        const url = new URL(window.location.href)
+        if (view === "overview") {
+          url.searchParams.delete("tab")
+        } else {
+          url.searchParams.set("tab", view)
+        }
+        window.history.pushState({}, "", url.toString())
+      }
+    }
+
+    // Sync view from URL param
+    const syncFromUrlInner = (tab: string | null): void => {
+      const view = tab && validViewsInner.includes(tab as ViewType) ? (tab as ViewType) : "overview"
       activeView$.value = view
     }
 
@@ -884,7 +934,8 @@ export function useDashboardVM(): DashboardVM {
       updateTopicFromForm,
 
       // Actions
-      setActiveView,
+      setActiveView: setActiveViewInner,
+      syncFromUrl: syncFromUrlInner,
       createPeriod,
       updatePeriod,
       deletePeriod,

@@ -4,7 +4,7 @@ import * as React from "react"
 import * as AD from "./index"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { Doc } from "@/convex/_generated/dataModel"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSignals } from "@preact/signals-react/runtime"
 import * as Option from "effect/Option"
 import {
@@ -451,6 +451,26 @@ export const AdminDashboardView: React.FC = () => {
   useSignals()
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const vm = AD.useDashboardVM()
+
+  // Sync view from URL on initial load and when searchParams change
+  React.useEffect(() => {
+    const tab = searchParams.get("tab")
+    vm.syncFromUrl(tab)
+  }, [searchParams, vm])
+
+  // Handle browser back/forward buttons
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const url = new URL(window.location.href)
+      const tab = url.searchParams.get("tab")
+      vm.syncFromUrl(tab)
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [vm])
 
   return (
     <SidebarProvider>
@@ -487,6 +507,8 @@ export const AdminDashboardView: React.FC = () => {
 
 export const AdminDashboard: React.FC = () => (
   <AD.Provider>
-    <AdminDashboardView />
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <AdminDashboardView />
+    </React.Suspense>
   </AD.Provider>
 )
