@@ -19,6 +19,7 @@ async function createTestSelectionPeriod(
     const futureClose = now + (30 * 24 * 60 * 60 * 1000)
 
     return await ctx.db.insert("selectionPeriods", {
+      userId: "test-user",
       title: "Test Selection Period",
       description: "Test period for selection questions",
       semesterId,
@@ -42,6 +43,7 @@ async function createTestCategory(
 ): Promise<Id<"categories">> {
   return await t.run(async (ctx: any) => {
     return await ctx.db.insert("categories", {
+      userId: "test-user",
       name,
       semesterId,
       criterionType,
@@ -64,6 +66,7 @@ async function createTestQuestions(
 
     for (let i = 0; i < count; i++) {
       const questionId = await ctx.db.insert("questions", {
+        userId: "test-user",
         question: `Test question ${i + 1}`,
         kind: i % 2 === 0 ? "boolean" : "0to6",
         category,
@@ -186,6 +189,7 @@ test("selectionQuestions: getQuestionsForPeriod returns questions from topic's c
   // Create a topic with that category as constraint
   await t.run(async (ctx: any) => {
     await ctx.db.insert("topics", {
+      userId: "test-user",
       title: "Test Topic",
       description: "A test topic",
       semesterId,
@@ -224,6 +228,7 @@ test("selectionQuestions: getQuestionsForPeriod combines questions from period a
   // Create a topic with prerequisite category
   await t.run(async (ctx: any) => {
     await ctx.db.insert("topics", {
+      userId: "test-user",
       title: "Test Topic",
       description: "A test topic",
       semesterId,

@@ -11,6 +11,25 @@ import type {
   StudentItemVM,
 } from "./AssignmentDisplayVM"
 
+// Type definitions for mock data
+interface MockStudent {
+  studentId: string
+  originalRank: number | null
+}
+
+interface MockTopicData {
+  topic: {
+    _id: string
+    title: string
+    description: string
+  }
+  students: MockStudent[]
+}
+
+interface MockAssignmentsData {
+  [topicId: string]: MockTopicData
+}
+
 /**
  * Following the testing philosophy from viemodel.txt:
  * - Tests what matters without rendering the UI
@@ -185,25 +204,25 @@ function createMockStatsSignal(mockData: any | null | undefined) {
 }
 
 function createMockAssignmentsSignal(
-  assignments: any | null | undefined,
-  myAssignment: any | null | undefined,
+  assignments: MockAssignmentsData | null | undefined,
+  myAssignment: { topic?: { _id: string } } | null | undefined,
   studentId?: string
 ) {
   return computed((): readonly TopicAssignmentVM[] => {
     if (!assignments) return []
 
     const topicEntries = Object.entries(assignments).sort(
-      ([, a], [, b]) => (b as any).students.length - (a as any).students.length
+      ([, a], [, b]) => (b as MockTopicData).students.length - (a as MockTopicData).students.length
     )
 
     return topicEntries.map(([topicId, data]): TopicAssignmentVM => {
-      const topicData = data as any
+      const topicData = data as MockTopicData
       const isUserAssigned = myAssignment?.topic?._id === topicId
       const studentCount = topicData.students.length
       const hasMoreStudents = studentCount > 4
       const displayedStudents = topicData.students.slice(0, 4)
 
-      const students: StudentItemVM[] = displayedStudents.map((student: any): StudentItemVM => {
+      const students: StudentItemVM[] = displayedStudents.map((student: MockStudent): StudentItemVM => {
         const isCurrentUser = student.studentId === studentId
         const hasRank = student.originalRank != null
 
@@ -653,9 +672,10 @@ describe("AssignmentDisplayVM", () => {
 
     it("should handle empty export data", () => {
       const headers = ['student_id', 'assigned_topic']
+      const emptyRows: Array<{ student_id: string; assigned_topic: string }> = []
       const csvContent = [
         headers.join(','),
-        ...[].map(row => `"${(row as any).student_id}","${(row as any).assigned_topic}"`)
+        ...emptyRows.map(row => `"${row.student_id}","${row.assigned_topic}"`)
       ].join('\n')
 
       expect(csvContent).toBe('student_id,assigned_topic')

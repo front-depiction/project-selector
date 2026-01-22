@@ -168,14 +168,7 @@ async function assignPeriodInternal(
       if (!allComplete) {
         console.log(`[assignPeriod] Questionnaires incomplete for period ${periodId}. Closing period without assignment.`)
 
-        await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
-          semesterId: period.semesterId,
-          title: period.title,
-          description: period.description,
-          openDate: period.openDate,
-          closeDate: period.closeDate,
-          shareableSlug: period.shareableSlug
-        }))
+        await ctx.db.replace(periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
 
         return null
       }
@@ -218,14 +211,7 @@ async function assignPeriodInternal(
   if (topics.length === 0 || studentIds.length === 0) {
     console.log(`[assignPeriod] Insufficient data for assignment (Topics: ${topics.length}, Students: ${studentIds.length}). Closing period without assignment.`)
 
-    await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
-      semesterId: period.semesterId,
-      title: period.title,
-      description: period.description,
-      openDate: period.openDate,
-      closeDate: period.closeDate,
-      shareableSlug: period.shareableSlug
-    }))
+    await ctx.db.replace(periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
 
     return null
   }
@@ -261,14 +247,7 @@ async function assignPeriodInternal(
   await ctx.db.replace(periodId, SelectionPeriod.assign(batchId)(
     SelectionPeriod.isClosed(period)
       ? period
-      : SelectionPeriod.makeClosed({
-        semesterId: period.semesterId,
-        title: period.title,
-        description: period.description,
-        openDate: period.openDate,
-        closeDate: period.closeDate,
-        shareableSlug: period.shareableSlug
-      })
+      : SelectionPeriod.makeClosed(SelectionPeriod.getBase(period))
   ))
 
   return batchId
@@ -686,14 +665,7 @@ export const saveCPSATAssignments = internalMutation({
     await ctx.db.replace(args.periodId, SelectionPeriod.assign(batchId)(
       SelectionPeriod.isClosed(period)
         ? period
-        : SelectionPeriod.makeClosed({
-          semesterId: period.semesterId,
-          title: period.title,
-          description: period.description,
-          openDate: period.openDate,
-          closeDate: period.closeDate,
-          shareableSlug: period.shareableSlug
-        })
+        : SelectionPeriod.makeClosed(SelectionPeriod.getBase(period))
     ))
 
     return batchId

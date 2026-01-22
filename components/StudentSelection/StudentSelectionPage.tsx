@@ -363,7 +363,7 @@ export function StudentSelectionPage({
   // Questionnaire view - show edit form if in edit mode, otherwise show presentation view
   if (vm.questionnaireState$.value.needsCompletion) {
     const isEditMode = vm.questionnaireState$.value.isEditMode
-    
+
     // Edit mode: show all-in-one form
     if (isEditMode && questionsWithAnswers && onSaveAnswers) {
       return (
@@ -378,7 +378,7 @@ export function StudentSelectionPage({
         />
       )
     }
-    
+
     // First-time: show one-at-a-time presentation view
     if (vm.questionnaireVM$.value) {
       return (
@@ -387,6 +387,13 @@ export function StudentSelectionPage({
         />
       )
     }
+
+    // Questionnaire needs completion but VM not ready yet - show loading
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   // Questionnaire completed but rankings disabled - show completion message
@@ -722,10 +729,10 @@ export function StudentSelectionPage({
               
               return (
                 <SortableList
-                  items={vm.topics$.value as any}
+                  items={[...vm.topics$.value]}
                   setItems={vm.updateSelection}
                   onCompleteItem={() => {}}
-                  renderItem={(item: any, order) => (
+                  renderItem={(item, order) => (
                     <TopicCard
                       key={item.id}
                       item={item as TopicItemVM}

@@ -29,6 +29,11 @@ export const createPeriod = mutation({
     codeLength: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     // Validate dates
     if (args.openDate >= args.closeDate) {
       throw new Error("Open date must be before close date")
@@ -52,6 +57,7 @@ export const createPeriod = mutation({
     // CASE 1: Period has already ended
     if (args.closeDate <= now) {
       const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeClosed({
+        userId,
         semesterId: args.semesterId,
         title: args.title,
         description: args.description,
@@ -64,16 +70,10 @@ export const createPeriod = mutation({
         codeLength: args.codeLength,
       }))
       // Mark onboarding step complete
-      const identity = await ctx.auth.getUserIdentity()
-      if (identity) {
-        const userId = identity.subject ?? identity.email ?? ""
-        if (userId) {
-          await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
-            userId,
-            stepId: "create_period"
-          })
-        }
-      }
+      await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+        userId,
+        stepId: "create_period"
+      })
       return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
@@ -81,6 +81,7 @@ export const createPeriod = mutation({
     if (args.openDate <= now) {
       // 1. Insert Inactive first (to get ID)
       const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeInactive({
+        userId,
         semesterId: args.semesterId,
         title: args.title,
         description: args.description,
@@ -102,6 +103,7 @@ export const createPeriod = mutation({
 
       // 3. Update to Open
       await ctx.db.replace(periodId, SelectionPeriod.makeOpen({
+        userId,
         semesterId: args.semesterId,
         title: args.title,
         description: args.description,
@@ -116,21 +118,16 @@ export const createPeriod = mutation({
       }))
 
       // Mark onboarding step complete
-      const identity2 = await ctx.auth.getUserIdentity()
-      if (identity2) {
-        const userId = identity2.subject ?? identity2.email ?? ""
-        if (userId) {
-          await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
-            userId,
-            stepId: "create_period"
-          })
-        }
-      }
+      await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+        userId,
+        stepId: "create_period"
+      })
       return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
     }
 
     // CASE 3: FUTURE (inactive, but scheduled to open)
     const periodId = await ctx.db.insert("selectionPeriods", SelectionPeriod.makeInactive({
+      userId,
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
@@ -152,6 +149,7 @@ export const createPeriod = mutation({
 
     // Update to Inactive with scheduledOpenFunctionId
     await ctx.db.replace(periodId, SelectionPeriod.makeInactive({
+      userId,
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
@@ -166,16 +164,10 @@ export const createPeriod = mutation({
     }))
 
     // Mark onboarding step complete
-    const identity3 = await ctx.auth.getUserIdentity()
-    if (identity3) {
-      const userId = identity3.subject ?? identity3.email ?? ""
-      if (userId) {
-        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
-          userId,
-          stepId: "create_period"
-        })
-      }
-    }
+    await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+      userId,
+      stepId: "create_period"
+    })
     return { success: true, periodId, shareableSlug, accessMode: args.accessMode }
   }
 })
@@ -197,9 +189,19 @@ export const updatePeriod = mutation({
     rankingsEnabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const existing = await ctx.db.get(args.periodId)
     if (!existing) {
       throw new Error("Period not found")
+    }
+
+    // Verify ownership
+    if (existing.userId !== userId) {
+      throw new Error("Not authorized to update this period")
     }
 
     // Don't allow updating if already assigned
@@ -214,6 +216,9 @@ export const updatePeriod = mutation({
     const closeDate = args.closeDate ?? existing.closeDate
     const minimizeCategoryIds = args.minimizeCategoryIds ?? existing.minimizeCategoryIds
     const rankingsEnabled = args.rankingsEnabled ?? existing.rankingsEnabled
+    // Preserve accessMode and codeLength from existing period
+    const accessMode = existing.accessMode
+    const codeLength = existing.codeLength
 
     if (openDate >= closeDate) {
       throw new Error("Open date must be before close date")
@@ -235,6 +240,7 @@ export const updatePeriod = mutation({
     // State: CLOSED
     if (closeDate <= now) {
       await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
+        userId,
         semesterId: existing.semesterId,
         title,
         description,
@@ -243,6 +249,8 @@ export const updatePeriod = mutation({
         shareableSlug,
         minimizeCategoryIds,
         rankingsEnabled,
+        accessMode,
+        codeLength,
       }))
     }
     // State: OPEN
@@ -253,6 +261,7 @@ export const updatePeriod = mutation({
         { periodId: args.periodId }
       )
       await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
+        userId,
         semesterId: existing.semesterId,
         title,
         description,
@@ -262,6 +271,8 @@ export const updatePeriod = mutation({
         scheduledFunctionId: closeScheduleId,
         minimizeCategoryIds,
         rankingsEnabled,
+        accessMode,
+        codeLength,
       }))
     }
     // State: INACTIVE (Future)
@@ -272,6 +283,7 @@ export const updatePeriod = mutation({
         { periodId: args.periodId }
       )
       await ctx.db.replace(args.periodId, SelectionPeriod.makeInactive({
+        userId,
         semesterId: existing.semesterId,
         title,
         description,
@@ -281,6 +293,8 @@ export const updatePeriod = mutation({
         scheduledOpenFunctionId: openScheduleId,
         minimizeCategoryIds,
         rankingsEnabled,
+        accessMode,
+        codeLength,
       }))
     }
 
@@ -299,9 +313,19 @@ export const deletePeriod = mutation({
     periodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const period = await ctx.db.get(args.periodId)
     if (!period) {
       throw new Error("Period not found")
+    }
+
+    // Verify ownership
+    if (period.userId !== userId) {
+      throw new Error("Not authorized to delete this period")
     }
 
     // Cancel scheduled function if exists
@@ -386,9 +410,18 @@ export const setActivePeriod = mutation({
     periodId: v.id("selectionPeriods")
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
 
     const period = await ctx.db.get(args.periodId)
     if (!period) throw new Error("Period not found")
+
+    // Verify ownership
+    if (period.userId !== userId) {
+      throw new Error("Not authorized to modify this period")
+    }
 
     const now = Date.now();
 
@@ -404,14 +437,9 @@ export const setActivePeriod = mutation({
         internal.assignments.assignPeriod,
         { periodId: args.periodId }
       )
-      // Update to Open (preserve existing shareableSlug)
+      // Update to Open (preserve existing fields including accessMode and codeLength)
       await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
-        semesterId: period.semesterId,
-        title: period.title,
-        description: period.description,
-        openDate: period.openDate,
-        closeDate: period.closeDate,
-        shareableSlug: period.shareableSlug,
+        ...SelectionPeriod.getBase(period),
         scheduledFunctionId: closeScheduleId
       }))
     }
@@ -460,14 +488,24 @@ export const activatePeriod = internalMutation({
 
 /**
  * Gets all selection periods with their statistics.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.1.0
  */
 export const getAllPeriodsWithStats = query({
   args: {},
   handler: async (ctx) => {
-    const periods = await ctx.db.query("selectionPeriods").collect()
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const periods = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
 
     // Get stats for each period
     const periodsWithStats = await Promise.all(
@@ -627,6 +665,11 @@ export const getPeriodBySlugWithStatus = query({
 export const getPeriodBySlugAnyState = query({
   args: { slug: v.string() },
   handler: async (ctx, args): Promise<(SelectionPeriod.SelectionPeriod & { _id: Id<"selectionPeriods"> }) | null> => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const userId = identity.subject
+
     // Validate slug format
     if (!isShareableSlug(args.slug)) {
       return null
@@ -638,6 +681,9 @@ export const getPeriodBySlugAnyState = query({
       .withIndex("by_slug", q => q.eq("shareableSlug", args.slug))
       .first()
 
-    return period ?? null
+    // Verify ownership
+    if (!period || period.userId !== userId) return null
+
+    return period
   }
 })

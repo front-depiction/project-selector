@@ -7,6 +7,7 @@ import { dual } from "effect/Function"
  * Base properties shared by all SelectionPeriod variants
  */
 const BaseSelectionPeriod = {
+  userId: v.string(),
   semesterId: v.string(),
   title: v.string(),
   description: v.string(),
@@ -98,6 +99,7 @@ export type AssignedPeriod = Readonly<Infer<typeof AssignedPeriod>>
  * })
  */
 export const makeInactive = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
@@ -112,6 +114,7 @@ export const makeInactive = (params: {
   readonly accessMode?: "code" | "student_id"
   readonly codeLength?: number
 }): InactivePeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
@@ -135,6 +138,7 @@ export const makeInactive = (params: {
  * @since 0.1.0
  */
 export const makeOpen = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
@@ -149,6 +153,7 @@ export const makeOpen = (params: {
   readonly accessMode?: "code" | "student_id"
   readonly codeLength?: number
 }): OpenPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
@@ -172,6 +177,7 @@ export const makeOpen = (params: {
  * @since 0.1.0
  */
 export const makeClosed = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
@@ -185,6 +191,7 @@ export const makeClosed = (params: {
   readonly accessMode?: "code" | "student_id"
   readonly codeLength?: number
 }): ClosedPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
@@ -207,6 +214,7 @@ export const makeClosed = (params: {
  * @since 0.1.0
  */
 export const makeAssigned = (params: {
+  readonly userId: string
   readonly semesterId: string
   readonly title: string
   readonly description: string
@@ -221,6 +229,7 @@ export const makeAssigned = (params: {
   readonly accessMode?: "code" | "student_id"
   readonly codeLength?: number
 }): AssignedPeriod => ({
+  userId: params.userId,
   semesterId: params.semesterId,
   title: params.title,
   description: params.description,
@@ -271,6 +280,7 @@ export const open = (scheduledFunctionId: Id<"_scheduled_functions">) =>
  * @since 0.1.0
  */
 export const close = (period: OpenPeriod): ClosedPeriod => ({
+  userId: period.userId,
   semesterId: period.semesterId,
   title: period.title,
   description: period.description,
@@ -288,6 +298,7 @@ export const close = (period: OpenPeriod): ClosedPeriod => ({
  */
 export const assign = (assignmentBatchId: string) =>
   (period: ClosedPeriod): AssignedPeriod => ({
+    userId: period.userId,
     semesterId: period.semesterId,
     title: period.title,
     description: period.description,
@@ -453,8 +464,26 @@ export const matchPartial = <P extends SelectionPeriod>(period: P) =>
     closed: (p: Extract<P, ClosedPeriod>) => R
     assigned: (p: Extract<P, AssignedPeriod>) => R
   }>, defaultCase: (p: P) => R): R => {
-    const handler = patterns[period.kind as keyof typeof patterns]
-    return handler ? (handler as any)(period) : defaultCase(period)
+    switch (period.kind) {
+      case "inactive":
+        return patterns.inactive
+          ? patterns.inactive(period as Extract<P, InactivePeriod>)
+          : defaultCase(period)
+      case "open":
+        return patterns.open
+          ? patterns.open(period as Extract<P, OpenPeriod>)
+          : defaultCase(period)
+      case "closed":
+        return patterns.closed
+          ? patterns.closed(period as Extract<P, ClosedPeriod>)
+          : defaultCase(period)
+      case "assigned":
+        return patterns.assigned
+          ? patterns.assigned(period as Extract<P, AssignedPeriod>)
+          : defaultCase(period)
+      default:
+        return defaultCase(period)
+    }
   }
 
 /**
@@ -735,6 +764,7 @@ export const toAssigned = dual<
  * const base = getBase(period)
  */
 export const getBase = (period: SelectionPeriod) => ({
+  userId: period.userId,
   semesterId: period.semesterId,
   title: period.title,
   description: period.description,

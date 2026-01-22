@@ -5,10 +5,23 @@ import * as Question from "./schemas/Question"
 export const getAllQuestions = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const questions = await ctx.db
+      .query("questions")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
+    // If semesterId is provided, filter further
     if (args.semesterId !== undefined) {
-      return ctx.db.query("questions").withIndex("by_semester", q => q.eq("semesterId", args.semesterId!)).collect()
+      return questions.filter(q => q.semesterId === args.semesterId)
     }
-    return ctx.db.query("questions").collect()
+
+    return questions
   }
 })
 
@@ -20,7 +33,13 @@ export const createQuestion = mutation({
     semesterId: v.string()
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     return ctx.db.insert("questions", Question.make({
+      userId,
       question: args.question,
       kind: args.kind,
       characteristicName: args.characteristicName,
@@ -37,6 +56,16 @@ export const updateQuestion = mutation({
     characteristicName: v.optional(v.string())
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
+    // Verify ownership
+    const existing = await ctx.db.get(args.id)
+    if (!existing) throw new Error("Question not found")
+    if (existing.userId !== userId) throw new Error("Not authorized to update this question")
+
     const { id, characteristicName, ...updates } = args
     // Map characteristicName to the DB field name 'category'
     const dbUpdates = characteristicName !== undefined
@@ -52,9 +81,21 @@ export const updateQuestion = mutation({
 export const getCharacteristicNames = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const allQuestions = await ctx.db
+      .query("questions")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
+    // If semesterId is provided, filter further
     const questions = args.semesterId
-      ? await ctx.db.query("questions").withIndex("by_semester", q => q.eq("semesterId", args.semesterId!)).collect()
-      : await ctx.db.query("questions").collect()
+      ? allQuestions.filter(q => q.semesterId === args.semesterId)
+      : allQuestions
 
     const characteristicNames = new Set<string>()
     for (const q of questions) {
@@ -72,6 +113,16 @@ export const getCategories = getCharacteristicNames
 export const deleteQuestion = mutation({
   args: { id: v.id("questions") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
+    // Verify ownership
+    const existing = await ctx.db.get(args.id)
+    if (!existing) throw new Error("Question not found")
+    if (existing.userId !== userId) throw new Error("Not authorized to delete this question")
+
     return ctx.db.delete(args.id)
   }
 })

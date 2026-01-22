@@ -19,33 +19,44 @@ const rankingsAggregate = new DirectAggregate<{
 
 /**
  * Gets all active topics with congestion data for the current selection period.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.1.0
  */
 export const getActiveTopicsWithCongestion = query({
   args: {},
   handler: async (ctx) => {
-    // Get active selection period
-    const activePeriod = await ctx.db
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Get active selection period owned by this user
+    const activePeriods = await ctx.db
       .query("selectionPeriods")
-      .withIndex("by_kind", q => q.eq("kind", "open"))
-      .first()
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
 
-    if (!activePeriod || !SelectionPeriod.isOpen(activePeriod)) return []
+    const activePeriod = activePeriods.find(p => SelectionPeriod.isOpen(p))
+    if (!activePeriod) return []
 
-    // Get all active topics and all preferences for this semester in parallel
-    const [topics, allPreferences] = await Promise.all([
+    // Get all active topics owned by this user and all preferences for this semester in parallel
+    const [allUserTopics, allPreferences] = await Promise.all([
       ctx.db
         .query("topics")
-        .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-        .filter(q => q.eq(q.field("isActive"), true))
+        .withIndex("by_user", q => q.eq("userId", userId))
         .collect(),
       ctx.db
         .query("preferences")
         .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
         .collect()
     ])
+
+    // Filter topics by semester and active status
+    const topics = allUserTopics.filter(t =>
+      t.semesterId === activePeriod.semesterId && t.isActive
+    )
 
     // Calculate congestion for each topic
     const totalStudents = allPreferences.length
@@ -73,31 +84,37 @@ export const getActiveTopicsWithCongestion = query({
 
 /**
  * Gets all active topics with real-time metrics from the aggregate.
- * This is the primary query for the student selection page.
- * 
+ * This is for teacher admin view - filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.2.0
  */
 export const getActiveTopicsWithMetrics = query({
   args: {},
   handler: async (ctx) => {
-    // Get active selection period
-    const activePeriod = await ctx.db
-      .query("selectionPeriods")
-      .withIndex("by_kind", q => q.eq("kind", "open"))
-      .first()
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
 
+    const userId = identity.subject
+
+    // Get active selection period owned by this user
+    const activePeriods = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
+    const activePeriod = activePeriods.find(p => SelectionPeriod.isOpen(p))
     if (!activePeriod) return []
 
-    // Check if period is open
-    if (!SelectionPeriod.isOpen(activePeriod)) return []
-
-    // Get all active topics for this semester
-    const topics = await ctx.db
+    // Get all active topics owned by this user for this semester
+    const allUserTopics = await ctx.db
       .query("topics")
-      .withIndex("by_semester", q => q.eq("semesterId", activePeriod.semesterId))
-      .filter(q => q.eq(q.field("isActive"), true))
+      .withIndex("by_user", q => q.eq("userId", userId))
       .collect()
+
+    const topics = allUserTopics.filter(t =>
+      t.semesterId === activePeriod.semesterId && t.isActive
+    )
 
     // Get metrics for each topic from the aggregate
     const topicsWithMetrics = await Promise.all(
@@ -150,22 +167,30 @@ export const getAllTopics = query({
     semesterId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
-    const semesterId = args.semesterId
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
 
-    if (semesterId) {
-      return await ctx.db
-        .query("topics")
-        .withIndex("by_semester", q => q.eq("semesterId", semesterId))
-        .collect()
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const topics = await ctx.db
+      .query("topics")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
+    // If semesterId is provided, filter further
+    if (args.semesterId) {
+      return topics.filter(t => t.semesterId === args.semesterId)
     }
 
-    return await ctx.db.query("topics").collect()
+    return topics
   }
 })
 
 /**
  * Gets a single topic by ID.
- * 
+ * Verifies the authenticated user owns the topic.
+ *
  * @category Queries
  * @since 0.1.0
  */
@@ -174,7 +199,18 @@ export const getTopic = query({
     id: v.id("topics")
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const userId = identity.subject
+
+    const topic = await ctx.db.get(args.id)
+    if (!topic) return null
+
+    // Verify the authenticated user owns this topic
+    if (topic.userId !== userId) return null
+
+    return topic
   }
 })
 

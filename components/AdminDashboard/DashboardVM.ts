@@ -16,6 +16,9 @@ import { createTopicsViewVM } from "./TopicsViewVM"
 import { createSettingsViewVM } from "./SettingsViewVM"
 import { createStudentsViewVM } from "./StudentsViewVM"
 import { createOnboardingVM, type OnboardingVM } from "./OnboardingVM"
+import type { Assignment } from "./index"
+import type { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
+import type { TopicFormValues } from "@/components/forms/topic-form"
 // ============================================================================
 // View Model Types
 // ============================================================================
@@ -150,21 +153,10 @@ export interface DashboardVM {
   readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 }
 
-export interface SelectionPeriodFormValues {
-  readonly title: string
-  readonly selection_period_id: string
-  readonly start_deadline: Date
+// Re-export the form's type to ensure type compatibility
+export type { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
 
-  readonly end_deadline: Date
-  readonly questionIds: string[]
-}
-
-export interface TopicFormValues {
-  readonly title: string
-  readonly description: string
-  readonly duplicateCount: number
-  readonly constraintIds?: string[]
-}
+export type { TopicFormValues } from "@/components/forms/topic-form"
 
 export interface PeriodFormData {
   readonly title: string
@@ -644,10 +636,10 @@ export function useDashboardVM(): DashboardVM {
     const periodsView = createPeriodsViewVM({
       periodsData$: dataSignals.periodsData$,
       currentPeriodData$: dataSignals.currentPeriodData$,
-      assignmentsData$: computed(() => {
+      assignmentsData$: computed((): readonly Assignment[] | undefined => {
         const data = dataSignals.assignmentsData$.value
         if (!data) return undefined
-        return data.map((a): any => ({
+        return data.map((a): Assignment => ({
           studentId: a.student_id,
           topicTitle: a.assigned_topic,
           preferenceRank: 0,
@@ -658,30 +650,36 @@ export function useDashboardVM(): DashboardVM {
       topicsData$: dataSignals.topicsData$,
       existingTopicsData$: computed(() => []), // Will be computed based on editing period's semester
       constraintsData$: dataSignals.constraintsData$, // Will be filtered to minimize in PeriodsViewVM
+      existingQuestionsForPeriod$: computed(() => {
+        // Map from the query result format to { questionId: string }[]
+        const data = dataSignals.existingQuestionsData$.value
+        if (!data) return undefined
+        return data.map((sq) => ({ questionId: sq.questionId as string }))
+      }),
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,
       deletePeriod: deletePeriodMutation,
       addQuestion: addQuestionMutation,
       removeQuestion: removeQuestionMutation,
       // Question & Category Management
-      questionsData$: dataSignals.questionsData$ as any,
+      questionsData$: dataSignals.questionsData$,
       constraintNamesData$: dataSignals.constraintNamesData$,
-      createQuestion: createQuestionMutation as any,
+      createQuestion: createQuestionMutation,
       updateQuestion: updateQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
-      createConstraint: createConstraintMutation as any,
-      updateConstraint: updateConstraintMutation as any,
+      createConstraint: createConstraintMutation,
+      updateConstraint: updateConstraintMutation,
       deleteConstraint: deleteConstraintMutation,
     })
 
     const topicsView = createTopicsViewVM({
       topics$: dataSignals.topicsData$,
       constraints$: dataSignals.constraintsData$, // Will be filtered to pull/prerequisite in TopicsViewVM
-      createTopic: createTopicMutation as any, // Type cast to handle constraintIds type mismatch
+      createTopic: createTopicMutation,
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
-      createConstraint: createConstraintMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
-      updateConstraint: updateConstraintMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
+      createConstraint: createConstraintMutation,
+      updateConstraint: updateConstraintMutation,
       deleteConstraint: deleteConstraintMutation,
     })
 

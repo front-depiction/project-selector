@@ -25,6 +25,7 @@ async function createPeriodWithState(
     switch (kind) {
       case "inactive":
         period = SelectionPeriod.makeInactive({
+          userId: "test-user",
           semesterId,
           title: "Test Inactive Period",
           description: "Test period in inactive state",
@@ -38,12 +39,13 @@ async function createPeriodWithState(
         // We'll schedule a dummy function to get a valid ID
         const scheduledId = await ctx.scheduler.runAt(
           futureClose,
-          // We need an internal function, but for testing we can use any scheduled function
-          // This is handled by the convex-test framework
-          api.selectionPeriods.getAllPeriodsWithStats as any,
+          // Type cast required: scheduler expects internal function but we use a query for testing
+          // This is a test-only pattern - the convex-test framework handles this
+          api.selectionPeriods.getAllPeriodsWithStats as unknown as typeof api.selectionPeriods.getAllPeriodsWithStats,
           {}
         )
         period = SelectionPeriod.makeOpen({
+          userId: "test-user",
           semesterId,
           title: "Test Open Period",
           description: "Test period in open state",
@@ -55,6 +57,7 @@ async function createPeriodWithState(
         break
       case "closed":
         period = SelectionPeriod.makeClosed({
+          userId: "test-user",
           semesterId,
           title: "Test Closed Period",
           description: "Test period in closed state",
@@ -65,6 +68,7 @@ async function createPeriodWithState(
         break
       case "assigned":
         period = SelectionPeriod.makeAssigned({
+          userId: "test-user",
           semesterId,
           title: "Test Assigned Period",
           description: "Test period in assigned state",

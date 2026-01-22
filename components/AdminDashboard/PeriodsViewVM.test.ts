@@ -6,6 +6,7 @@ import { signal, computed } from "@preact/signals-react"
 import type { SelectionPeriodFormValues, QuestionOption, TemplateOption } from "@/components/forms/selection-period-form"
 import type { PeriodRowVM, AssignmentRowVM, DialogVM, EditDialogVM } from "./PeriodsViewVM"
 import type { SelectionPeriodWithStats } from "./index"
+import type { Id } from "@/convex/_generated/dataModel"
 
 /**
  * Following the testing philosophy from viemodel.txt:
@@ -23,7 +24,7 @@ import type { SelectionPeriodWithStats } from "./index"
 
 function createMockPeriod(overrides?: Partial<SelectionPeriodWithStats>): SelectionPeriodWithStats {
   const base = {
-    _id: "period1" as any,
+    _id: "period1" as Id<"selectionPeriods">,
     _creationTime: Date.now(),
     kind: "open" as const,
     semesterId: "2024-spring",
@@ -31,7 +32,7 @@ function createMockPeriod(overrides?: Partial<SelectionPeriodWithStats>): Select
     description: "Spring 2024 project selection period",
     openDate: new Date("2024-03-01").getTime(),
     closeDate: new Date("2024-03-15").getTime(),
-    scheduledFunctionId: "sched1" as any,
+    scheduledFunctionId: "sched1" as Id<"_scheduled_functions">,
     studentCount: 10,
     assignmentCount: 10,
   }
@@ -298,8 +299,8 @@ describe("PeriodsViewVM", () => {
   describe("periods$ signal", () => {
     it("should correctly map period data to display format", () => {
       const mockPeriods = [
-        createMockPeriod({ _id: "p1" as any, title: "Spring 2024", kind: "open" }),
-        createMockPeriod({ _id: "p2" as any, title: "Fall 2024", kind: "inactive" }),
+        createMockPeriod({ _id: "p1" as Id<"selectionPeriods">, title: "Spring 2024", kind: "open" }),
+        createMockPeriod({ _id: "p2" as Id<"selectionPeriods">, title: "Fall 2024", kind: "inactive" }),
       ]
 
       const periods$ = createMockPeriodsSignal(mockPeriods)

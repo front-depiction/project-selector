@@ -177,25 +177,25 @@ const PeriodHeader: React.FC<PeriodHeaderProps> = ({ title, description }) => (
 // ============================================================================
 
 interface CodeEntryFormProps {
-  readonly accessCode: string
-  readonly isValidating: boolean
-  readonly codeError: Option.Option<string>
+  readonly vm: PeriodJoinPageVM
   readonly accessMode: "code" | "student_id"
   readonly codeLength: number
-  readonly onCodeChange: (code: string, accessMode?: "code" | "student_id") => void
-  readonly onSubmit: () => void
 }
 
 const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
-  accessCode,
-  isValidating,
-  codeError,
+  vm,
   accessMode,
   codeLength,
-  onCodeChange,
-  onSubmit,
-}) => (
-  <CardContent className="space-y-6">
+}) => {
+  useSignals()
+
+  // Read signals directly for reactivity
+  const accessCode = vm.accessCode$.value
+  const isValidating = vm.isValidating$.value
+  const codeError = vm.codeError$.value
+
+  return (
+    <CardContent className="space-y-6">
     <div className="space-y-2">
       <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-4">
         {accessMode === "code" ? (
@@ -217,11 +217,10 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
             <InputOTP
               maxLength={codeLength}
               value={accessCode}
-              onChange={(value) => onCodeChange(value, "code")}
+              onChange={vm.setAccessCode}
               disabled={isValidating}
               containerClassName="justify-center"
               className="text-2xl sm:text-3xl"
-              pattern="[A-Za-z0-9]*"
             >
               <InputOTPGroup>
                 {Array.from({ length: codeLength }).map((_, i) => (
@@ -239,14 +238,14 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            onSubmit()
+            vm.submitCode()
           }}
           className="space-y-4"
         >
           <Input
             type="text"
             value={accessCode}
-            onChange={(e) => onCodeChange(e.target.value, "student_id")}
+            onChange={(e) => vm.setAccessCode(e.target.value)}
             placeholder="Enter your student ID"
             className="text-center text-lg uppercase"
             disabled={isValidating}
@@ -288,7 +287,8 @@ const CodeEntryForm: React.FC<CodeEntryFormProps> = ({
       ),
     })}
   </CardContent>
-)
+  )
+}
 
 // ============================================================================
 // MAIN COMPONENT
@@ -324,13 +324,9 @@ export function PeriodJoinPage({ vm }: PeriodJoinPageProps): React.ReactElement 
             description={period.description}
           />
           <CodeEntryForm
-            accessCode={vm.accessCode$.value}
-            isValidating={vm.isValidating$.value}
-            codeError={vm.codeError$.value}
+            vm={vm}
             accessMode={period.accessMode}
             codeLength={period.codeLength}
-            onCodeChange={vm.setAccessCode}
-            onSubmit={vm.submitCode}
           />
         </Card>
       </Frame>

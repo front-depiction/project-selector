@@ -9,6 +9,7 @@ import type { Id } from "../_generated/dataModel"
  * @since 0.1.0
  */
 export const Topic = v.object({
+  userId: v.string(),
   title: v.string(),
   description: v.string(),
   semesterId: v.string(),
@@ -41,12 +42,14 @@ export type Topic = Readonly<Infer<typeof Topic>>
  * })
  */
 export const make = (params: {
+  readonly userId: string
   readonly title: string
   readonly description: string
   readonly semesterId: string
   readonly isActive?: boolean
   readonly constraintIds?: string[]
 }): Topic => ({
+  userId: params.userId,
   title: params.title,
   description: params.description,
   semesterId: params.semesterId,

@@ -166,6 +166,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Constraints</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -174,6 +175,17 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
                   <TableRow key={topic.key}>
                     <TableCell className="font-medium">{topic.title}</TableCell>
                     <TableCell className="max-w-xs truncate">{topic.description}</TableCell>
+                    <TableCell>
+                      {topic.constraintNames.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {topic.constraintNames.map((name) => (
+                            <Badge key={name} variant="secondary">{name}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -233,7 +245,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                constraintIds: [] // TODO: Get constraintIds from topic if stored
+                constraintIds: vm.editTopicDialog.editingTopic$.value.value.constraintIds ?? []
               }}
               onSubmit={vm.onEditTopicSubmit}
             />

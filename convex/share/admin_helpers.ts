@@ -62,6 +62,7 @@ export const TOPICDATA = [
  */
 export async function createTestSelectionPeriod(
   ctx: MutationCtx,
+  userId: string,
   semesterId: string,
   now: number,
   closeDate: number,
@@ -71,6 +72,7 @@ export async function createTestSelectionPeriod(
 ) {
   const shareableSlug = generateShareableSlug()
   const inactivePeriod = SelectionPeriod.makeInactive({
+    userId,
     semesterId,
     openDate: now,
     closeDate,
@@ -99,10 +101,11 @@ export async function createTestSelectionPeriod(
 /**
  * Helper to create test topics for a given semester.
  */
-export const createTestTopics = (ctx: MutationCtx, semesterId: string) =>
+export const createTestTopics = (ctx: MutationCtx, userId: string, semesterId: string) =>
   pipe(
     TOPICDATA,
     Array.map(data => Topic.make({
+      userId,
       ...data,
       semesterId,
       isActive: true

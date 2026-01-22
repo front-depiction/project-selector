@@ -18,7 +18,8 @@ import * as TeacherOnboarding from "./schemas/TeacherOnboarding"
 export default defineSchema({
   topics: defineTable(Topic.Topic)
     .index("by_semester", ["semesterId"])
-    .index("by_active", ["isActive"]),
+    .index("by_active", ["isActive"])
+    .index("by_user", ["userId"]),
 
   preferences: defineTable(Preference.Preference)
     .index("by_student", ["studentId", "semesterId"])
@@ -27,7 +28,8 @@ export default defineSchema({
   selectionPeriods: defineTable(SelectionPeriod.SelectionPeriod)
     .index("by_kind", ["kind"])
     .index("by_semester", ["semesterId"])
-    .index("by_slug", ["shareableSlug"]),
+    .index("by_slug", ["shareableSlug"])
+    .index("by_user", ["userId"]),
 
   rankingEvents: defineTable(RankingEvent.RankingEvent)
     .index("by_student", ["studentId"])
@@ -42,14 +44,16 @@ export default defineSchema({
 
   questions: defineTable(Question.Question)
     .index("by_semester", ["semesterId"])
-    .index("by_category", ["category"]),
+    .index("by_category", ["category"])
+    .index("by_user", ["userId"]),
 
   questionTemplates: defineTable(QuestionTemplate.QuestionTemplate)
     .index("by_semester", ["semesterId"]),
 
   categories: defineTable(Constraint.Constraint)
     .index("by_semester", ["semesterId"])
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    .index("by_user", ["userId"]),
 
   templateQuestions: defineTable(TemplateQuestion.TemplateQuestion)
     .index("by_template", ["templateId", "order"])

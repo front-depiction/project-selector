@@ -21,13 +21,13 @@ import { generateShareableSlug } from "./lib/slugGenerator"
  * printer access question, calculus prerequisite on 2 topics, python skills pull on 2 groups,
  * all topics can be ranked with different titles/descriptions
  */
-async function seedLeadershipPython(ctx: any) {
+async function seedLeadershipPython(ctx: any, userId: string) {
   const semesterId = "2024-spring"
   const now = Date.now()
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
   // Create selection period
-  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+  const periodId = await createTestSelectionPeriod(ctx, userId, semesterId, now, thirtyDaysFromNow, {
     rankingsEnabled: true,
   })
 
@@ -48,6 +48,7 @@ async function seedLeadershipPython(ctx: any) {
   const topicIds = await Promise.all(
     topicData.map(data =>
       ctx.db.insert("topics", Topic.make({
+        userId,
         title: data.title,
         description: data.description,
         semesterId,
@@ -59,6 +60,7 @@ async function seedLeadershipPython(ctx: any) {
   // Create categories with different criterion types
   // 1. Leadership (minimize) - 4 questions
   const leadershipCategoryId = await ctx.db.insert("categories", {
+    userId,
     name: "Leadership",
     description: "Leadership and team management abilities (minimize - balance evenly)",
     semesterId,
@@ -69,6 +71,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // 2. Printer Access (minimize)
   const printerCategoryId = await ctx.db.insert("categories", {
+    userId,
     name: "Printer Access",
     description: "Access to printing resources (minimize - balance evenly)",
     semesterId,
@@ -79,6 +82,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // 3. Calculus (prerequisite) - for 2 topics
   const calculusCategoryId = await ctx.db.insert("categories", {
+    userId,
     name: "Calculus Prerequisite",
     description: "Calculus background requirement (prerequisite - applies to topics 0 and 1)",
     semesterId,
@@ -89,6 +93,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // 4. Python Skills (pull) - for 2 groups
   const pythonCategoryId = await ctx.db.insert("categories", {
+    userId,
     name: "Python Skills",
     description: "Python programming abilities (pull - maximize, applies to topics 2 and 3)",
     semesterId,
@@ -108,6 +113,7 @@ async function seedLeadershipPython(ctx: any) {
   const leadershipQuestionIds = await Promise.all(
     leadershipQuestions.map(q =>
       ctx.db.insert("questions", {
+        userId,
         question: q,
         kind: "0to6" as const,
         category: "Leadership",
@@ -119,6 +125,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // Create 1 question: "do you have access to a printer?" (minimize)
   const printerQuestionId = await ctx.db.insert("questions", {
+    userId,
     question: "Do you have access to a printer?",
     kind: "boolean" as const,
     category: "Printer Access",
@@ -128,6 +135,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // Create prerequisite question: "did you pass calculus?"
   const calculusQuestionId = await ctx.db.insert("questions", {
+    userId,
     question: "Did you pass calculus?",
     kind: "boolean" as const,
     category: "Calculus Prerequisite",
@@ -137,6 +145,7 @@ async function seedLeadershipPython(ctx: any) {
 
   // Create pull question: "How would you rate your python skills"
   const pythonQuestionId = await ctx.db.insert("questions", {
+    userId,
     question: "How would you rate your python skills?",
     kind: "0to6" as const,
     category: "Python Skills",
@@ -283,13 +292,13 @@ async function seedLeadershipPython(ctx: any) {
  * Seed generator: 60 students, 5 groups, minimize 1 category with 2 IT skills questions,
  * no additional questions, topics can't be ranked
  */
-async function seedITSkills(ctx: any) {
+async function seedITSkills(ctx: any, userId: string) {
   const semesterId = "2024-spring"
   const now = Date.now()
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
   // Create selection period
-  const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+  const periodId = await createTestSelectionPeriod(ctx, userId, semesterId, now, thirtyDaysFromNow, {
     rankingsEnabled: false,
   })
 
@@ -305,6 +314,7 @@ async function seedITSkills(ctx: any) {
   const topicIds = await Promise.all(
     topicData.map(data =>
       ctx.db.insert("topics", Topic.make({
+        userId,
         title: data.title,
         description: data.description,
         semesterId,
@@ -315,6 +325,7 @@ async function seedITSkills(ctx: any) {
 
   // Create 1 category: IT Skills (minimize)
   const itCategoryId = await ctx.db.insert("categories", {
+    userId,
     name: "IT Skills",
     description: "Technical and digital competencies",
     semesterId,
@@ -332,6 +343,7 @@ async function seedITSkills(ctx: any) {
   const itQuestionIds = await Promise.all(
     itQuestions.map(q =>
       ctx.db.insert("questions", {
+        userId,
         question: q,
         kind: "0to6" as const,
         category: "IT Skills",
@@ -435,12 +447,17 @@ export const seedTestData = mutation({
     seedType: v.optional(v.union(v.literal("default"), v.literal("leadership-python"), v.literal("it-skills")))
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const seedType = args.seedType ?? "default"
 
     if (seedType === "leadership-python") {
-      return await seedLeadershipPython(ctx)
+      return await seedLeadershipPython(ctx, userId)
     } else if (seedType === "it-skills") {
-      return await seedITSkills(ctx)
+      return await seedITSkills(ctx, userId)
     }
 
     // Default seed (existing implementation)
@@ -452,11 +469,12 @@ export const seedTestData = mutation({
 
     // Create selection period and topics
     const [periodId, closedPeriodId, topicIds] = await Promise.all([
-      createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow, {
+      createTestSelectionPeriod(ctx, userId, semesterId, now, thirtyDaysFromNow, {
         rankingsEnabled: true,
       }),
       // Create a closed period for testing
       ctx.db.insert("selectionPeriods", SelectionPeriod.makeClosed({
+        userId,
         semesterId,
         title: "Closed Test Period",
         description: "This is a closed period for testing closed session behavior",
@@ -465,7 +483,7 @@ export const seedTestData = mutation({
         shareableSlug: generateShareableSlug(),
         rankingsEnabled: true,
       })),
-      createTestTopics(ctx, semesterId)
+      createTestTopics(ctx, userId, semesterId)
     ])
 
     // Create an open period with all questionnaires completed
@@ -473,6 +491,7 @@ export const seedTestData = mutation({
     const openWithQuestionnairesOpenDate = now - (3 * 24 * 60 * 60 * 1000) // Opened 3 days ago
     const openWithQuestionnairesSlug = generateShareableSlug()
     const inactivePeriod = SelectionPeriod.makeInactive({
+      userId,
       semesterId,
       title: "Open Period - All Questionnaires Complete",
       description: "An open period where all students have completed their questionnaires",
@@ -527,6 +546,7 @@ export const seedTestData = mutation({
     const categoryIds = await Promise.all(
       categoryNames.map(cat =>
         ctx.db.insert("categories", {
+          userId,
           name: cat.name,
           description: cat.description,
           semesterId,
@@ -577,6 +597,7 @@ export const seedTestData = mutation({
     const questionIds = await Promise.all(
       questionsData.map(q =>
         ctx.db.insert("questions", {
+          userId,
           question: q.question,
           kind: q.kind,
           category: q.category,
@@ -845,6 +866,7 @@ export const seedTestData = mutation({
     const closedPeriod = await ctx.db.get(closedPeriodId)
     if (closedPeriod) {
       await ctx.db.replace(closedPeriodId, SelectionPeriod.makeAssigned({
+        userId,
         semesterId: closedPeriod.semesterId,
         title: closedPeriod.title,
         description: closedPeriod.description,
@@ -893,8 +915,14 @@ export const createTopic = mutation({
     constraintIds: v.optional(v.array(v.id("categories"))),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const count = args.duplicateCount ?? 1
     const topicData = Topic.make({
+      userId,
       title: args.title,
       description: args.description,
       semesterId: args.semesterId,
@@ -908,16 +936,10 @@ export const createTopic = mutation({
     )
 
     // Mark onboarding step complete
-    const identity = await ctx.auth.getUserIdentity()
-    if (identity) {
-      const userId = identity.subject ?? identity.email ?? ""
-      if (userId) {
-        await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
-          userId,
-          stepId: "create_topics"
-        })
-      }
-    }
+    await ctx.runMutation(internal.teacherOnboarding.markStepCompleteInternal, {
+      userId,
+      stepId: "create_topics"
+    })
 
     // Return the first ID for backward compatibility
     return ids[0]
@@ -939,9 +961,18 @@ export const updateTopic = mutation({
     constraintIds: v.optional(v.array(v.id("categories"))),
   },
   handler: async (ctx, args) => {
-    await ctx.db.get(args.id).then(maybeTopic =>
-      maybeTopic
-      || Promise.reject("Topic Not Found"))
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
+    const topic = await ctx.db.get(args.id)
+    if (!topic) throw new Error("Topic not found")
+
+    // Verify ownership
+    if (topic.userId !== userId) {
+      throw new Error("Not authorized to update this topic")
+    }
 
     const updates: any = {}
     if (args.title !== undefined) updates.title = args.title
@@ -964,9 +995,19 @@ export const toggleTopicActive = mutation({
     id: v.id("topics")
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const topic = await ctx.db.get(args.id)
     if (!topic) {
       throw new Error("Topic not found")
+    }
+
+    // Verify ownership
+    if (topic.userId !== userId) {
+      throw new Error("Not authorized to modify this topic")
     }
 
     await ctx.db.patch(args.id, {
@@ -986,6 +1027,19 @@ export const deleteTopic = mutation({
     id: v.id("topics")
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
+    const topic = await ctx.db.get(args.id)
+    if (!topic) throw new Error("Topic not found")
+
+    // Verify ownership
+    if (topic.userId !== userId) {
+      throw new Error("Not authorized to delete this topic")
+    }
+
     // Check if topic has any preferences
     const allPreferences = await ctx.db.query("preferences").collect()
     const hasSelections = allPreferences.some(pref =>
@@ -1021,6 +1075,11 @@ export const createSelectionPeriod = mutation({
     topicIds: v.optional(v.array(v.id("topics"))),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     // Update selected topics' semesterId to link them to this period
     if (args.topicIds && args.topicIds.length > 0) {
       for (const topicId of args.topicIds) {
@@ -1033,6 +1092,7 @@ export const createSelectionPeriod = mutation({
 
     const shareableSlug = generateShareableSlug()
     const period = SelectionPeriod.makeInactive({
+      userId,
       semesterId: args.semesterId,
       title: args.title,
       description: args.description,
@@ -1059,31 +1119,51 @@ export const createSelectionPeriod = mutation({
 
 /**
  * Gets the current selection period.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.1.0
  */
 export const getCurrentPeriod = query({
   args: {},
   handler: async (ctx) => {
-    const active = await getActiveSelectionPeriod(ctx)
-    if (active) return active
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
 
-    const periods = await ctx.db.query("selectionPeriods").collect()
+    const userId = identity.subject
+
+    // Get active selection period owned by this user
+    const active = await getActiveSelectionPeriod(ctx)
+    if (active && active.userId === userId) return active
+
+    // If no active period, get the most recent assigned period owned by this user
+    const periods = await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
     return SelectionPeriod.getMostRecentAssigned(periods) ?? null
   }
 })
 
 /**
  * Gets all selection periods.
- * 
+ * Filters by authenticated user's ID.
+ *
  * @category Queries
  * @since 0.1.0
  */
 export const getAllPeriods = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("selectionPeriods").collect()
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    return await ctx.db
+      .query("selectionPeriods")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
   }
 })
 
@@ -1201,6 +1281,11 @@ export const generateRandomAnswers = mutation({
 export const setupExperiment = mutation({
   args: {},
   handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const semesterId = "experiment-2026"
     const now = Date.now()
     const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
@@ -1251,6 +1336,7 @@ export const setupExperiment = mutation({
     const categoryIds = await Promise.all(
       categories.map(cat =>
         ctx.db.insert("categories", {
+          userId,
           name: cat.name,
           description: cat.description,
           semesterId,
@@ -1286,6 +1372,7 @@ export const setupExperiment = mutation({
     const questionIds = await Promise.all(
       questionsData.map(q =>
         ctx.db.insert("questions", {
+          userId,
           question: q.text,
           kind: "0to6" as const,
           category: q.category,
@@ -1299,6 +1386,7 @@ export const setupExperiment = mutation({
     const topicIds = await Promise.all(
       Array.from({ length: 7 }, (_, i) =>
         ctx.db.insert("topics", Topic.make({
+          userId,
           title: `Group ${i + 1}`,
           description: "Experiment group - no specific project",
           semesterId,
@@ -1335,6 +1423,7 @@ export const setupExperiment = mutation({
 
     const experimentSlug = generateShareableSlug()
     const period = SelectionPeriod.makeInactive({
+      userId,
       semesterId,
       title: "Experiment: Team Assignment",
       description: periodDescription,

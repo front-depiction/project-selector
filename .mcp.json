@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "RepoPrompt": {
+      "command": "/Users/front_depiction/RepoPrompt/repoprompt_cli",
+      "args": []
+    }
+  }
+}

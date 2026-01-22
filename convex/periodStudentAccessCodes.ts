@@ -231,12 +231,48 @@ export const validateAccessCodeForPeriod = mutation({
     periodId: v.id("selectionPeriods"),
   },
   handler: async (ctx, args): Promise<{ valid: boolean; error?: string }> => {
+    // Get the period to check accessMode
+    const period = await ctx.db.get(args.periodId)
+    if (!period || period.kind !== "open") {
+      return { valid: false, error: "This selection period is not currently accepting applications" }
+    }
+
     // Normalize code
     const normalizedCode = args.code.toUpperCase().trim()
+    const accessMode = period.accessMode ?? "code"
+    const codeLength = period.codeLength ?? 6
 
-    // Check format: 6 characters, alphanumeric
-    if (!/^[A-Z0-9]{6}$/.test(normalizedCode)) {
-      return { valid: false, error: "Code must be 6 alphanumeric characters" }
+    // For student_id mode, just add to allow list if not exists
+    if (accessMode === "student_id") {
+      if (normalizedCode.length === 0) {
+        return { valid: false, error: "Please enter your student ID" }
+      }
+
+      // Check if already in allow list
+      const existingEntry = await ctx.db
+        .query("periodStudentAllowList")
+        .withIndex("by_period_studentId", (q) =>
+          q.eq("selectionPeriodId", args.periodId).eq("studentId", normalizedCode)
+        )
+        .first()
+
+      // Add to allow list if not exists
+      if (!existingEntry) {
+        await ctx.db.insert("periodStudentAllowList", {
+          selectionPeriodId: args.periodId,
+          studentId: normalizedCode,
+          addedAt: Date.now(),
+          addedBy: "self-registration",
+        })
+      }
+
+      return { valid: true }
+    }
+
+    // Code mode: Check format
+    const codePattern = new RegExp(`^[A-Z0-9]{${codeLength}}$`)
+    if (!codePattern.test(normalizedCode)) {
+      return { valid: false, error: `Code must be ${codeLength} alphanumeric characters` }
     }
 
     // Find the access code entry
@@ -252,12 +288,6 @@ export const validateAccessCodeForPeriod = mutation({
     // Check if code belongs to the specified period
     if (entry.selectionPeriodId !== args.periodId) {
       return { valid: false, error: "This code is not valid for this selection period" }
-    }
-
-    // Check period is open
-    const period = await ctx.db.get(args.periodId)
-    if (!period || period.kind !== "open") {
-      return { valid: false, error: "This selection period is not currently accepting applications" }
     }
 
     return { valid: true }

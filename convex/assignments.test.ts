@@ -17,8 +17,8 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
 
   return await t.run(async (ctx: any) => {
     const [periodId, topicIds] = await Promise.all([
-      createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow),
-      createTestTopics(ctx, semesterId)
+      createTestSelectionPeriod(ctx, "test-user", semesterId, now, thirtyDaysFromNow),
+      createTestTopics(ctx, "test-user", semesterId)
     ])
 
     const students = generateTestStudents(topicIds, 70)
@@ -176,14 +176,14 @@ test("assignments: distribution is balanced", async () => {
   
   const { periodId, topicIds } = await t.run(async (ctx: any) => {
     const [periodId, topicIds] = await Promise.all([
-      createTestSelectionPeriod(ctx, semesterId, now, futureClose),
-      createTestTopics(ctx, semesterId)
+      createTestSelectionPeriod(ctx, "test-user", semesterId, now, futureClose),
+      createTestTopics(ctx, "test-user", semesterId)
     ])
-    
+
     // Create 30 students for 10 topics
     const students = generateTestStudents(topicIds, 30)
     await insertTestPreferences(ctx, students, semesterId)
-    
+
     return { periodId, topicIds }
   })
   

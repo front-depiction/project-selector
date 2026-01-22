@@ -4,17 +4,28 @@ import * as Constraint from "./schemas/Constraint"
 
 /**
  * Get all constraints
+ * Filters by authenticated user's ID.
  */
 export const getAllConstraints = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const constraints = await ctx.db
+      .query("categories")
+      .withIndex("by_user", q => q.eq("userId", userId))
+      .collect()
+
+    // If semesterId is provided, filter further
     if (args.semesterId !== undefined) {
-      return await ctx.db
-        .query("categories")
-        .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId!))
-        .collect()
+      return constraints.filter(c => c.semesterId === args.semesterId)
     }
-    return await ctx.db.query("categories").collect()
+
+    return constraints
   },
 })
 
@@ -38,6 +49,11 @@ export const createConstraint = mutation({
     maxStudents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     // Check if constraint with same name already exists for this semester
     const existing = await ctx.db
       .query("categories")
@@ -53,6 +69,7 @@ export const createConstraint = mutation({
     const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
 
     return await ctx.db.insert("categories", Constraint.make({
+      userId,
       ...args,
       minRatio,
       minStudents: args.minStudents,
@@ -81,13 +98,20 @@ export const updateConstraint = mutation({
     maxStudents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const { id, ...updates } = args
+
+    // Verify ownership
+    const constraint = await ctx.db.get(id)
+    if (!constraint) throw new Error("Constraint not found")
+    if (constraint.userId !== userId) throw new Error("Not authorized to update this constraint")
 
     // If updating name, check for duplicates
     if (updates.name) {
-      const constraint = await ctx.db.get(id)
-      if (!constraint) throw new Error("Constraint not found")
-
       const allConstraints = await ctx.db
         .query("categories")
         .withIndex("by_semester", (q) => q.eq("semesterId", constraint.semesterId))
@@ -103,7 +127,14 @@ export const updateConstraint = mutation({
     }
 
     // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
-    const patchData: any = { ...updates }
+    const patchData: Partial<{
+      name: string
+      description: string | undefined
+      criterionType: "prerequisite" | "minimize" | "pull" | "maximize" | "push" | undefined
+      minRatio: number | undefined
+      minStudents: number | undefined
+      maxStudents: number | undefined
+    }> = { ...updates }
     if (updates.minRatio !== undefined) {
       patchData.minRatio = updates.minRatio / 100
     }
@@ -128,19 +159,26 @@ export const updateConstraint = mutation({
 export const deleteConstraint = mutation({
   args: { id: v.id("categories") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const userId = identity.subject
+
     const constraint = await ctx.db.get(args.id)
     if (!constraint) throw new Error("Constraint not found")
+
+    // Verify ownership
+    if (constraint.userId !== userId) throw new Error("Not authorized to delete this constraint")
 
     // Check if any questions are using this constraint
     const allQuestions = await ctx.db.query("questions").collect()
     const questionsUsingConstraint = allQuestions.filter((q) => q.category === constraint.name)
 
-    // Unassign the questions
+    // Delete questions that were using this category
+    // (Questions require a category, so we delete them instead of leaving them orphaned)
     if (questionsUsingConstraint.length > 0) {
       await Promise.all(
-        questionsUsingConstraint.map((q) =>
-          ctx.db.patch(q._id, { category: undefined })
-        )
+        questionsUsingConstraint.map((q) => ctx.db.delete(q._id))
       )
     }
 
@@ -150,18 +188,28 @@ export const deleteConstraint = mutation({
 
 /**
  * Get constraint names only (for dropdowns)
+ * Filters by authenticated user's ID.
  */
 export const getConstraintNames = query({
   args: { semesterId: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const constraints = args.semesterId
-      ? await ctx.db
-        .query("categories")
-        .withIndex("by_semester", (q) => q.eq("semesterId", args.semesterId!))
-        .collect()
-      : await ctx.db.query("categories").collect()
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
 
-    return constraints.map((c) => c.name).sort()
+    const userId = identity.subject
+
+    // Use the by_user index to filter by authenticated user
+    const constraints = await ctx.db
+      .query("categories")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect()
+
+    // If semesterId is provided, filter further
+    const filteredConstraints = args.semesterId
+      ? constraints.filter(c => c.semesterId === args.semesterId)
+      : constraints
+
+    return filteredConstraints.map((c) => c.name).sort()
   },
 })
 

@@ -60,8 +60,8 @@ export interface PeriodJoinPageVM {
   readonly codeError$: ReadonlySignal<Option.Option<string>>
 
   // Actions
-  /** Update the access code input value. Pass accessMode to ensure correct behavior. */
-  readonly setAccessCode: (code: string, accessMode?: "code" | "student_id") => void
+  /** Update the access code input value */
+  readonly setAccessCode: (code: string) => void
 
   /** Submit the access code for validation */
   readonly submitCode: () => Promise<void>
@@ -162,11 +162,10 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
   })
 
   // Action: Set access code with alphanumeric validation
-  const setAccessCode = (newValue: string, explicitAccessMode?: "code" | "student_id"): void => {
+  const setAccessCode = (newValue: string): void => {
     const periodInfo = periodInfo$.value
-    // Use explicit access mode if provided, otherwise derive from period info
-    const accessMode = explicitAccessMode ?? (Option.isSome(periodInfo) ? periodInfo.value.accessMode : "code")
-    // Use dynamic code length from period info, fallback to default
+    // Derive access mode and code length from period info
+    const accessMode = Option.isSome(periodInfo) ? periodInfo.value.accessMode : "code"
     const codeLength = Option.isSome(periodInfo) ? periodInfo.value.codeLength : ACCESS_CODE_LENGTH
 
     // For student_id mode, accept any input without length restrictions
@@ -215,18 +214,39 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
     const accessMode = periodInfo.value.accessMode
     const codeLength = periodInfo.value.codeLength
 
-    // For student_id mode, just validate non-empty and save
+    // For student_id mode, validate non-empty then call validateAccessCode
+    // (which will add the student to the allow list)
     if (accessMode === "student_id") {
       if (currentCode.length === 0) {
         codeError$.value = Option.some("Please enter your student ID")
         return
       }
 
-      // Save to localStorage
-      localStorage.setItem("studentId", currentCode)
+      // Start validation - this adds the student to the allow list
+      isValidating$.value = true
+      codeError$.value = Option.none()
 
-      // Execute success callback
-      onSuccess(currentCode)
+      try {
+        const result = await validateAccessCode({
+          code: currentCode,
+          periodId: periodInfo.value._id,
+        })
+
+        if (!result.valid) {
+          codeError$.value = Option.some(result.error ?? "Invalid student ID")
+          return
+        }
+
+        // Save to localStorage
+        localStorage.setItem("studentId", currentCode)
+
+        // Execute success callback
+        onSuccess(currentCode)
+      } catch {
+        codeError$.value = Option.some("Failed to validate. Please try again.")
+      } finally {
+        isValidating$.value = false
+      }
       return
     }
 
@@ -265,8 +285,7 @@ export function createPeriodJoinPageVM(deps: PeriodJoinPageVMDeps): PeriodJoinPa
 
       // Execute success callback
       onSuccess(currentCode)
-    } catch (err) {
-      console.error("Validation failed", err)
+    } catch {
       codeError$.value = Option.some("Failed to validate code. Please try again.")
     } finally {
       isValidating$.value = false

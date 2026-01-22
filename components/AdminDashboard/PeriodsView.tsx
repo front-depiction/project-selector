@@ -31,7 +31,7 @@ import {
 import { Plus, Edit, Trash2, MoreVertical, Key, Users, Link, Copy, ChevronDown, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import SelectionPeriodForm from "@/components/forms/selection-period-form"
-import type { TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
+import type { TopicOption, CategoryOption, QuestionOption } from "@/components/forms/selection-period-form"
 import { PeriodStudentAllowListManager } from "@/components/admin/PeriodStudentAllowListManager"
 import { AssignmentDisplay } from "@/components/AssignmentDisplay"
 import { AssignNowButton } from "@/components/admin/AssignNowButton"
@@ -49,20 +49,47 @@ const EditPeriodFormWrapper: React.FC<{
   editingPeriod: any
   topics: readonly TopicOption[]
   categories: readonly CategoryOption[]
+  questions: readonly QuestionOption[]
   existingTopicIds: readonly string[]
   existingMinimizeCategoryIds: readonly string[]
+  existingQuestionIds: readonly string[]
   updatePeriod: PeriodsViewVM["updatePeriod"]
+  addQuestion: PeriodsViewVM["addQuestion"]
+  removeQuestion: PeriodsViewVM["removeQuestion"]
   closeDialog: () => void
-}> = ({ editingPeriod, topics, categories, existingTopicIds, existingMinimizeCategoryIds, updatePeriod, closeDialog }) => {
+}> = ({ editingPeriod, topics, categories, questions, existingTopicIds, existingMinimizeCategoryIds, existingQuestionIds, updatePeriod, addQuestion, removeQuestion, closeDialog }) => {
   const handleSubmit = async (values: any) => {
+    const periodId = editingPeriod._id
+
+    // Update period basic info
     await updatePeriod({
-      periodId: editingPeriod._id,
+      periodId,
       title: values.title,
       description: values.description,
       openDate: values.start_deadline.getTime(),
       closeDate: values.end_deadline.getTime(),
       minimizeCategoryIds: values.minimizeCategoryIds,
     })
+
+    // Sync questions: compare existing with selected
+    const selectedQuestionIds = values.questionIds ?? []
+    const currentQuestionIds = new Set(existingQuestionIds)
+    const newQuestionIds = new Set(selectedQuestionIds)
+
+    // Add new questions
+    for (const questionId of selectedQuestionIds) {
+      if (!currentQuestionIds.has(questionId)) {
+        await addQuestion({ selectionPeriodId: periodId, questionId: questionId as Id<"questions"> })
+      }
+    }
+
+    // Remove deselected questions
+    for (const questionId of existingQuestionIds) {
+      if (!newQuestionIds.has(questionId)) {
+        await removeQuestion({ selectionPeriodId: periodId, questionId: questionId as Id<"questions"> })
+      }
+    }
+
     closeDialog()
   }
 
@@ -70,6 +97,7 @@ const EditPeriodFormWrapper: React.FC<{
     <SelectionPeriodForm
       topics={topics}
       categories={categories}
+      questions={questions}
       initialValues={{
         title: editingPeriod.title,
         selection_period_id: editingPeriod.semesterId,
@@ -77,6 +105,7 @@ const EditPeriodFormWrapper: React.FC<{
         end_deadline: new Date(editingPeriod.closeDate),
         topicIds: [...existingTopicIds],
         minimizeCategoryIds: [...existingMinimizeCategoryIds],
+        questionIds: [...existingQuestionIds],
         rankingsEnabled: editingPeriod.rankingsEnabled ?? true,
       }}
       onSubmit={handleSubmit}
@@ -149,7 +178,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
         </Button>
       </div>
 
-      {/* Distribution Rules Collapsible Section */}
+      {/* Question Categories Collapsible Section */}
       <Card>
         <CardHeader
           className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -162,7 +191,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               ) : (
                 <ChevronRight className="h-5 w-5" />
               )}
-              <CardTitle className="text-lg">Distribution Rules</CardTitle>
+              <CardTitle className="text-lg">Question Categories</CardTitle>
               <Badge variant="secondary">{vm.distributionRules$.value.length}</Badge>
             </div>
             <Button
@@ -173,18 +202,18 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               }}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Rule
+              Add Category
             </Button>
           </div>
           <CardDescription className="ml-7">
-            Rules for balanced student distribution across all groups.
+            Categories for grouping questions and defining assignment criteria.
           </CardDescription>
         </CardHeader>
         {criteriaExpanded && (
           <CardContent>
             {vm.distributionRules$.value.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                No distribution rules yet. Add one to get started.
+                No question categories yet. Add one to get started.
               </p>
             ) : (
               <Table>
@@ -502,6 +531,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             <SelectionPeriodForm
               topics={vm.topics$.value}
               categories={vm.categories$.value}
+              questions={vm.questionsForForm$.value}
               onSubmit={vm.onCreateSubmit}
             />
           )}
@@ -522,9 +552,13 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               editingPeriod={vm.editDialog.editingPeriod$.value.value}
               topics={vm.topics$.value}
               categories={vm.categories$.value}
+              questions={vm.questionsForForm$.value}
               existingTopicIds={vm.existingTopicIds$.value}
               existingMinimizeCategoryIds={vm.existingMinimizeCategoryIds$.value}
+              existingQuestionIds={vm.existingQuestionIds$.value}
               updatePeriod={vm.updatePeriod}
+              addQuestion={vm.addQuestion}
+              removeQuestion={vm.removeQuestion}
               closeDialog={vm.editDialog.close}
             />
           )}
@@ -597,12 +631,12 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
         </DialogContent>
       </Dialog>
 
-      {/* Distribution Rule Dialog */}
+      {/* Question Category Dialog */}
       <Dialog open={vm.ruleDialog.isOpen$.value} onOpenChange={(open) => !open && vm.ruleDialog.close()}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {Option.isSome(vm.editingRule$.value) ? "Edit Distribution Rule" : "Create Distribution Rule"}
+              {Option.isSome(vm.editingRule$.value) ? "Edit Question Category" : "Create Question Category"}
             </DialogTitle>
           </DialogHeader>
           <ConstraintForm

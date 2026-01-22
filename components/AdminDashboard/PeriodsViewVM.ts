@@ -1,6 +1,6 @@
 import { signal, computed, ReadonlySignal, batch, Signal } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
-import type { SelectionPeriodFormValues, TopicOption, CategoryOption } from "@/components/forms/selection-period-form"
+import type { SelectionPeriodFormValues, TopicOption, CategoryOption, QuestionOption } from "@/components/forms/selection-period-form"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { ConstraintFormValues } from "@/components/forms/constraint-form"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
@@ -83,7 +83,7 @@ export interface ConstraintItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push"
   readonly criterionDisplay: string
   readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly minRatio?: number
@@ -113,7 +113,7 @@ export interface Category {
   readonly _id: string
   readonly name: string
   readonly description?: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push"
   readonly minRatio?: number
   readonly target?: number
 }
@@ -154,6 +154,12 @@ export interface PeriodsViewVM {
 
   /** Existing minimize category IDs for editing period */
   readonly existingMinimizeCategoryIds$: ReadonlySignal<readonly string[]>
+
+  /** Questions for form (QuestionOption[] format) */
+  readonly questionsForForm$: ReadonlySignal<readonly QuestionOption[]>
+
+  /** Existing question IDs for editing period */
+  readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 
   /** ID and title of newly created period (for showing access codes) */
   readonly createdPeriod$: ReadonlySignal<Option.Option<{
@@ -235,6 +241,9 @@ export interface PeriodsViewVMDeps {
   /** Signal of constraints data from Convex */
   readonly constraintsData$: ReadonlySignal<readonly any[] | undefined>
 
+  /** Signal of existing questions for editing period (from selectionQuestions) */
+  readonly existingQuestionsForPeriod$: ReadonlySignal<readonly { questionId: string }[] | undefined>
+
   /** Mutation to create a period */
   readonly createPeriod: (args: {
     title: string
@@ -247,7 +256,12 @@ export interface PeriodsViewVMDeps {
     topicIds?: Id<"topics">[]
     accessMode?: "code" | "student_id"
     codeLength?: number
-  }) => Promise<{ periodId: Id<"selectionPeriods"> }>
+  }) => Promise<{
+    success: boolean
+    periodId: Id<"selectionPeriods">
+    shareableSlug: string
+    accessMode?: "code" | "student_id"
+  }>
 
   /** Mutation to update a period */
   readonly updatePeriod: (args: {
@@ -290,7 +304,7 @@ export interface PeriodsViewVMDeps {
   readonly createQuestion: (args: {
     question: string
     kind: "boolean" | "0to6"
-    category?: string
+    characteristicName: string
     semesterId: string
   }) => Promise<any>
 
@@ -299,7 +313,7 @@ export interface PeriodsViewVMDeps {
     id: Id<"questions">
     question?: string
     kind?: "boolean" | "0to6"
-    category?: string
+    characteristicName?: string
   }) => Promise<any>
 
   /** Mutation to delete a question */
@@ -310,9 +324,10 @@ export interface PeriodsViewVMDeps {
     name: string
     description?: string
     semesterId: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push"
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
 
   /** Mutation to update a constraint */
@@ -320,9 +335,10 @@ export interface PeriodsViewVMDeps {
     id: Id<"categories">
     name?: string
     description?: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "maximize" | "push"
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
 
   /** Mutation to delete a constraint */
@@ -367,7 +383,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     return assignmentsData.map((assignment, idx): AssignmentRowVM => ({
       key: `${assignment.studentId}-${assignment.topicTitle}-${idx}`,
       studentId: assignment.studentId,
-      name: (assignment as any).name, // Include name if available
+      name: assignment.name, // Include name if available (from Assignment type)
       topicTitle: assignment.topicTitle,
       preferenceRank: assignment.preferenceRank,
       isMatched: assignment.isMatched,
@@ -490,9 +506,27 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const existingMinimizeCategoryIds$ = computed((): readonly string[] => {
     const editingPeriod = editingPeriod$.value
     if (Option.isNone(editingPeriod)) return []
-    
+
     const categoryIds = editingPeriod.value.minimizeCategoryIds ?? []
     return categoryIds.map(id => id as string)
+  })
+
+  // Computed: questions for form (QuestionOption[] format)
+  const questionsForForm$ = computed((): readonly QuestionOption[] => {
+    const questionsData = deps.questionsData$?.value
+    if (!questionsData) return [] // Still loading
+    return questionsData.map((q): QuestionOption => ({
+      id: q._id,
+      question: q.question,
+      kind: q.kind,
+      category: q.category,
+    }))
+  })
+
+  // Computed: existing question IDs for editing period
+  const existingQuestionIds$ = computed((): readonly string[] => {
+    const existingQuestions = deps.existingQuestionsForPeriod$?.value ?? []
+    return existingQuestions.map(sq => sq.questionId)
   })
 
   // Create dialog
@@ -550,6 +584,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const onCreateSubmit = (values: SelectionPeriodFormValues): void => {
     const periodTitle = values.title
     const accessMode = values.accessMode
+    const selectedQuestionIds = values.questionIds ?? []
 
     deps.createPeriod({
       title: values.title,
@@ -564,15 +599,24 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
       accessMode,
       codeLength: values.codeLength,
     })
-      .then((result) => {
+      .then(async (result) => {
         const createdPeriodId = result.periodId
-        const shareableSlug = (result as any).shareableSlug ?? ""
+        const shareableSlug = result.shareableSlug
+
+        // Add selected questions to the period
+        for (const questionId of selectedQuestionIds) {
+          await deps.addQuestion({
+            selectionPeriodId: createdPeriodId,
+            questionId: questionId as Id<"questions">,
+          })
+        }
+
         // Show access codes panel instead of closing
         createdPeriod$.value = Option.some({
           id: createdPeriodId,
           title: periodTitle,
           shareableSlug,
-          accessMode: (result as any).accessMode ?? accessMode,
+          accessMode: result.accessMode ?? accessMode,
         })
       })
       .catch((error) => {
@@ -584,22 +628,51 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
   const onEditSubmit = (values: SelectionPeriodFormValues): void => {
     Option.match(editingPeriod$.value, {
       onNone: () => { },
-      onSome: (editingPeriodValue) => {
+      onSome: async (editingPeriodValue) => {
         if (!editingPeriodValue._id) return
+        const periodId = editingPeriodValue._id
 
-        deps.updatePeriod({
-          periodId: editingPeriodValue._id,
-          title: values.title,
-          description: values.title,
-          openDate: values.start_deadline.getTime(),
-          closeDate: values.end_deadline.getTime(),
-          minimizeCategoryIds: values.minimizeCategoryIds?.map(id => id as Id<"categories">),
-          rankingsEnabled: values.rankingsEnabled,
-        })
-          .then(() => {
-            editDialog.close()
+        try {
+          // Update period basic info
+          await deps.updatePeriod({
+            periodId,
+            title: values.title,
+            description: values.title,
+            openDate: values.start_deadline.getTime(),
+            closeDate: values.end_deadline.getTime(),
+            minimizeCategoryIds: values.minimizeCategoryIds?.map(id => id as Id<"categories">),
+            rankingsEnabled: values.rankingsEnabled,
           })
-          .catch(console.error)
+
+          // Sync questions: compare existing with selected
+          const selectedQuestionIds = values.questionIds ?? []
+          const currentQuestionIds = new Set(existingQuestionIds$.value)
+          const newQuestionIds = new Set(selectedQuestionIds)
+
+          // Add new questions
+          for (const questionId of selectedQuestionIds) {
+            if (!currentQuestionIds.has(questionId)) {
+              await deps.addQuestion({
+                selectionPeriodId: periodId,
+                questionId: questionId as Id<"questions">,
+              })
+            }
+          }
+
+          // Remove deselected questions
+          for (const questionId of existingQuestionIds$.value) {
+            if (!newQuestionIds.has(questionId)) {
+              await deps.removeQuestion({
+                selectionPeriodId: periodId,
+                questionId: questionId as Id<"questions">,
+              })
+            }
+          }
+
+          editDialog.close()
+        } catch (error) {
+          console.error("Failed to update period:", error)
+        }
       }
     })
   }
@@ -717,7 +790,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         deps.createQuestion({
           question: values.question,
           kind: values.kind,
-          category: values.characteristicName,
+          characteristicName: values.characteristicName,
           semesterId: "default",
         })
           .then(() => {
@@ -730,7 +803,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
           id: editingQuestionValue._id as Id<"questions">,
           question: values.question,
           kind: values.kind,
-          category: values.characteristicName || undefined
+          characteristicName: values.characteristicName || undefined
         })
           .then(() => {
             questionDialog.close()
@@ -781,6 +854,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     existingTopicIds$,
     categories$,
     existingMinimizeCategoryIds$,
+    questionsForForm$,
+    existingQuestionIds$,
     createdPeriod$,
     onCreateSubmit,
     onEditSubmit,
@@ -872,12 +947,16 @@ export function usePeriodsViewVM(): PeriodsViewVM {
         status: "assigned"
       }))
     })
-    const questionsData$ = computed(() => questionsData as any)
+    const questionsData$ = computed(() => questionsData as readonly Question[] | undefined)
     const templatesData$ = computed(() => templatesData)
-    const existingQuestionsData$ = computed(() => existingQuestionsData)
+    const existingQuestionsForPeriod$ = computed(() => {
+      // Map from the query result format to { questionId: string }[]
+      if (!existingQuestionsData) return undefined
+      return existingQuestionsData.map((sq) => ({ questionId: sq.questionId as string }))
+    })
     const topicsData$ = computed(() => [])
     const existingTopicsData$ = computed(() => [])
-    const constraintsData$ = computed(() => constraintsData as any)
+    const constraintsData$ = computed(() => constraintsData as readonly Category[] | undefined)
     const constraintNamesData$ = computed(() => constraintNamesData)
 
     return {
@@ -886,7 +965,7 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       assignmentsData$,
       questionsData$,
       templatesData$,
-      existingQuestionsData$,
+      existingQuestionsForPeriod$,
       topicsData$,
       existingTopicsData$,
       constraintsData$,
@@ -898,11 +977,11 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       removeQuestion: removeQuestionMutation,
       // Question & Constraint Management
       constraintNamesData$,
-      createQuestion: createQuestionMutation as any,
+      createQuestion: createQuestionMutation,
       updateQuestion: updateQuestionMutation,
       deleteQuestion: deleteQuestionMutation,
-      createConstraint: createConstraintMutation as any,
-      updateConstraint: updateConstraintMutation as any,
+      createConstraint: createConstraintMutation,
+      updateConstraint: updateConstraintMutation,
       deleteConstraint: deleteConstraintMutation,
     }
   }, [

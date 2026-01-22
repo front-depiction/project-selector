@@ -8,6 +8,7 @@ import type { Infer } from "convex/values"
  * @since 0.2.0
  */
 export const Constraint = v.object({
+  userId: v.string(),
   name: v.string(),
   description: v.optional(v.string()),
   semesterId: v.string(),
@@ -51,6 +52,7 @@ export type Constraint = Readonly<Infer<typeof Constraint>>
  * })
  */
 export const make = (params: {
+  readonly userId: string
   readonly name: string
   readonly description?: string
   readonly semesterId: string
@@ -60,6 +62,7 @@ export const make = (params: {
   readonly minStudents?: number
   readonly maxStudents?: number
 }): Constraint => ({
+  userId: params.userId,
   name: params.name,
   description: params.description,
   semesterId: params.semesterId,

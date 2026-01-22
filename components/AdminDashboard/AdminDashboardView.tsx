@@ -260,7 +260,7 @@ const OverviewView: React.FC = () => {
           ...selectedPeriodStats,
           matchRate,
           topChoiceRate
-        } as any : undefined}
+        } as LandingStats & { matchRate?: number; topChoiceRate?: number } : undefined}
       />
 
       {/* Topics with Groups - Show for selected period */}
@@ -378,7 +378,7 @@ const OverviewView: React.FC = () => {
                 topicIds: [],
                 minimizeCategoryIds: []
               }}
-              onSubmit={vm.updatePeriodFromForm as any}
+              onSubmit={vm.updatePeriodFromForm}
             />
           )}
         </DialogContent>
@@ -402,7 +402,7 @@ const OverviewView: React.FC = () => {
                 constraintIds: [], // TODO: Get constraintIds from topic if stored
                 duplicateCount: 1
               }}
-              onSubmit={vm.updateTopicFromForm as any}
+              onSubmit={vm.updateTopicFromForm}
             />
           )}
         </DialogContent>

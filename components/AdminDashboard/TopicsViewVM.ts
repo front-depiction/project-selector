@@ -13,6 +13,7 @@ export interface TopicItemVM {
   readonly key: string
   readonly title: string
   readonly description: string
+  readonly constraintNames: readonly string[]
   readonly remove: () => void
   readonly edit: () => void
 }
@@ -27,7 +28,7 @@ export interface ConstraintItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
-  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
   readonly criterionDisplay: string
   readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly edit: () => void
@@ -38,7 +39,7 @@ export interface Constraint {
   readonly _id: string
   readonly name: string
   readonly description?: string
-  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
   readonly minStudents?: number
   readonly maxStudents?: number
   // Legacy fields from database (may still exist)
@@ -58,6 +59,7 @@ export interface EditTopicDialogVM extends DialogVM {
     readonly title: string
     readonly description: string
     readonly semesterId: string
+    readonly constraintIds?: Id<"categories">[]
   }>>
 }
 
@@ -85,13 +87,14 @@ export interface TopicsViewVMDeps {
     title: string
     description: string
     semesterId: string
-    constraintIds?: string[]
+    constraintIds?: Id<"categories">[]
     duplicateCount?: number
   }) => Promise<any>
   readonly updateTopic: (args: {
     id: Id<"topics">
     title: string
     description: string
+    constraintIds?: Id<"categories">[]
   }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
   readonly createConstraint: (args: {
@@ -138,6 +141,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     title: string
     description: string
     semesterId: string
+    constraintIds?: Id<"categories">[]
   }>>(Option.none())
   const editingConstraint$ = signal<Option.Option<Constraint>>(Option.none())
 
@@ -150,32 +154,42 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       id: fullTopic._id,
       title: fullTopic.title,
       description: fullTopic.description,
-      semesterId: fullTopic.semesterId
+      semesterId: fullTopic.semesterId,
+      constraintIds: fullTopic.constraintIds
     })
     editTopicDialogOpen$.value = true
   }
 
   // Computed: topics list for table with edit handler
-  const topicItems$ = computed((): readonly TopicItemVM[] =>
-    (topics$.value ?? []).map((topic): TopicItemVM => ({
-      key: topic._id,
-      title: topic.title,
-      description: topic.description,
-      remove: () => {
-        deleteTopic({ id: topic._id }).catch((error) => {
-          console.error("Failed to delete topic:", error)
-          toast.error(
-            error instanceof Error && error.message.includes("student selections")
-              ? "Cannot delete topic with existing student selections"
-              : "Failed to delete topic. Please try again."
-          )
-        })
-      },
-      edit: () => {
-        openEditDialog(topic._id)
-      },
-    }))
-  )
+  const topicItems$ = computed((): readonly TopicItemVM[] => {
+    const constraintsData = constraints$.value ?? []
+    return (topics$.value ?? []).map((topic): TopicItemVM => {
+      // Look up constraint names from IDs
+      const constraintNames = (topic.constraintIds ?? [])
+        .map((id: string) => constraintsData.find((c: any) => c._id === id)?.name)
+        .filter((name: string | undefined): name is string => name !== undefined)
+
+      return {
+        key: topic._id,
+        title: topic.title,
+        description: topic.description,
+        constraintNames,
+        remove: () => {
+          deleteTopic({ id: topic._id }).catch((error) => {
+            console.error("Failed to delete topic:", error)
+            toast.error(
+              error instanceof Error && error.message.includes("student selections")
+                ? "Cannot delete topic with existing student selections"
+                : "Failed to delete topic. Please try again."
+            )
+          })
+        },
+        edit: () => {
+          openEditDialog(topic._id)
+        },
+      }
+    })
+  })
 
   // Sort topics by title
   const sortedTopics$ = computed((): readonly TopicItemVM[] => {
@@ -288,7 +302,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
         title: values.title,
         description: values.description,
         semesterId: "default", // Use default semesterId since we removed it from the form
-        constraintIds: values.constraintIds,
+        constraintIds: values.constraintIds as Id<"categories">[] | undefined,
         duplicateCount: values.duplicateCount,
       })
       createTopicDialog.close()
@@ -306,6 +320,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           id: editing.id,
           title: values.title,
           description: values.description,
+          constraintIds: values.constraintIds as Id<"categories">[] | undefined,
         })
           .then(() => {
             editTopicDialog.close()

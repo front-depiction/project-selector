@@ -31,7 +31,7 @@ export interface CategoryItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | "maximize"
   readonly criterionDisplay: string
   readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly edit: () => void
@@ -91,7 +91,7 @@ export interface Category {
   readonly _id: string
   readonly name: string
   readonly description?: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | "maximize"
   readonly minRatio?: number
   readonly target?: number
 }
@@ -114,17 +114,19 @@ export interface QuestionnairesViewDeps {
     name: string
     description?: string
     semesterId: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | "maximize"
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
   readonly updateConstraint: (args: {
     id: Id<"categories">
     name?: string
     description?: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | "maximize"
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
   readonly deleteConstraint: (args: { id: Id<"categories"> }) => Promise<any>
 }
@@ -391,8 +393,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     }
 
     // Map form values to DB schema
-    const minRatio = values.minStudents
-    const target = values.maxStudents
+    const minStudents = values.minStudents
+    const maxStudents = values.maxStudents
 
     EffectOption.match(editingCategory$.value, {
       onNone: () => {
@@ -401,8 +403,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           description: values.description || undefined,
           semesterId: "default",
           criterionType: criterionType ?? undefined,
-          minRatio,
-          target,
+          minStudents,
+          maxStudents,
         })
           .then(() => {
             categoryDialog.close()
@@ -415,8 +417,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           name: values.name,
           description: values.description || undefined,
           criterionType: criterionType ?? undefined,
-          minRatio,
-          target,
+          minStudents,
+          maxStudents,
         })
           .then(() => {
             categoryDialog.close()

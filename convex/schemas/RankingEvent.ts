@@ -1,4 +1,5 @@
 import { v } from "convex/values"
+import type { Id } from "../_generated/dataModel"
 
 /**
  * Schema for ranking events - tracks changes to topic rankings over time.
@@ -24,14 +25,14 @@ export type RankingEvent = typeof RankingEvent
  * @since 0.2.0
  */
 export const make = (params: {
-  topicId: string
+  topicId: Id<"topics">
   studentId: string
   position: number
   previousPosition?: number
   action: "added" | "moved" | "removed"
   semesterId: string
 }) => ({
-  topicId: params.topicId as any,
+  topicId: params.topicId,
   studentId: params.studentId,
   position: params.position,
   previousPosition: params.previousPosition,

@@ -5,6 +5,7 @@ import { describe, it, expect } from "vitest"
 import { signal, computed } from "@preact/signals-react"
 import type { TopicFormValues } from "@/components/forms/topic-form"
 import type { TopicItemVM, PeriodOptionVM } from "./TopicsViewVM"
+import type { Id } from "@/convex/_generated/dataModel"
 
 /**
  * Following the testing philosophy from viemodel.txt:
@@ -13,22 +14,41 @@ import type { TopicItemVM, PeriodOptionVM } from "./TopicsViewVM"
  * - Tests the business logic directly
  */
 
+// Mock topic type for testing
+interface MockTopic {
+  _id: string
+  title: string
+  description: string
+  isActive: boolean
+  semesterId: string
+}
+
+// Mock period type for testing
+interface MockPeriod {
+  _id: string
+  semesterId: string
+  title: string
+  openDate: number
+  closeDate: number
+  kind: "open" | "inactive" | "closed" | "assigned"
+}
+
 // Helper to create a mock topics$ signal
-function createMockTopicsSignal(mockData: any[] | null | undefined) {
+function createMockTopicsSignal(mockData: MockTopic[] | null | undefined) {
   return computed(() =>
     (mockData ?? []).map((topic): TopicItemVM => ({
       key: topic._id,
       title: topic.title,
       description: topic.description,
+      constraintNames: [],
       remove: () => {},
       edit: () => {},
-      semesterId: topic.semesterId,
     }))
   )
 }
 
 // Helper to create a mock periodOptions$ signal
-function createMockPeriodOptionsSignal(mockData: any[] | null | undefined) {
+function createMockPeriodOptionsSignal(mockData: MockPeriod[] | null | undefined) {
   return computed(() =>
     (mockData ?? []).map((period): PeriodOptionVM => ({
       value: period.semesterId,
@@ -42,14 +62,14 @@ describe("TopicsViewVM", () => {
     it("should correctly map topic data to display format", () => {
       const mockTopics = [
         {
-          _id: "t1" as any,
+          _id: "t1",
           title: "Machine Learning",
           description: "Advanced ML techniques",
           isActive: true,
           semesterId: "2024-spring",
         },
         {
-          _id: "t2" as any,
+          _id: "t2",
           title: "Web Development",
           description: "Full-stack web apps",
           isActive: false,
@@ -87,7 +107,7 @@ describe("TopicsViewVM", () => {
 
     it("should provide remove and edit callbacks for each topic", () => {
       const mockTopics = [
-        { _id: "t1" as any, title: "Test Topic", description: "Test description", isActive: true, semesterId: "2024-spring" },
+        { _id: "t1", title: "Test Topic", description: "Test description", isActive: true, semesterId: "2024-spring" },
       ]
 
       const topics$ = createMockTopicsSignal(mockTopics)
@@ -99,8 +119,8 @@ describe("TopicsViewVM", () => {
 
     it("should map both active and inactive statuses correctly", () => {
       const mockTopics = [
-        { _id: "t1" as any, title: "Active Topic", description: "Active", isActive: true, semesterId: "2024-spring" },
-        { _id: "t2" as any, title: "Inactive Topic", description: "Inactive", isActive: false, semesterId: "2024-spring" },
+        { _id: "t1", title: "Active Topic", description: "Active", isActive: true, semesterId: "2024-spring" },
+        { _id: "t2", title: "Inactive Topic", description: "Inactive", isActive: false, semesterId: "2024-spring" },
       ]
 
       const topics$ = createMockTopicsSignal(mockTopics)
@@ -112,8 +132,8 @@ describe("TopicsViewVM", () => {
   describe("periodOptions$ signal", () => {
     it("should correctly map period data to option format", () => {
       const mockPeriods = [
-        { _id: "p1" as any, semesterId: "2024-spring", title: "Spring 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "open" as const },
-        { _id: "p2" as any, semesterId: "2024-fall", title: "Fall 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "inactive" as const },
+        { _id: "p1", semesterId: "2024-spring", title: "Spring 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "open" as const },
+        { _id: "p2", semesterId: "2024-fall", title: "Fall 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "inactive" as const },
       ]
 
       const periodOptions$ = createMockPeriodOptionsSignal(mockPeriods)
@@ -233,8 +253,8 @@ describe("TopicsViewVM", () => {
 
   describe("integration scenarios", () => {
     it("should handle complete workflow data transformations", () => {
-      const mockTopics = [{ _id: "t1" as any, title: "Machine Learning", description: "ML techniques", isActive: true, semesterId: "2024-spring" }]
-      const mockPeriods = [{ _id: "p1" as any, semesterId: "2024-spring", title: "Spring 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "open" as const }]
+      const mockTopics = [{ _id: "t1", title: "Machine Learning", description: "ML techniques", isActive: true, semesterId: "2024-spring" }]
+      const mockPeriods = [{ _id: "p1", semesterId: "2024-spring", title: "Spring 2024", openDate: Date.now(), closeDate: Date.now() + 1000000, kind: "open" as const }]
 
       const topics$ = createMockTopicsSignal(mockTopics)
       const periodOptions$ = createMockPeriodOptionsSignal(mockPeriods)
@@ -261,9 +281,9 @@ describe("TopicsViewVM", () => {
 
     it("should handle mixed active/inactive topics", () => {
       const mockTopics = [
-        { _id: "t1" as any, title: "Active 1", description: "Active", isActive: true, semesterId: "2024-spring" },
-        { _id: "t2" as any, title: "Inactive 1", description: "Inactive", isActive: false, semesterId: "2024-spring" },
-        { _id: "t3" as any, title: "Active 2", description: "Active", isActive: true, semesterId: "2024-spring" },
+        { _id: "t1", title: "Active 1", description: "Active", isActive: true, semesterId: "2024-spring" },
+        { _id: "t2", title: "Inactive 1", description: "Inactive", isActive: false, semesterId: "2024-spring" },
+        { _id: "t3", title: "Active 2", description: "Active", isActive: true, semesterId: "2024-spring" },
       ]
 
       const topics$ = createMockTopicsSignal(mockTopics)

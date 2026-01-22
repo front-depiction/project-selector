@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from "vitest"
 import { signal, computed } from "@preact/signals-react"
-import type { Doc } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import type {
   PeriodItemVM,
   TopicItemVM,
@@ -30,20 +30,20 @@ import type {
 
 const mockPeriods: Array<Doc<"selectionPeriods"> & { studentCount?: number; assignmentCount?: number }> = [
   {
-    _id: "p1" as any,
+    _id: "p1" as Id<"selectionPeriods">,
     _creationTime: Date.now(),
     title: "Spring 2024",
     description: "Spring semester topic selection",
     semesterId: "spring2024",
     kind: "open",
-    scheduledFunctionId: "scheduled1" as any,
+    scheduledFunctionId: "scheduled1" as Id<"_scheduled_functions">,
     openDate: new Date("2024-01-01").getTime(),
     closeDate: new Date("2024-01-31").getTime(),
     studentCount: 50,
     assignmentCount: 45
   },
   {
-    _id: "p2" as any,
+    _id: "p2" as Id<"selectionPeriods">,
     _creationTime: Date.now(),
     title: "Fall 2023",
     description: "Fall semester topic selection",
@@ -58,16 +58,16 @@ const mockPeriods: Array<Doc<"selectionPeriods"> & { studentCount?: number; assi
 
 const mockTopics: Array<Doc<"topics">> = [
   {
-    _id: "t1" as any,
+    _id: "t1" as Id<"topics">,
     _creationTime: Date.now(),
     title: "Machine Learning",
     description: "Deep learning and neural networks",
     semesterId: "spring2024",
     isActive: true,
-    subtopicIds: ["st1" as any, "st2" as any]
+    subtopicIds: ["st1" as Id<"subtopics">, "st2" as Id<"subtopics">]
   },
   {
-    _id: "t2" as any,
+    _id: "t2" as Id<"topics">,
     _creationTime: Date.now(),
     title: "Blockchain",
     description: "Distributed ledger technology",
@@ -638,24 +638,22 @@ describe("DashboardVM", () => {
       const formData: TopicFormData = {
         title: "Machine Learning",
         description: "AI and ML topics",
-        semesterId: "spring2024",
-        subtopicIds: ["st1" as any, "st2" as any]
+        semesterId: "spring2024"
       }
 
       expect(formData.title).toBe("Machine Learning")
       expect(formData.description).toBe("AI and ML topics")
       expect(formData.semesterId).toBe("spring2024")
-      expect(formData.subtopicIds).toHaveLength(2)
     })
 
-    it("should handle optional subtopicIds", () => {
+    it("should handle all required fields", () => {
       const formData: TopicFormData = {
         title: "Machine Learning",
         description: "AI and ML topics",
         semesterId: "spring2024"
       }
 
-      expect(formData.subtopicIds).toBeUndefined()
+      expect(Object.keys(formData)).toEqual(["title", "description", "semesterId"])
     })
 
     it("should handle optional setAsActive", () => {
@@ -737,7 +735,7 @@ describe("DashboardVM", () => {
       topicsSignal.value = [
         ...mockTopics,
         {
-          _id: "t3" as any,
+          _id: "t3" as Id<"topics">,
           _creationTime: Date.now(),
           title: "Cloud Computing",
           description: "Cloud platforms",

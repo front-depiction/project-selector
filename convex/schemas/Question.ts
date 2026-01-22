@@ -8,6 +8,7 @@ import type { Infer } from "convex/values"
  * `characteristicName` to better describe its purpose (linking to Category entities).
  */
 export const BooleanQuestion = v.object({
+  userId: v.string(),
   question: v.string(),
   kind: v.literal("boolean"),
   category: v.string(), // DB field name; represents characteristicName (e.g., "Technical Skills", "Soft Skills")
@@ -22,6 +23,7 @@ export const BooleanQuestion = v.object({
  * `characteristicName` to better describe its purpose (linking to Category entities).
  */
 export const ZeroToSixQuestion = v.object({
+  userId: v.string(),
   question: v.string(),
   kind: v.literal("0to6"),
   category: v.string(), // DB field name; represents characteristicName (e.g., "Technical Skills", "Soft Skills")
@@ -66,6 +68,7 @@ export type ZeroToSixQuestion = Readonly<Infer<typeof ZeroToSixQuestion>>
  * })
  */
 export const make = (params: {
+  readonly userId: string
   readonly question: string
   readonly kind: "boolean" | "0to6"
   /** The characteristic/category name this question belongs to */
@@ -73,6 +76,7 @@ export const make = (params: {
   readonly semesterId: string
   readonly createdAt?: number
 }): Question => ({
+  userId: params.userId,
   question: params.question,
   kind: params.kind,
   category: params.characteristicName, // Map to DB field name

@@ -24,7 +24,7 @@ export default function Pricing() {
                                     <Button
                                         asChild
                                         className="w-full"
-                                        variant="neutral">
+                                        variant="secondary">
                                         <Link href="#">Get Started</Link>
                                     </Button>
                                 </div>
@@ -87,7 +87,7 @@ export default function Pricing() {
                                     <Button
                                         asChild
                                         className="w-full"
-                                        variant="neutral">
+                                        variant="secondary">
                                         <Link href="#">Get Started</Link>
                                     </Button>
                                 </div>

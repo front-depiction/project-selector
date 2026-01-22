@@ -16,10 +16,11 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
   const thirtyDaysFromNow = now + (30 * 24 * 60 * 60 * 1000)
 
   return await t.run(async (ctx: any) => {
-    const periodId = await createTestSelectionPeriod(ctx, semesterId, now, thirtyDaysFromNow)
+    const periodId = await createTestSelectionPeriod(ctx, "test-user", semesterId, now, thirtyDaysFromNow)
 
     // Create test questions - using Question.make pattern
     const question1Id = await ctx.db.insert("questions", {
+      userId: "test-user",
       semesterId,
       question: "Do you enjoy working in teams?",
       kind: "boolean" as const,
@@ -28,6 +29,7 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
     })
 
     const question2Id = await ctx.db.insert("questions", {
+      userId: "test-user",
       semesterId,
       question: "Rate your interest in this topic",
       kind: "0to6" as const,
@@ -36,6 +38,7 @@ async function seedTestData(t: ReturnType<typeof convexTest>) {
     })
 
     const question3Id = await ctx.db.insert("questions", {
+      userId: "test-user",
       semesterId,
       question: "Do you have prior experience?",
       kind: "boolean" as const,
@@ -503,11 +506,12 @@ test("studentAnswers: answers are isolated per selection period", async () => {
 
   const { period1Id, period2Id, questionId } = await t.run(async (ctx: any) => {
     // Create two selection periods
-    const period1Id = await createTestSelectionPeriod(ctx, semesterId, now, futureClose)
-    const period2Id = await createTestSelectionPeriod(ctx, semesterId, now + 1000, futureClose + 1000)
+    const period1Id = await createTestSelectionPeriod(ctx, "test-user", semesterId, now, futureClose)
+    const period2Id = await createTestSelectionPeriod(ctx, "test-user", semesterId, now + 1000, futureClose + 1000)
 
     // Create a question
     const questionId = await ctx.db.insert("questions", {
+      userId: "test-user",
       semesterId,
       question: "Test question",
       kind: "boolean" as const,

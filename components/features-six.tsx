@@ -12,8 +12,7 @@ export default function FeaturesSection() {
                     </div>
                     <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <Card
-                            variant="soft"
-                            className="overflow-hidden p-6">
+                            className="overflow-hidden p-6 bg-muted/50">
                             <Target className="text-primary size-5" />
                             <h3 className="text-foreground mt-5 text-lg font-semibold">Shareable Selection Links</h3>
                             <p className="text-muted-foreground mt-3 text-balance">Teachers generate a unique link for each selection period. Students join with one click - no codes needed.</p>
@@ -22,8 +21,7 @@ export default function FeaturesSection() {
                         </Card>
 
                         <Card
-                            variant="soft"
-                            className="group overflow-hidden px-6 pt-6">
+                            className="group overflow-hidden px-6 pt-6 bg-muted/50">
                             <CalendarCheck className="text-primary size-5" />
                             <h3 className="text-foreground mt-5 text-lg font-semibold">Smart Topic Ranking</h3>
                             <p className="text-muted-foreground mt-3 text-balance">Students rank topics by preference. Real-time analytics show popularity and competition.</p>
@@ -31,8 +29,7 @@ export default function FeaturesSection() {
                             <TopicRankingIllustration />
                         </Card>
                         <Card
-                            variant="soft"
-                            className="group overflow-hidden px-6 pt-6">
+                            className="group overflow-hidden px-6 pt-6 bg-muted/50">
                             <Sparkles className="text-primary size-5" />
                             <h3 className="text-foreground mt-5 text-lg font-semibold">Optimal Assignment Algorithm</h3>
                             <p className="text-muted-foreground mt-3 text-balance">Constraint-based optimization ensures fair distribution. Respects student preferences while balancing groups.</p>

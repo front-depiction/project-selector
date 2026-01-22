@@ -36,6 +36,7 @@ const formSchema = z.object({
     end_deadline: z.date(),
     topicIds: z.array(z.string()).min(1, "Select at least one topic"),
     minimizeCategoryIds: z.array(z.string()).optional(),
+    questionIds: z.array(z.string()).optional(),
     rankingsEnabled: z.boolean(),
     accessMode: z.enum(["code", "student_id"]),
     codeLength: z.number().min(4).max(12),
@@ -58,14 +59,23 @@ export interface CategoryOption {
     description?: string
 }
 
+export interface QuestionOption {
+    id: string
+    question: string
+    kind: "boolean" | "0to6"
+    category?: string
+}
+
 export default function SelectionPeriodForm({
     topics = [],
     categories = [],
+    questions = [],
     initialValues,
     onSubmit,
 }: {
     topics?: readonly TopicOption[]
     categories?: readonly CategoryOption[]
+    questions?: readonly QuestionOption[]
     initialValues?: Partial<SelectionPeriodFormValues>
     onSubmit: (values: SelectionPeriodFormValues) => void | Promise<void>
 }) {
@@ -88,6 +98,7 @@ export default function SelectionPeriodForm({
             end_deadline: defaultEndDate,
             topicIds: initialValues?.topicIds ?? [],
             minimizeCategoryIds: initialValues?.minimizeCategoryIds ?? [],
+            questionIds: initialValues?.questionIds ?? [],
             rankingsEnabled: initialValues?.rankingsEnabled ?? true,
             accessMode: initialValues?.accessMode ?? "code",
             codeLength: initialValues?.codeLength ?? 6,
@@ -104,6 +115,7 @@ export default function SelectionPeriodForm({
             start_deadline: initialValues.start_deadline?.getTime(),
             end_deadline: initialValues.end_deadline?.getTime(),
             topicIds: initialValues.topicIds,
+            questionIds: initialValues.questionIds,
             rankingsEnabled: initialValues.rankingsEnabled,
             accessMode: initialValues.accessMode,
             codeLength: initialValues.codeLength,
@@ -123,6 +135,7 @@ export default function SelectionPeriodForm({
                 end_deadline: endDate,
                 topicIds: initialValues.topicIds ?? [],
                 minimizeCategoryIds: initialValues.minimizeCategoryIds ?? [],
+                questionIds: initialValues.questionIds ?? [],
                 rankingsEnabled: initialValues.rankingsEnabled ?? true,
                 accessMode: initialValues.accessMode ?? "code",
                 codeLength: initialValues.codeLength ?? 6,
@@ -144,6 +157,7 @@ export default function SelectionPeriodForm({
 
     const topicIds = useWatch({ control: form.control, name: "topicIds" })
     const minimizeCategoryIds = useWatch({ control: form.control, name: "minimizeCategoryIds" })
+    const questionIds = useWatch({ control: form.control, name: "questionIds" })
     const semesterId = useWatch({ control: form.control, name: "selection_period_id" })
     const accessMode = useWatch({ control: form.control, name: "accessMode" })
 
@@ -169,6 +183,14 @@ export default function SelectionPeriodForm({
             ? current.filter((id: string) => id !== categoryId)
             : [...current, categoryId]
         form.setValue("minimizeCategoryIds", next)
+    }
+
+    const toggleQuestion = (questionId: string) => {
+        const current = form.getValues("questionIds") ?? []
+        const next = current.includes(questionId)
+            ? current.filter((id: string) => id !== questionId)
+            : [...current, questionId]
+        form.setValue("questionIds", next)
     }
 
     async function handleSubmit(values: z.infer<typeof formSchema>) {
@@ -439,6 +461,63 @@ export default function SelectionPeriodForm({
                                                         {category.description}
                                                     </p>
                                                 )}
+                                            </div>
+                                        </label>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Questions Section */}
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Label className="text-base">Questionnaire Questions</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Select questions students must answer before ranking topics.
+                                {questionIds && questionIds.length > 0 && (
+                                    <Badge variant="secondary" className="ml-2">{questionIds.length} selected</Badge>
+                                )}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="max-h-[200px] overflow-y-auto scrollbar-hide rounded-md border p-2">
+                        {questions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-8 text-center">
+                                No questions available. Create questions in the Questions section first.
+                            </p>
+                        ) : (
+                            <div className="space-y-2">
+                                {questions.map((question) => {
+                                    const isChecked = questionIds?.includes(question.id)
+                                    return (
+                                        <label
+                                            key={question.id}
+                                            htmlFor={`sp-question-${question.id}`}
+                                            className="flex items-start space-x-3 rounded-md border p-3 hover:bg-muted/50 cursor-pointer"
+                                        >
+                                            <Checkbox
+                                                id={`sp-question-${question.id}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleQuestion(question.id)}
+                                            />
+                                            <div className="flex-1 space-y-1">
+                                                <p className="text-sm font-medium leading-none">
+                                                    {question.question}
+                                                </p>
+                                                <div className="flex gap-2 text-xs text-muted-foreground">
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {question.kind === "boolean" ? "Yes/No" : "Scale 0-6"}
+                                                    </Badge>
+                                                    {question.category && (
+                                                        <Badge variant="secondary" className="text-xs">
+                                                            {question.category}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                         </label>
                                     )
