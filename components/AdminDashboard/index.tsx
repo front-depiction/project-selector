@@ -125,6 +125,26 @@ export const useDashboard = () => {
 }
 
 // ============================================================================
+// VM CONTEXT (for sharing the VM instance across components)
+// ============================================================================
+
+type DashboardVMType = ReturnType<typeof useDashboardVM>
+
+const DashboardVMContext = React.createContext<DashboardVMType | null>(null)
+
+/**
+ * Hook to get the shared DashboardVM instance.
+ * Must be used within a Provider component.
+ */
+export const useSharedDashboardVM = (): DashboardVMType => {
+  const context = React.useContext(DashboardVMContext)
+  if (!context) {
+    throw new Error("useSharedDashboardVM must be used within DashboardProvider")
+  }
+  return context
+}
+
+// ============================================================================
 // PROVIDER
 // ============================================================================
 
@@ -186,9 +206,11 @@ export const Provider: React.FC<ProviderProps> = ({ children }) => {
   }
 
   return (
-    <DashboardContext.Provider value={value}>
-      {children}
-    </DashboardContext.Provider>
+    <DashboardVMContext.Provider value={vm}>
+      <DashboardContext.Provider value={value}>
+        {children}
+      </DashboardContext.Provider>
+    </DashboardVMContext.Provider>
   )
 }
 

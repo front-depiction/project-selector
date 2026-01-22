@@ -188,8 +188,17 @@ export interface TopicFormData {
 
 export function useDashboardVM(): DashboardVM {
   const convex = useConvex()
-  // Reactive state - stable signal created once per component lifecycle
+  // Use React state for activeView to ensure proper re-renders across components
+  // Signals don't trigger React re-renders reliably when shared across component boundaries
+  const [activeViewState, setActiveViewState] = React.useState<ViewType>("overview")
+
+  // Create a stable signal that mirrors the React state for API compatibility
   const activeView$ = React.useMemo(() => signal<ViewType>("overview"), [])
+
+  // Keep the signal in sync with React state
+  React.useEffect(() => {
+    activeView$.value = activeViewState
+  }, [activeViewState, activeView$])
 
   // Legacy dialog state for overview components
   const editPeriodDialogOpen$ = React.useMemo(() => signal(false), [])
@@ -538,7 +547,7 @@ export function useDashboardVM(): DashboardVM {
 
   // Actions
   const setActiveView = (view: ViewType, updateUrl = true): void => {
-    activeView$.value = view
+    setActiveViewState(view)
     // Update URL without page refresh
     if (updateUrl && typeof window !== "undefined") {
       const url = new URL(window.location.href)
@@ -554,7 +563,7 @@ export function useDashboardVM(): DashboardVM {
   // Sync view from URL param
   const syncFromUrl = (tab: string | null): void => {
     const view = tab && validViews.includes(tab as ViewType) ? (tab as ViewType) : "overview"
-    activeView$.value = view
+    setActiveViewState(view)
   }
 
   const createPeriod = (data: PeriodFormData): void => {
@@ -739,7 +748,7 @@ export function useDashboardVM(): DashboardVM {
       },
       setActiveView: (view: string) => {
         const viewType = view as ViewType
-        activeView$.value = viewType
+        setActiveViewState(viewType)
         // Update URL without page refresh
         if (typeof window !== "undefined") {
           const url = new URL(window.location.href)
@@ -785,7 +794,7 @@ export function useDashboardVM(): DashboardVM {
 
     // Actions - with URL update support
     const setActiveViewInner = (view: ViewType, updateUrl = true): void => {
-      activeView$.value = view
+      setActiveViewState(view)
       // Update URL without page refresh
       if (updateUrl && typeof window !== "undefined") {
         const url = new URL(window.location.href)
@@ -801,7 +810,7 @@ export function useDashboardVM(): DashboardVM {
     // Sync view from URL param
     const syncFromUrlInner = (tab: string | null): void => {
       const view = tab && validViewsInner.includes(tab as ViewType) ? (tab as ViewType) : "overview"
-      activeView$.value = view
+      setActiveViewState(view)
     }
 
     // Legacy actions for backward compatibility

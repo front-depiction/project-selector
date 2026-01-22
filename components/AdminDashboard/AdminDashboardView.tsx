@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import * as AD from "./index"
+import { useSharedDashboardVM } from "./index"
 import * as SelectionPeriod from "@/convex/schemas/SelectionPeriod"
 import type { Doc } from "@/convex/_generated/dataModel"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -54,7 +55,7 @@ import type { LandingStats } from "@/convex/stats"
 const OverviewView: React.FC = () => {
   useSignals()
   const { currentPeriod, assignments, periods } = AD.useDashboard()
-  const vm = AD.useDashboardVM()
+  const vm = useSharedDashboardVM()
 
   // Get all periods for the selector
   const allPeriods = periods ?? []
@@ -419,8 +420,9 @@ const MainContent: React.FC = () => {
   // Enable signals reactivity
   useSignals()
 
-  const { activeView } = AD.useDashboard()
-  const vm = AD.useDashboardVM()
+  const vm = useSharedDashboardVM()
+  // Read from signal directly for reactivity (context value is not reactive)
+  const activeView = vm.activeView$.value
 
   switch (activeView) {
     case "overview":
@@ -452,7 +454,7 @@ export const AdminDashboardView: React.FC = () => {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const vm = AD.useDashboardVM()
+  const vm = useSharedDashboardVM()
 
   // Sync view from URL on initial load and when searchParams change
   React.useEffect(() => {

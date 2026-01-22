@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useSignals } from "@preact/signals-react/runtime"
 import * as AD from "./index"
+import { useSharedDashboardVM } from "./index"
 
 import {
   Sidebar,
@@ -30,7 +31,10 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
   // Enable signals reactivity
   useSignals()
 
-  const { activeView, setActiveView } = AD.useDashboard()
+  const vm = useSharedDashboardVM()
+  // Read from signal directly for reactivity (context value is not reactive)
+  const activeView = vm.activeView$.value
+  const setActiveView = vm.setActiveView
 
   const navigationItems = [
     {
