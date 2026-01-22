@@ -115,8 +115,8 @@ export function OnboardingCard({ vm }: OnboardingCardProps): React.ReactElement 
   const expandedStepId = vm.expandedStepId$.value
 
   return (
-    <div className="w-full max-w-xl">
-      <div className="w-xl rounded-lg border bg-card p-4 text-card-foreground shadow-xs">
+    <div className="w-full">
+      <div className="w-full rounded-lg border bg-card p-4 text-card-foreground shadow-xs">
         <div className="mb-4 mr-2 flex flex-col justify-between sm:flex-row sm:items-center">
           <h3 className="ml-2 font-semibold text-foreground">
             Get started with Project Selector
@@ -227,7 +227,7 @@ export function OnboardingCard({ vm }: OnboardingCardProps): React.ReactElement 
                               isOpen ? "h-auto opacity-100" : "h-0 opacity-0"
                             )}
                           >
-                            <p className="mt-2 text-sm text-muted-foreground sm:max-w-64 md:max-w-xs">
+                            <p className="mt-2 text-sm text-muted-foreground">
                               {step.description}
                             </p>
                             <Button
