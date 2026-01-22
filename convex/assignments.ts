@@ -34,7 +34,13 @@ export const assignNow = mutation({
     }
 
     if (SelectionPeriod.isAssigned(period)) {
-      throw new Error("Period already assigned")
+      const existingAssignments = await ctx.db
+        .query("assignments")
+        .withIndex("by_period", q => q.eq("periodId", args.periodId))
+        .collect()
+      for (const assignment of existingAssignments) {
+        await ctx.db.delete(assignment._id)
+      }
     }
 
     // Cancel scheduled function if exists
@@ -43,7 +49,7 @@ export const assignNow = mutation({
     }
 
     // Run assignment immediately
-    return await assignPeriodInternal(ctx, args.periodId)
+    return await assignPeriodInternal(ctx, args.periodId, true)
   }
 })
 
@@ -103,7 +109,8 @@ export const getAssignmentSetup = query({
  */
 async function assignPeriodInternal(
   ctx: MutationCtx,
-  periodId: Id<"selectionPeriods">
+  periodId: Id<"selectionPeriods">,
+  forceRerun: boolean = false
 ): Promise<string | null> {
   const period = await ctx.db.get(periodId)
 
@@ -112,7 +119,16 @@ async function assignPeriodInternal(
   }
 
   if (SelectionPeriod.isAssigned(period)) {
-    return period.assignmentBatchId // Already assigned
+    if (!forceRerun) {
+      return period.assignmentBatchId // Already assigned
+    }
+    const existingAssignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_period", q => q.eq("periodId", periodId))
+      .collect()
+    for (const assignment of existingAssignments) {
+      await ctx.db.delete(assignment._id)
+    }
   }
 
   // Check if all questionnaires are complete before assigning
@@ -168,14 +184,7 @@ async function assignPeriodInternal(
       if (!allComplete) {
         console.log(`[assignPeriod] Questionnaires incomplete for period ${periodId}. Closing period without assignment.`)
 
-        await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
-          semesterId: period.semesterId,
-          title: period.title,
-          description: period.description,
-          openDate: period.openDate,
-          closeDate: period.closeDate,
-          shareableSlug: period.shareableSlug
-        }))
+        await ctx.db.replace(periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
 
         return null
       }
@@ -218,14 +227,7 @@ async function assignPeriodInternal(
   if (topics.length === 0 || studentIds.length === 0) {
     console.log(`[assignPeriod] Insufficient data for assignment (Topics: ${topics.length}, Students: ${studentIds.length}). Closing period without assignment.`)
 
-    await ctx.db.replace(periodId, SelectionPeriod.makeClosed({
-      semesterId: period.semesterId,
-      title: period.title,
-      description: period.description,
-      openDate: period.openDate,
-      closeDate: period.closeDate,
-      shareableSlug: period.shareableSlug
-    }))
+    await ctx.db.replace(periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
 
     return null
   }
@@ -261,14 +263,7 @@ async function assignPeriodInternal(
   await ctx.db.replace(periodId, SelectionPeriod.assign(batchId)(
     SelectionPeriod.isClosed(period)
       ? period
-      : SelectionPeriod.makeClosed({
-        semesterId: period.semesterId,
-        title: period.title,
-        description: period.description,
-        openDate: period.openDate,
-        closeDate: period.closeDate,
-        shareableSlug: period.shareableSlug
-      })
+      : SelectionPeriod.makeClosed(SelectionPeriod.getBase(period))
   ))
 
   return batchId
@@ -664,7 +659,13 @@ export const saveCPSATAssignments = internalMutation({
     }
 
     if (SelectionPeriod.isAssigned(period)) {
-      return period.assignmentBatchId // Already assigned
+      const existingAssignments = await ctx.db
+        .query("assignments")
+        .withIndex("by_period", q => q.eq("periodId", args.periodId))
+        .collect()
+      for (const assignment of existingAssignments) {
+        await ctx.db.delete(assignment._id)
+      }
     }
 
     // Create batch ID
@@ -686,14 +687,7 @@ export const saveCPSATAssignments = internalMutation({
     await ctx.db.replace(args.periodId, SelectionPeriod.assign(batchId)(
       SelectionPeriod.isClosed(period)
         ? period
-        : SelectionPeriod.makeClosed({
-          semesterId: period.semesterId,
-          title: period.title,
-          description: period.description,
-          openDate: period.openDate,
-          closeDate: period.closeDate,
-          shareableSlug: period.shareableSlug
-        })
+        : SelectionPeriod.makeClosed(SelectionPeriod.getBase(period))
     ))
 
     return batchId

@@ -723,14 +723,7 @@ export const checkAndClosePeriodIfReady = internalMutation({
 
     // If all questionnaires are complete, close the period
     if (allComplete) {
-      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
-        semesterId: period.semesterId,
-        title: period.title,
-        description: period.description,
-        openDate: period.openDate,
-        closeDate: period.closeDate,
-        shareableSlug: period.shareableSlug
-      }))
+      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed(SelectionPeriod.getBase(period)))
     }
   }
 })

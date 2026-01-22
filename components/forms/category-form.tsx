@@ -30,26 +30,28 @@ const formSchema = z.object({
     criterionType: z.enum(["prerequisite", "maximize", "minimize", "pull", "push"], {
         message: "Please select how this category should be used"
     }),
+    minValue: z.number().min(0).max(6).optional(),
+    maxValue: z.number().min(0).max(6).optional(),
     minStudents: z.number().min(1).optional(),
     maxStudents: z.number().min(1).optional(),
 }).refine((data) => {
-    // If prerequisite is selected, minStudents is required
+    // If prerequisite is selected, minValue is required
     if (data.criterionType === "prerequisite") {
-        return data.minStudents !== undefined && data.minStudents !== null
+        return data.minValue !== undefined && data.minValue !== null
     }
     return true
 }, {
-    message: "Minimum students per group is required for Required Minimum criterion",
-    path: ["minStudents"],
+    message: "Minimum value is required for Required Minimum criterion",
+    path: ["minValue"],
 }).refine((data) => {
-    // If maximize (Maximum Limit) is selected, maxStudents is required
+    // If maximize (Maximum Limit) is selected, maxValue is required
     if (data.criterionType === "maximize") {
-        return data.maxStudents !== undefined && data.maxStudents !== null
+        return data.maxValue !== undefined && data.maxValue !== null
     }
     return true
 }, {
-    message: "Maximum students per group is required for Maximum Limit criterion",
-    path: ["maxStudents"],
+    message: "Maximum value is required for Maximum Limit criterion",
+    path: ["maxValue"],
 })
 
 export type CategoryFormValues = z.infer<typeof formSchema>
@@ -73,6 +75,8 @@ export default function CategoryForm({
             name: initialValues?.name ?? "",
             description: initialValues?.description ?? "",
             criterionType: initialValues?.criterionType ?? (mode === "minimize" ? "minimize" : undefined),
+            minValue: initialValues?.minValue,
+            maxValue: initialValues?.maxValue,
             minStudents: initialValues?.minStudents,
             maxStudents: initialValues?.maxStudents,
         },
@@ -153,7 +157,7 @@ export default function CategoryForm({
                                                 <div className="flex flex-col py-1 text-left">
                                                     <span className="font-medium">Required Minimum</span>
                                                     <span className="text-xs text-muted-foreground">
-                                                        At least X students with this trait per group
+                                                        Require a minimum value, optionally for a minimum count
                                                     </span>
                                                 </div>
                                             </SelectItem>
@@ -161,7 +165,7 @@ export default function CategoryForm({
                                                 <div className="flex flex-col py-1 text-left">
                                                     <span className="font-medium">Maximum Limit</span>
                                                     <span className="text-xs text-muted-foreground">
-                                                        At most X students with this trait per group
+                                                        Cap the value, optionally with a maximum count
                                                     </span>
                                                 </div>
                                             </SelectItem>
@@ -197,55 +201,109 @@ export default function CategoryForm({
                         />
 
                         {selectedCriterionType === "prerequisite" && (
-                            <FormField
-                                control={form.control}
-                                name="minStudents"
-                                render={({ field: minField }) => (
-                                    <FormItem>
-                                        <FormLabel>Minimum Students per Group <span className="text-red-500">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                placeholder="Enter minimum count..."
-                                                {...minField}
-                                                onChange={(e) => {
-                                                    const value = e.target.value === "" ? undefined : Number(e.target.value)
-                                                    minField.onChange(value)
-                                                }}
-                                                value={minField.value ?? ""}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <>
+                                <FormField
+                                    control={form.control}
+                                    name="minValue"
+                                    render={({ field: minField }) => (
+                                        <FormItem>
+                                            <FormLabel>Minimum Value (0-6) <span className="text-red-500">*</span></FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    max="6"
+                                                    step="0.1"
+                                                    placeholder="Enter minimum value..."
+                                                    {...minField}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                        minField.onChange(value)
+                                                    }}
+                                                    value={minField.value ?? ""}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="minStudents"
+                                    render={({ field: minField }) => (
+                                        <FormItem>
+                                            <FormLabel>Minimum Students per Group (Optional)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    placeholder="Enter minimum count..."
+                                                    {...minField}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                        minField.onChange(value)
+                                                    }}
+                                                    value={minField.value ?? ""}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </>
                         )}
 
                         {selectedCriterionType === "maximize" && (
-                            <FormField
-                                control={form.control}
-                                name="maxStudents"
-                                render={({ field: maxField }) => (
-                                    <FormItem>
-                                        <FormLabel>Maximum Students per Group <span className="text-red-500">*</span></FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                placeholder="Enter maximum count..."
-                                                {...maxField}
-                                                onChange={(e) => {
-                                                    const value = e.target.value === "" ? undefined : Number(e.target.value)
-                                                    maxField.onChange(value)
-                                                }}
-                                                value={maxField.value ?? ""}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <>
+                                <FormField
+                                    control={form.control}
+                                    name="maxValue"
+                                    render={({ field: maxField }) => (
+                                        <FormItem>
+                                            <FormLabel>Maximum Value (0-6) <span className="text-red-500">*</span></FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    max="6"
+                                                    step="0.1"
+                                                    placeholder="Enter maximum value..."
+                                                    {...maxField}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                        maxField.onChange(value)
+                                                    }}
+                                                    value={maxField.value ?? ""}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="maxStudents"
+                                    render={({ field: maxField }) => (
+                                        <FormItem>
+                                            <FormLabel>Maximum Students per Group (Optional)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    placeholder="Enter maximum count..."
+                                                    {...maxField}
+                                                    onChange={(e) => {
+                                                        const value = e.target.value === "" ? undefined : Number(e.target.value)
+                                                        maxField.onChange(value)
+                                                    }}
+                                                    value={maxField.value ?? ""}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </>
                         )}
                     </>
                 )}

@@ -609,7 +609,7 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
+              criterionType: c.criterionType ?? undefined,
             })))}
           />
         </DialogContent>

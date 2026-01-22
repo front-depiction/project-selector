@@ -49,8 +49,7 @@ export const createCategory = mutation({
       throw new Error(`Category "${args.name}" already exists for this semester`)
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
-    const minRatio = args.minRatio !== undefined ? args.minRatio / 100 : undefined
+    const minRatio = args.minRatio
 
     return await ctx.db.insert("categories", Category.make({
       ...args,
@@ -102,10 +101,9 @@ export const updateCategory = mutation({
       }
     }
 
-    // Convert percentage to ratio (0.0-1.0) for minRatio (legacy support)
     const patchData: any = { ...updates }
     if (updates.minRatio !== undefined) {
-      patchData.minRatio = updates.minRatio / 100
+      patchData.minRatio = updates.minRatio
     }
     // If criterionType is being cleared, set to undefined
     if (updates.criterionType === null || updates.criterionType === undefined) {

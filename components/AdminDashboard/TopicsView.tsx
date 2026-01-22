@@ -233,7 +233,7 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                constraintIds: [] // TODO: Get constraintIds from topic if stored
+                constraintIds: vm.editTopicDialog.editingTopic$.value.value.constraintIds ?? []
               }}
               onSubmit={vm.onEditTopicSubmit}
             />
@@ -255,8 +255,13 @@ export const TopicsView: React.FC<TopicsViewProps> = ({ vm }) => {
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              // Map database "pull" to form "maximize"
-              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
+              criterionType: c.criterionType ?? undefined,
+              minValue: c.criterionType === "prerequisite" && c.minRatio !== undefined
+                ? Number((c.minRatio * 6).toFixed(1))
+                : undefined,
+              maxValue: c.criterionType === "maximize" && c.minRatio !== undefined
+                ? Number((c.minRatio * 6).toFixed(1))
+                : undefined,
               minStudents: c.minStudents,
               maxStudents: c.maxStudents,
             })))}

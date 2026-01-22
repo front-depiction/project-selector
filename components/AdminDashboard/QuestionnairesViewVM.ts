@@ -31,7 +31,7 @@ export interface CategoryItemVM {
   readonly key: string
   readonly name: string
   readonly description: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
   readonly criterionDisplay: string
   readonly criterionBadgeVariant: "default" | "secondary" | "outline"
   readonly edit: () => void
@@ -87,9 +87,10 @@ export interface Category {
   readonly _id: string
   readonly name: string
   readonly description?: string
-  readonly criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+  readonly criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
   readonly minRatio?: number
-  readonly target?: number
+  readonly minStudents?: number
+  readonly maxStudents?: number
 }
 
 export interface QuestionnairesViewDeps {
@@ -110,17 +111,19 @@ export interface QuestionnairesViewDeps {
     name: string
     description?: string
     semesterId: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+    criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
   readonly updateCategory: (args: {
     id: Id<"categories">
     name?: string
     description?: string
-    criterionType?: "prerequisite" | "minimize" | "pull" | "push" | null
+    criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | null
     minRatio?: number
-    target?: number
+    minStudents?: number
+    maxStudents?: number
   }) => Promise<any>
   readonly deleteCategory: (args: { id: Id<"categories"> }) => Promise<any>
 }
@@ -130,6 +133,17 @@ export interface QuestionnairesViewDeps {
 // ============================================================================
 
 export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): QuestionnairesViewVM {
+  const normalizeCriterionValue = (value?: number): number | undefined => {
+    if (value === undefined) return undefined
+    const normalized = value / 6
+    return Math.min(Math.max(normalized, 0), 1)
+  }
+
+  const formatCriterionValue = (value?: number): string | undefined => {
+    if (value === undefined) return undefined
+    return (value * 6).toFixed(1)
+  }
+
   // Create dialog state signals once
   const questionDialogOpen$ = signal(false)
   const templateDialogOpen$ = signal(false)
@@ -171,15 +185,22 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
     let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
     
     if (criterionType === "prerequisite") {
-      criterionDisplay = c.minRatio !== undefined 
-        ? `Required Min: ${Math.round(c.minRatio * 100)}%`
+      const minValue = formatCriterionValue(c.minRatio)
+      const amount = c.minStudents !== undefined ? `, ${c.minStudents} students` : ""
+      criterionDisplay = minValue !== undefined
+        ? `Required Min: ${minValue} value${amount}`
         : "Required Minimum"
       criterionBadgeVariant = "default"
     } else if (criterionType === "minimize") {
-      criterionDisplay = c.target !== undefined
-        ? `Balance: Target ${Math.round(c.target * 100)}%`
-        : "Balance Evenly"
+      criterionDisplay = "Balance Evenly"
       criterionBadgeVariant = "secondary"
+    } else if (criterionType === "maximize") {
+      const maxValue = formatCriterionValue(c.minRatio)
+      const amount = c.maxStudents !== undefined ? `, ${c.maxStudents} students` : ""
+      criterionDisplay = maxValue !== undefined
+        ? `Maximum Limit: ${maxValue} value${amount}`
+        : "Maximum Limit"
+      criterionBadgeVariant = "default"
     } else if (criterionType === "pull") {
       criterionDisplay = "Maximize"
       criterionBadgeVariant = "default"
@@ -214,10 +235,10 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
       .map(mapCategoryToVM)
   )
 
-  // Computed: constraint categories (prerequisite and pull)
+  // Computed: constraint categories (prerequisite, maximize, pull)
   const constraintCategories$ = computed((): readonly CategoryItemVM[] =>
     (deps.categories$.value ?? [])
-      .filter(c => c.criterionType === "prerequisite" || c.criterionType === "pull")
+      .filter(c => c.criterionType === "prerequisite" || c.criterionType === "maximize" || c.criterionType === "pull")
       .map(mapCategoryToVM)
   )
 
@@ -380,15 +401,20 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
 
   const onCategorySubmit = (values: CategoryFormValues): void => {
     // Auto-set criterion type based on dialog mode if not editing
-    let criterionType: "prerequisite" | "minimize" | "pull" | "push" | undefined =
-      values.criterionType === "maximize" ? "pull" : values.criterionType
+    let criterionType: "prerequisite" | "minimize" | "maximize" | "pull" | "push" | undefined =
+      values.criterionType
     if (EffectOption.isNone(editingCategory$.value) && categoryDialogMode$.value) {
       criterionType = categoryDialogMode$.value === "minimize" ? "minimize" : criterionType
     }
 
     // Map form values to DB schema
-    const minRatio = values.minStudents
-    const target = values.maxStudents
+    const minRatio = criterionType === "prerequisite"
+      ? normalizeCriterionValue(values.minValue)
+      : criterionType === "maximize"
+        ? normalizeCriterionValue(values.maxValue)
+        : undefined
+    const minStudents = values.minStudents
+    const maxStudents = values.maxStudents
 
     EffectOption.match(editingCategory$.value, {
       onNone: () => {
@@ -398,7 +424,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           semesterId: "default",
           criterionType: criterionType ?? undefined,
           minRatio,
-          target,
+          minStudents,
+          maxStudents,
         })
           .then(() => {
             categoryDialog.close()
@@ -412,7 +439,8 @@ export function createQuestionnairesViewVM(deps: QuestionnairesViewDeps): Questi
           description: values.description || undefined,
           criterionType: criterionType ?? undefined,
           minRatio,
-          target,
+          minStudents,
+          maxStudents,
         })
           .then(() => {
             categoryDialog.close()

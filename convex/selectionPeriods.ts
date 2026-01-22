@@ -196,11 +196,6 @@ export const updatePeriod = mutation({
       throw new Error("Period not found")
     }
 
-    // Don't allow updating if already assigned
-    if (SelectionPeriod.isAssigned(existing)) {
-      throw new Error("Cannot update a period that has already been assigned")
-    }
-
     // Build updated values
     const title = args.title ?? existing.title
     const description = args.description ?? existing.description
@@ -215,6 +210,24 @@ export const updatePeriod = mutation({
 
     const now = Date.now()
 
+    const nextBase = {
+      ...SelectionPeriod.getBase(existing),
+      title,
+      description,
+      openDate,
+      closeDate,
+      minimizeCategoryIds,
+      rankingsEnabled,
+    }
+
+    if (SelectionPeriod.isAssigned(existing)) {
+      await ctx.db.replace(args.periodId, SelectionPeriod.makeAssigned({
+        ...nextBase,
+        assignmentBatchId: existing.assignmentBatchId
+      }))
+      return { success: true }
+    }
+
     // Cancel existing scheduled functions
     if (SelectionPeriod.isOpen(existing)) {
       await ctx.scheduler.cancel(existing.scheduledFunctionId)
@@ -228,16 +241,7 @@ export const updatePeriod = mutation({
 
     // State: CLOSED
     if (closeDate <= now) {
-      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed({
-        semesterId: existing.semesterId,
-        title,
-        description,
-        openDate,
-        closeDate,
-        shareableSlug,
-        minimizeCategoryIds,
-        rankingsEnabled,
-      }))
+      await ctx.db.replace(args.periodId, SelectionPeriod.makeClosed(nextBase))
     }
     // State: OPEN
     else if (openDate <= now) {
@@ -247,15 +251,9 @@ export const updatePeriod = mutation({
         { periodId: args.periodId }
       )
       await ctx.db.replace(args.periodId, SelectionPeriod.makeOpen({
-        semesterId: existing.semesterId,
-        title,
-        description,
-        openDate,
-        closeDate,
+        ...nextBase,
         shareableSlug,
         scheduledFunctionId: closeScheduleId,
-        minimizeCategoryIds,
-        rankingsEnabled,
       }))
     }
     // State: INACTIVE (Future)
@@ -266,15 +264,9 @@ export const updatePeriod = mutation({
         { periodId: args.periodId }
       )
       await ctx.db.replace(args.periodId, SelectionPeriod.makeInactive({
-        semesterId: existing.semesterId,
-        title,
-        description,
-        openDate,
-        closeDate,
+        ...nextBase,
         shareableSlug,
         scheduledOpenFunctionId: openScheduleId,
-        minimizeCategoryIds,
-        rankingsEnabled,
       }))
     }
 

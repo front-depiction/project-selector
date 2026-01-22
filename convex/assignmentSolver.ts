@@ -215,7 +215,12 @@ function transformToCPSATFormat(data: {
       sizeOverrides.set(entry.topicId, entry.size)
     }
   }
-  type CriterionConfig = { type: string; min_ratio?: number }
+  type CriterionConfig = { type: string; min_ratio?: number; required_amount?: number }
+  const clampRatio = (value: number) => Math.min(Math.max(value, 0), 1)
+  const clampRequiredAmount = (value: number | undefined, size: number) => {
+    if (value === undefined) return undefined
+    return Math.max(0, Math.min(value, size))
+  }
   const groups = topics.map((topic, index) => ({
     id: index,
     size: sizeOverrides.get(topic._id) ?? (baseSize + (remainder-- > 0 ? 1 : 0)),
@@ -225,6 +230,7 @@ function transformToCPSATFormat(data: {
   // Build category map by ID and name for lookup
   const categoryMap = new Map<string, typeof categories[0]>()
   const categoryByName = new Map<string, typeof categories[0]>()
+  const invertedCategoryNames = new Set<string>()
   for (const cat of categories) {
     categoryMap.set(cat._id, cat)
     categoryByName.set(cat.name, cat)
@@ -259,11 +265,26 @@ function transformToCPSATFormat(data: {
       const group = groups[topicIndex]
 
       if (category.criterionType === "prerequisite") {
+        const minRatio = clampRatio(category.minRatio ?? 0.5)
+        const requiredAmount = clampRequiredAmount(category.minStudents, group.size)
         const criterionConfig: CriterionConfig = {
           type: "prerequisite",
-          min_ratio: category.minRatio ?? 0.5
+          min_ratio: minRatio,
+          ...(requiredAmount !== undefined ? { required_amount: requiredAmount } : {})
         }
         group.criteria[category.name] = [criterionConfig]
+      } else if (category.criterionType === "maximize") {
+        const maxRatio = clampRatio(category.minRatio ?? 0.5)
+        const requiredAmount = category.maxStudents !== undefined
+          ? clampRequiredAmount(group.size - category.maxStudents, group.size)
+          : undefined
+        const criterionConfig: CriterionConfig = {
+          type: "prerequisite",
+          min_ratio: clampRatio(1 - maxRatio),
+          ...(requiredAmount !== undefined ? { required_amount: requiredAmount } : {})
+        }
+        group.criteria[category.name] = [criterionConfig]
+        invertedCategoryNames.add(category.name)
       } else if (category.criterionType === "pull") {
         const criterionConfig: CriterionConfig = {
           type: "pull"
@@ -287,7 +308,7 @@ function transformToCPSATFormat(data: {
     const values = studentValuesMap.get(studentId) || {}
     for (const [key, value] of Object.entries(values)) {
       if (typeof value === "number") {
-        studentValues[key] = value
+        studentValues[key] = invertedCategoryNames.has(key) ? 1 - value : value
       }
     }
 

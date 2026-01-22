@@ -61,9 +61,8 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
   )
 
   const isAssigned = status === "assigned"
-  // Can assign if status is "closed" (period is closed but not yet assigned)
-  const canAssign = status === "closed" || status === "open"
-  const isDisabled = disabled || isAssigned || !canAssign || vm.isLoading$.value
+  const canAssign = status === "closed" || status === "open" || status === "assigned"
+  const isDisabled = disabled || !canAssign || vm.isLoading$.value
 
   const handleClick = () => {
     // Check if questionnaires are complete before assigning

@@ -680,8 +680,8 @@ export function useDashboardVM(): DashboardVM {
       createTopic: createTopicMutation as any, // Type cast to handle constraintIds type mismatch
       updateTopic: updateTopicMutation,
       deleteTopic: deleteTopicMutation,
-      createCategory: createCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
-      updateCategory: updateCategoryMutation as any, // Type cast: form uses minStudents/maxStudents, mutation uses minRatio/target
+      createCategory: createCategoryMutation as any, // Type cast: form uses min/max values + counts, mutation uses minRatio
+      updateCategory: updateCategoryMutation as any, // Type cast: form uses min/max values + counts, mutation uses minRatio
       deleteCategory: deleteCategoryMutation,
     })
 
@@ -874,7 +874,8 @@ export function useDashboardVM(): DashboardVM {
           updateTopicMutation({
             id: editingTopic._id,
             title: values.title,
-            description: values.description
+            description: values.description,
+            constraintIds: values.constraintIds
           }).then(() => {
             editTopicDialogOpen$.value = false
             editingTopic$.value = Option.none()

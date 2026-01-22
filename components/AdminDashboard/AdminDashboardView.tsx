@@ -399,7 +399,7 @@ const OverviewView: React.FC = () => {
               initialValues={{
                 title: vm.editTopicDialog.editingTopic$.value.value.title,
                 description: vm.editTopicDialog.editingTopic$.value.value.description,
-                constraintIds: [], // TODO: Get constraintIds from topic if stored
+                constraintIds: vm.editTopicDialog.editingTopic$.value.value.constraintIds ?? [],
                 duplicateCount: 1
               }}
               onSubmit={vm.updateTopicFromForm as any}

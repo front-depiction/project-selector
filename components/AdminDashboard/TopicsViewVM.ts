@@ -58,6 +58,7 @@ export interface EditTopicDialogVM extends DialogVM {
     readonly title: string
     readonly description: string
     readonly semesterId: string
+    readonly constraintIds?: string[]
   }>>
 }
 
@@ -92,6 +93,7 @@ export interface TopicsViewVMDeps {
     id: Id<"topics">
     title: string
     description: string
+    constraintIds?: string[]
   }) => Promise<any>
   readonly deleteTopic: (args: { id: Id<"topics"> }) => Promise<any>
   readonly createCategory: (args: {
@@ -99,6 +101,7 @@ export interface TopicsViewVMDeps {
     description?: string
     semesterId: string
     criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
+    minRatio?: number
     minStudents?: number
     maxStudents?: number
   }) => Promise<any>
@@ -107,6 +110,7 @@ export interface TopicsViewVMDeps {
     name?: string
     description?: string
     criterionType?: "prerequisite" | "minimize" | "maximize" | "pull" | "push"
+    minRatio?: number
     minStudents?: number
     maxStudents?: number
   }) => Promise<any>
@@ -129,6 +133,17 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     deleteCategory,
   } = deps
 
+  const normalizeCriterionValue = (value?: number): number | undefined => {
+    if (value === undefined) return undefined
+    const normalized = value / 6
+    return Math.min(Math.max(normalized, 0), 1)
+  }
+
+  const formatCriterionValue = (value?: number): string | undefined => {
+    if (value === undefined) return undefined
+    return (value * 6).toFixed(1)
+  }
+
   // Signals created once
   const createTopicDialogOpen$ = signal(false)
   const editTopicDialogOpen$ = signal(false)
@@ -138,6 +153,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     title: string
     description: string
     semesterId: string
+    constraintIds?: string[]
   }>>(Option.none())
   const editingCategory$ = signal<Option.Option<Category>>(Option.none())
 
@@ -150,7 +166,8 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
       id: fullTopic._id,
       title: fullTopic.title,
       description: fullTopic.description,
-      semesterId: fullTopic.semesterId
+      semesterId: fullTopic.semesterId,
+      constraintIds: fullTopic.constraintIds ?? []
     })
     editTopicDialogOpen$.value = true
   }
@@ -202,17 +219,24 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     let criterionBadgeVariant: "default" | "secondary" | "outline" = "outline"
 
     if (criterionType === "prerequisite") {
-      criterionDisplay = c.minStudents !== undefined
-        ? `Required Min: ${c.minStudents} students`
+      const minValue = formatCriterionValue(c.minRatio)
+      const amount = c.minStudents !== undefined ? `, ${c.minStudents} students` : ""
+      criterionDisplay = minValue !== undefined
+        ? `Required Min: ${minValue} value${amount}`
         : "Required Minimum"
       criterionBadgeVariant = "default"
     } else if (criterionType === "minimize") {
       criterionDisplay = "Balance Evenly"
       criterionBadgeVariant = "secondary"
-    } else if (criterionType === "maximize" || criterionType === "pull") {
-      criterionDisplay = c.maxStudents !== undefined
-        ? `Maximum Limit: ${c.maxStudents} students`
+    } else if (criterionType === "maximize") {
+      const maxValue = formatCriterionValue(c.minRatio)
+      const amount = c.maxStudents !== undefined ? `, ${c.maxStudents} students` : ""
+      criterionDisplay = maxValue !== undefined
+        ? `Maximum Limit: ${maxValue} value${amount}`
         : "Maximum Limit"
+      criterionBadgeVariant = "default"
+    } else if (criterionType === "pull") {
+      criterionDisplay = "Maximize Together"
       criterionBadgeVariant = "default"
     }
 
@@ -306,6 +330,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           id: editing.id,
           title: values.title,
           description: values.description,
+          constraintIds: values.constraintIds,
         })
           .then(() => {
             editTopicDialog.close()
@@ -316,6 +341,12 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
   }
 
   const onCategorySubmit = (values: CategoryFormValues): void => {
+    const minRatio = values.criterionType === "prerequisite"
+      ? normalizeCriterionValue(values.minValue)
+      : values.criterionType === "maximize"
+        ? normalizeCriterionValue(values.maxValue)
+        : undefined
+
     Option.match(editingCategory$.value, {
       onNone: () => {
         createCategory({
@@ -323,6 +354,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           description: values.description || undefined,
           semesterId: "default",
           criterionType: values.criterionType ?? undefined,
+          minRatio,
           minStudents: values.minStudents,
           maxStudents: values.maxStudents,
         })
@@ -337,6 +369,7 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
           name: values.name,
           description: values.description || undefined,
           criterionType: values.criterionType ?? undefined,
+          minRatio,
           minStudents: values.minStudents,
           maxStudents: values.maxStudents,
         })

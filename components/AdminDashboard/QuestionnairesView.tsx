@@ -170,9 +170,15 @@ export const QuestionnairesView: React.FC<{ vm: QuestionnairesViewVM }> = ({ vm 
             initialValues={Option.getOrUndefined(Option.map(vm.editingCategory$.value, c => ({
               name: c.name,
               description: c.description || "",
-              criterionType: c.criterionType === "pull" ? "maximize" : c.criterionType ?? undefined,
-              minStudents: c.minRatio !== undefined ? Math.round(c.minRatio) : undefined,
-              maxStudents: c.target !== undefined ? Math.round(c.target) : undefined,
+              criterionType: c.criterionType ?? undefined,
+              minValue: c.criterionType === "prerequisite" && c.minRatio !== undefined
+                ? Number((c.minRatio * 6).toFixed(1))
+                : undefined,
+              maxValue: c.criterionType === "maximize" && c.minRatio !== undefined
+                ? Number((c.minRatio * 6).toFixed(1))
+                : undefined,
+              minStudents: c.minStudents,
+              maxStudents: c.maxStudents,
             })))}
           />
         </DialogContent>

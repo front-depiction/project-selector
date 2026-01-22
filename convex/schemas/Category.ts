@@ -20,7 +20,7 @@ export const Category = v.object({
     v.literal("maximize"),
     v.literal("push")
   )),
-  // For prerequisite: minimum ratio (0.0 to 1.0) of students meeting requirement (legacy)
+  // For prerequisite/maximize: minimum value ratio (0.0 to 1.0) threshold
   minRatio: v.optional(v.number()),
   // For prerequisite: minimum number of students with this trait per group
   minStudents: v.optional(v.number()),
