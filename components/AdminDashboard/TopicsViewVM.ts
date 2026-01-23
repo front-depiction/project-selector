@@ -247,10 +247,14 @@ export function createTopicsViewVM(deps: TopicsViewVMDeps): TopicsViewVM {
     }
   }
 
-  // Computed: topic constraints (prerequisite, maximize/pull)
+  // Computed: topic constraints (prerequisite, maximize/pull, or undefined/null)
+  // Include constraints without criterionType to catch legacy/orphaned constraints
   const topicConstraints$ = computed((): readonly ConstraintItemVM[] =>
     (constraints$.value ?? [])
-      .filter((c: any) => c.criterionType === "prerequisite" || c.criterionType === "maximize" || c.criterionType === "pull")
+      .filter((c: any) => {
+        const type = c.criterionType
+        return !type || type === "prerequisite" || type === "maximize" || type === "pull"
+      })
       .map(mapConstraintToVM)
   )
 

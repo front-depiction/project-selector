@@ -4,12 +4,12 @@ import * as React from "react"
 import { useSignals } from "@preact/signals-react/runtime"
 import * as Option from "effect/Option"
 import {
-  IconArchive,
-  IconChevronRight,
-  IconCircleCheckFilled,
-  IconCircleDashed,
-  IconDots,
-} from "@tabler/icons-react"
+  Archive,
+  ChevronRight,
+  CheckCircle2,
+  Circle,
+  MoreVertical,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -81,16 +81,17 @@ function CircularProgress({
 function StepIndicator({ completed }: { completed: boolean }) {
   if (completed) {
     return (
-      <IconCircleCheckFilled
-        className="mt-1 size-4.5 shrink-0 text-primary"
+      <CheckCircle2
+        className="mt-1 size-4.5 shrink-0 text-primary fill-current"
         aria-hidden="true"
       />
     )
   }
   return (
-    <IconCircleDashed
+    <Circle
       className="mt-1 size-5 shrink-0 stroke-muted-foreground/40"
       strokeWidth={2}
+      strokeDasharray="4 2"
       aria-hidden="true"
     />
   )
@@ -139,13 +140,13 @@ export function OnboardingCard({ vm }: OnboardingCardProps): React.ReactElement 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <IconDots className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <MoreVertical className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="sr-only">Options</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 <DropdownMenuItem onClick={vm.dismiss}>
-                  <IconArchive
+                  <Archive
                     className="mr-2 h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
@@ -244,7 +245,7 @@ export function OnboardingCard({ vm }: OnboardingCardProps): React.ReactElement 
                         </div>
                       </div>
                       {!isOpen && (
-                        <IconChevronRight
+                        <ChevronRight
                           className="h-4 w-4 shrink-0 text-muted-foreground"
                           aria-hidden="true"
                         />
