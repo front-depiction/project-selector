@@ -18,7 +18,7 @@ export default function HeroSection() {
                     <LoginButton variant="ghost" size="sm" />
                 </div>
                 <div className="relative">
-                    <h1 className="mt-16 max-w-xl text-balance text-5xl font-medium">Smart Project Selection for Universities</h1>
+                    <h1 className="mt-16 max-w-xl text-balance text-5xl font-medium">Smart Project Selection for Educators</h1>
 
                     <p className="text-muted-foreground mb-6 mt-4 text-balance text-xl">Teachers share a link, students rank their preferred topics, and our algorithm optimally assigns everyone to projects they love.</p>
 
@@ -41,13 +41,7 @@ export default function HeroSection() {
                 </div>
 
                 <div className="mt-8 flex flex-wrap items-center gap-4">
-                    <p className="text-muted-foreground text-center">Trusted by universities:</p>
-                    <div className="flex items-center justify-center gap-6 text-muted-foreground text-sm font-medium">
-                        <span>Stanford</span>
-                        <span>MIT</span>
-                        <span>Oxford</span>
-                        <span>Cambridge</span>
-                    </div>
+                    <p className="text-muted-foreground text-center">Trusted by educators from kindergarten to university</p>
                 </div>
             </div>
         </section>

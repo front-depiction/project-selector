@@ -268,13 +268,8 @@ export function createStudentQuestionPresentationVM(
   }
 
   const next = (): void => {
-    // Validate and persist
-    const valid = persistCurrentAnswer()
-    if (!valid) {
-      // Could trigger toast here if/when we add toast to deps
-      // For now, UI should probably disable button or we just don't advance
-      return
-    }
+    // Persist current answer if one exists (don't block navigation)
+    persistCurrentAnswer()
 
     // Advance index
     const total = totalQuestions$.value

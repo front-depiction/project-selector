@@ -37,7 +37,7 @@ export default function ContentSection() {
                                     { value: '1000+', label: 'Topics Assigned' },
                                     { value: '50+', label: 'Hours Saved Per Semester' },
                                     { value: '100%', label: 'Fair Distribution' },
-                                    { value: '25+', label: 'Universities Trust Us' },
+                                    { value: '25+', label: 'Institutions Trust Us' },
                                 ].map((stat, index) => (
                                     <li
                                         key={index}
