@@ -343,6 +343,9 @@ export interface PeriodsViewVMDeps {
 
   /** Mutation to delete a constraint */
   readonly deleteConstraint: (args: { id: Id<"categories"> }) => Promise<any>
+
+  /** Optional callback when editing period changes (used by parent to sync query dependencies) */
+  readonly onEditingPeriodChange?: (period: Option.Option<SelectionPeriodWithStats>) => void
 }
 
 // ============================================================================
@@ -442,6 +445,8 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
             editingPeriod$.value = Option.some(period)
             editDialogOpen$.value = true
           })
+          // Notify parent so it can update query dependencies
+          deps.onEditingPeriodChange?.(Option.some(period))
         },
         onDelete: () => {
           if (period._id) {
@@ -571,12 +576,16 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
         editDialogOpen$.value = false
         editingPeriod$.value = Option.none()
       })
+      // Notify parent so it can update query dependencies
+      deps.onEditingPeriodChange?.(Option.none())
     },
     openWithPeriod: (period: SelectionPeriodWithStats) => {
       batch(() => {
         editingPeriod$.value = Option.some(period)
         editDialogOpen$.value = true
       })
+      // Notify parent so it can update query dependencies
+      deps.onEditingPeriodChange?.(Option.some(period))
     },
   }
 
@@ -907,16 +916,15 @@ export function usePeriodsViewVM(): PeriodsViewVM {
   const constraintsData = useQuery(api.constraints.getAllConstraints, {})
   const constraintNamesData = useQuery(api.constraints.getConstraintNames, {})
 
-  // We need to create a signal for editingPeriod to track which period is being edited
-  // so we can fetch its questions
-  const editingPeriodSignal = React.useMemo(() => signal<Option.Option<SelectionPeriodWithStats>>(Option.none()), [])
+  // React state to track the editing period ID for query dependencies
+  // Signals don't trigger React re-renders, so we need state for useQuery
+  const [editingPeriodIdForQuery, setEditingPeriodIdForQuery] = React.useState<Id<"selectionPeriods"> | null>(null)
 
   const existingQuestionsData = useQuery(
     api.selectionQuestions.getQuestionsForPeriod,
-    Option.match(editingPeriodSignal.value, {
-      onNone: () => "skip" as const,
-      onSome: (period) => ({ selectionPeriodId: period._id })
-    })
+    editingPeriodIdForQuery
+      ? { selectionPeriodId: editingPeriodIdForQuery }
+      : "skip"
   )
 
   // Get mutations
@@ -983,6 +991,14 @@ export function usePeriodsViewVM(): PeriodsViewVM {
       createConstraint: createConstraintMutation,
       updateConstraint: updateConstraintMutation,
       deleteConstraint: deleteConstraintMutation,
+      // Callback to sync editing period for query dependencies
+      onEditingPeriodChange: (period: Option.Option<SelectionPeriodWithStats>) => {
+        const periodId = Option.match(period, {
+          onNone: () => null,
+          onSome: (p: SelectionPeriodWithStats) => p._id,
+        })
+        setEditingPeriodIdForQuery(periodId)
+      },
     }
   }, [
     periodsData,
@@ -1009,11 +1025,6 @@ export function usePeriodsViewVM(): PeriodsViewVM {
 
   // Create the VM once
   const vm = React.useMemo(() => createPeriodsViewVM(deps), [deps])
-
-  // Wire up the editing period signal to track changes
-  React.useEffect(() => {
-    editingPeriodSignal.value = vm.editDialog.editingPeriod$.value
-  }, [vm.editDialog.editingPeriod$.value])
 
   return vm
 }

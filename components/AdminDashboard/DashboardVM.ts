@@ -196,6 +196,10 @@ export function useDashboardVM(): DashboardVM {
   const editTopicDialogOpen$ = React.useMemo(() => signal(false), [])
   const editingTopic$ = React.useMemo(() => signal<Option.Option<Doc<"topics">>>(Option.none()), [])
 
+  // React state to track the editing period ID for query dependencies
+  // This is needed because useQuery needs React re-renders to update, and signals don't trigger that
+  const [editingPeriodIdForQuery, setEditingPeriodIdForQuery] = React.useState<Id<"selectionPeriods"> | null>(null)
+
   // ============================================================================
   // CONVEX QUERIES - Root VM fetches all data
   // ============================================================================
@@ -215,8 +219,8 @@ export function useDashboardVM(): DashboardVM {
   const templatesData = useQuery(api.questionTemplates.getAllTemplatesWithQuestionIds, {})
   const existingQuestionsData = useQuery(
     api.selectionQuestions.getQuestionsForPeriod,
-    editingPeriod$.value && Option.isSome(editingPeriod$.value)
-      ? { selectionPeriodId: editingPeriod$.value.value._id }
+    editingPeriodIdForQuery
+      ? { selectionPeriodId: editingPeriodIdForQuery }
       : "skip"
   )
   const constraintsData = useQuery(api.constraints.getAllConstraints, {})
@@ -670,6 +674,16 @@ export function useDashboardVM(): DashboardVM {
       createConstraint: createConstraintMutation,
       updateConstraint: updateConstraintMutation,
       deleteConstraint: deleteConstraintMutation,
+      // Callback to sync editing period for query dependencies
+      onEditingPeriodChange: (period) => {
+        const periodId = Option.match(period, {
+          onNone: () => null,
+          onSome: (p) => p._id,
+        })
+        setEditingPeriodIdForQuery(periodId)
+        // Also sync the legacy signal for overview components
+        editingPeriod$.value = period
+      },
     })
 
     const topicsView = createTopicsViewVM({
