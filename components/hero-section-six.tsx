@@ -61,9 +61,9 @@ const TopicMatchLogo = ({ className }: { className?: string }) => (
 // App mockup showing the topic selection interface
 const AppMockup = () => {
     const topics = [
-        { id: 1, title: 'Machine Learning Pipeline', rank: 1, popularity: 85 },
-        { id: 2, title: 'Web Security Analysis', rank: 2, popularity: 72 },
-        { id: 3, title: 'Mobile App Development', rank: 3, popularity: 68 },
+        { id: 1, title: 'Machine Learning Pipeline', rank: 1, popularity: 85, popularityDisplay: '85%*' },
+        { id: 2, title: 'Web Security Analysis', rank: 2, popularity: 72, popularityDisplay: '72%*' },
+        { id: 3, title: 'Mobile App Development', rank: 3, popularity: 68, popularityDisplay: '68%*' },
     ]
 
     const students = [
@@ -107,7 +107,7 @@ const AppMockup = () => {
                                     <p className="text-xs font-medium truncate">{topic.title}</p>
                                     <div className="flex items-center gap-1.5 mt-1">
                                         <Progress value={topic.popularity} className="h-1 w-12" />
-                                        <span className="text-[10px] text-muted-foreground">{topic.popularity}% popular</span>
+                                        <span className="text-[10px] text-muted-foreground">{topic.popularityDisplay} popular</span>
                                     </div>
                                 </div>
                             </div>
@@ -153,11 +153,12 @@ const AppMockup = () => {
 
             {/* Footer action */}
             <div className="mt-4 pt-3 border-t flex items-center justify-between">
-                <p className="text-[10px] text-muted-foreground">3 of 3 students submitted</p>
+                <p className="text-[10px] text-muted-foreground">3* of 3* students submitted</p>
                 <Button size="sm" className="h-7 text-xs">
                     Run Assignment
                 </Button>
             </div>
+            <p className="text-[9px] text-muted-foreground mt-2 text-center">*Data shown is for demonstration purposes only</p>
         </div>
     )
 }

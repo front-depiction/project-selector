@@ -34,10 +34,10 @@ export default function ContentSection() {
                                 role="list"
                                 className="text-muted-foreground mt-8 space-y-2">
                                 {[
-                                    { value: '1000+', label: 'Topics Assigned' },
-                                    { value: '50+', label: 'Hours Saved Per Semester' },
-                                    { value: '100%', label: 'Fair Distribution' },
-                                    { value: '25+', label: 'Institutions Trust Us' },
+                                    { value: '1000+*', label: 'Topics Assigned' },
+                                    { value: '50+*', label: 'Hours Saved Per Semester' },
+                                    { value: '100%*', label: 'Fair Distribution' },
+                                    { value: '25+*', label: 'Institutions Trust Us' },
                                 ].map((stat, index) => (
                                     <li
                                         key={index}
@@ -47,6 +47,7 @@ export default function ContentSection() {
                                     </li>
                                 ))}
                             </ul>
+                            <p className="text-muted-foreground text-xs mt-4">*Data shown is for demonstration purposes only</p>
                         </div>
                     </div>
                 </div>
