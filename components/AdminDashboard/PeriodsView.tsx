@@ -58,6 +58,7 @@ const EditPeriodFormWrapper: React.FC<{
   removeQuestion: PeriodsViewVM["removeQuestion"]
   closeDialog: () => void
 }> = ({ editingPeriod, topics, categories, questions, existingTopicIds, existingMinimizeCategoryIds, existingQuestionIds, updatePeriod, addQuestion, removeQuestion, closeDialog }) => {
+
   const handleSubmit = async (values: any) => {
     const periodId = editingPeriod._id
 
@@ -560,21 +561,33 @@ export const PeriodsView: React.FC<{ vm: PeriodsViewVM }> = ({ vm }) => {
               Update the details of this project assignment.
             </DialogDescription>
           </DialogHeader>
-          {Option.isSome(vm.editDialog.editingPeriod$.value) && (
-            <EditPeriodFormWrapper
-              editingPeriod={vm.editDialog.editingPeriod$.value.value}
-              topics={vm.topics$.value}
-              categories={vm.categories$.value}
-              questions={vm.questionsForForm$.value}
-              existingTopicIds={vm.existingTopicIds$.value}
-              existingMinimizeCategoryIds={vm.existingMinimizeCategoryIds$.value}
-              existingQuestionIds={vm.existingQuestionIds$.value}
-              updatePeriod={vm.updatePeriod}
-              addQuestion={vm.addQuestion}
-              removeQuestion={vm.removeQuestion}
-              closeDialog={vm.editDialog.close}
-            />
-          )}
+          {Option.isSome(vm.editDialog.editingPeriod$.value) && (() => {
+            // Wait for the existing questions query to resolve before rendering form
+            // This prevents the form from initializing with empty questionIds while the query is loading
+            if (!vm.existingQuestionsLoaded$.value) {
+              return (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-muted-foreground">Loading...</div>
+                </div>
+              )
+            }
+
+            return (
+              <EditPeriodFormWrapper
+                editingPeriod={vm.editDialog.editingPeriod$.value.value}
+                topics={vm.topics$.value}
+                categories={vm.categories$.value}
+                questions={vm.questionsForForm$.value}
+                existingTopicIds={vm.existingTopicIds$.value}
+                existingMinimizeCategoryIds={vm.existingMinimizeCategoryIds$.value}
+                existingQuestionIds={vm.existingQuestionIds$.value}
+                updatePeriod={vm.updatePeriod}
+                addQuestion={vm.addQuestion}
+                removeQuestion={vm.removeQuestion}
+                closeDialog={vm.editDialog.close}
+              />
+            )
+          })()}
         </DialogContent>
       </Dialog>
 

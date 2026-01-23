@@ -161,6 +161,9 @@ export interface PeriodsViewVM {
   /** Existing question IDs for editing period */
   readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 
+  /** Whether the existing questions data is loaded (not still fetching) */
+  readonly existingQuestionsLoaded$: ReadonlySignal<boolean>
+
   /** ID and title of newly created period (for showing access codes) */
   readonly createdPeriod$: ReadonlySignal<Option.Option<{
     id: Id<"selectionPeriods">
@@ -534,6 +537,16 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     return existingQuestions.map(sq => sq.questionId)
   })
 
+  // Computed: whether existing questions data is loaded
+  // undefined = still loading, array (even empty) = loaded
+  const existingQuestionsLoaded$ = computed((): boolean => {
+    const editingPeriod = editingPeriod$.value
+    // If not editing, consider it "loaded" (no data needed)
+    if (Option.isNone(editingPeriod)) return true
+    // If editing, check if the query has resolved (not undefined)
+    return deps.existingQuestionsForPeriod$?.value !== undefined
+  })
+
   // Create dialog
   const createDialog: DialogVM = {
     isOpen$: createDialogOpen$,
@@ -865,6 +878,7 @@ export function createPeriodsViewVM(deps: PeriodsViewVMDeps): PeriodsViewVM {
     existingMinimizeCategoryIds$,
     questionsForForm$,
     existingQuestionIds$,
+    existingQuestionsLoaded$,
     createdPeriod$,
     onCreateSubmit,
     onEditSubmit,

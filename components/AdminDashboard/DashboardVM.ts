@@ -310,7 +310,7 @@ export function useDashboardVM(): DashboardVM {
       dataSignals.topicAnalyticsData$.value = topicAnalyticsData
       dataSignals.onboardingProgressData$.value = onboardingProgressData
     })
-  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, constraintsData, constraintNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals])
+  }, [periodsData, currentPeriodData, assignmentsData, topicsData, questionsData, templatesData, existingQuestionsData, constraintsData, constraintNamesData, studentsData, statsData, topicAnalyticsData, onboardingProgressData, dataSignals, editingPeriodIdForQuery])
 
   // Computed: mock assignments based on current period
   // (Will be replaced with real data when available)
