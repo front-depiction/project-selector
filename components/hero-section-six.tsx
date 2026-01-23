@@ -39,16 +39,6 @@ export default function HeroSection() {
                         <AppMockup />
                     </div>
                 </div>
-
-                <div className="mt-8 flex flex-wrap items-center gap-4">
-                    <p className="text-muted-foreground text-center">Trusted by universities:</p>
-                    <div className="flex items-center justify-center gap-6 text-muted-foreground text-sm font-medium">
-                        <span>Stanford</span>
-                        <span>MIT</span>
-                        <span>Oxford</span>
-                        <span>Cambridge</span>
-                    </div>
-                </div>
             </div>
         </section>
     )

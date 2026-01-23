@@ -1,5 +1,3 @@
-import { ArrowRight } from 'lucide-react'
-
 export default function ContentSection() {
     return (
         <section>
@@ -27,26 +25,6 @@ export default function ContentSection() {
                                 <h3 className="text-xl font-medium">Auto-Assign Optimally</h3>
                                 <p className="text-muted-foreground">Our algorithm handles the hard work.</p>
                             </div>
-                        </div>
-
-                        <div className="border-t">
-                            <ul
-                                role="list"
-                                className="text-muted-foreground mt-8 space-y-2">
-                                {[
-                                    { value: '1000+', label: 'Topics Assigned' },
-                                    { value: '50+', label: 'Hours Saved Per Semester' },
-                                    { value: '100%', label: 'Fair Distribution' },
-                                    { value: '25+', label: 'Universities Trust Us' },
-                                ].map((stat, index) => (
-                                    <li
-                                        key={index}
-                                        className="-ml-0.5 flex items-center gap-1.5">
-                                        <ArrowRight className="size-4 opacity-50" />
-                                        <span className="text-foreground font-medium">{stat.value}</span> {stat.label}
-                                    </li>
-                                ))}
-                            </ul>
                         </div>
                     </div>
                 </div>
