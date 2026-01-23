@@ -3,6 +3,7 @@ import { signal, computed, ReadonlySignal } from "@preact/signals-react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id, Doc } from "@/convex/_generated/dataModel"
+import type { FunctionReturnType } from "convex/server"
 
 // ============================================================================
 // Type Definitions for Assignment Query Results
@@ -25,6 +26,9 @@ interface TopicAssignment {
 
 /** The full assignments response shape */
 type AssignmentsResponse = Record<string, TopicAssignment> | null
+type AssignmentExportRow = NonNullable<
+  FunctionReturnType<typeof api.assignments.getAllAssignmentsForExport>
+>[number]
 
 // ============================================================================
 // View Model Types
@@ -286,7 +290,7 @@ export function useAssignmentDisplayVM(
     const headers = ['student_id', 'assigned_topic']
     const csvContent = [
       headers.join(','),
-      ...exportData.map(row =>
+      ...exportData.map((row: AssignmentExportRow) =>
         `"${row.student_id}","${row.assigned_topic.replace(/"/g, '""')}"`
       )
     ].join('\n')

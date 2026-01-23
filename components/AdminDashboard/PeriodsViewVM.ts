@@ -1,5 +1,6 @@
 import { signal, computed, ReadonlySignal, batch, Signal } from "@preact/signals-react"
 import type { Id } from "@/convex/_generated/dataModel"
+import type { FunctionReturnType } from "convex/server"
 import type { SelectionPeriodFormValues, TopicOption, CategoryOption, QuestionOption } from "@/components/forms/selection-period-form"
 import type { QuestionFormValues } from "@/components/forms/question-form"
 import type { ConstraintFormValues } from "@/components/forms/constraint-form"
@@ -48,6 +49,13 @@ export interface PeriodRowVM {
   readonly onEdit: () => void
   readonly onDelete: () => void
 }
+
+type AssignmentExportRow = NonNullable<
+  FunctionReturnType<typeof api.assignments.getAllAssignmentsForExport>
+>[number]
+type SelectionQuestionRow = NonNullable<
+  FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod>
+>[number]
 
 /**
  * View Model for assignment row in the results table
@@ -961,7 +969,7 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     const currentPeriodData$ = computed(() => currentPeriodData)
     const assignmentsData$ = computed(() => {
       if (!assignmentsData) return undefined
-      return assignmentsData.map((a): Assignment => ({
+      return assignmentsData.map((a: AssignmentExportRow): Assignment => ({
         studentId: a.student_id,
         topicTitle: a.assigned_topic,
         preferenceRank: 0,
@@ -974,7 +982,7 @@ export function usePeriodsViewVM(): PeriodsViewVM {
     const existingQuestionsForPeriod$ = computed(() => {
       // Map from the query result format to { questionId: string }[]
       if (!existingQuestionsData) return undefined
-      return existingQuestionsData.map((sq) => ({ questionId: sq.questionId as string }))
+      return existingQuestionsData.map((sq: SelectionQuestionRow) => ({ questionId: sq.questionId as string }))
     })
     const topicsData$ = computed(() => [])
     const existingTopicsData$ = computed(() => [])

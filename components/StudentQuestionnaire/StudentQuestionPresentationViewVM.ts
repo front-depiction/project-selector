@@ -14,6 +14,13 @@ interface QuestionVM {
   readonly order: number
 }
 
+type SelectionQuestionRow = NonNullable<
+  FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod>
+>[number]
+type StudentAnswerRow = NonNullable<
+  FunctionReturnType<typeof api.studentAnswers.getAnswers>
+>[number]
+
 export interface StudentQuestionPresentationVM {
   /** Current question index in unanswered list */
   readonly currentIndex$: ReadonlySignal<number>
@@ -110,9 +117,9 @@ export function createStudentQuestionPresentationVM(
     if (!questionsData) return []
 
     return questionsData
-      .filter(sq => sq.question !== null)
-      .sort((a, b) => a.order - b.order)
-      .map(sq => ({
+      .filter((sq: SelectionQuestionRow) => sq.question !== null)
+      .sort((a: SelectionQuestionRow, b: SelectionQuestionRow) => a.order - b.order)
+      .map((sq: SelectionQuestionRow) => ({
         questionId: sq.questionId,
         text: sq.question!.question,
         kind: sq.question!.kind as "boolean" | "0to6",
@@ -153,7 +160,7 @@ export function createStudentQuestionPresentationVM(
     const local = answersMapSignal.value
 
     // Check both backend and local state
-    const answeredIds = new Set(existing.map(a => a.questionId))
+    const answeredIds = new Set(existing.map((a: StudentAnswerRow) => a.questionId))
     for (const id of local.keys()) {
       answeredIds.add(id as Id<"questions">)
     }
@@ -168,7 +175,7 @@ export function createStudentQuestionPresentationVM(
   const allAnsweredIds$ = computed(() => {
     const existing = existingAnswersData$.value || []
     const local = answersMapSignal.value
-    const ids = new Set(existing.map(a => a.questionId))
+    const ids = new Set(existing.map((a: StudentAnswerRow) => a.questionId))
     for (const id of local.keys()) {
       ids.add(id as Id<"questions">)
     }

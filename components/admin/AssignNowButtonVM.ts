@@ -1,7 +1,7 @@
 "use client"
 import * as React from "react"
 import { signal, ReadonlySignal } from "@preact/signals-react"
-import { useAction } from "convex/react"
+import { useAction, useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
@@ -28,9 +28,33 @@ export interface AssignNowSettings {
 export function useAssignNowButtonVM(periodId: Id<"selectionPeriods">): AssignNowButtonVM {
   // Reactive state - stable signal created once per component lifecycle
   const isLoading$ = React.useMemo(() => signal(false), [])
+  const [deferredId, setDeferredId] = React.useState<Id<"deferredAssignments"> | null>(null)
 
   // CP-SAT action for assignment
   const assignWithCPSATAction = useAction(api.assignWithCPSAT.assignWithCPSAT)
+  const deferredStatus = useQuery(
+    api.deferredAssignments.getDeferredAssignmentStatus,
+    deferredId ? { deferredId } : "skip"
+  )
+  const assignmentsData = useQuery(api.assignments.getAssignments, { periodId })
+
+  React.useEffect(() => {
+    if (!deferredId || !deferredStatus) return
+
+    if (deferredStatus.status === "completed") {
+      if (!assignmentsData) return
+      isLoading$.value = false
+      setDeferredId(null)
+      toast.success("Students assigned successfully!")
+      return
+    }
+
+    if (deferredStatus.status === "failed") {
+      isLoading$.value = false
+      setDeferredId(null)
+      toast.error(deferredStatus.error || "Assignment failed.")
+    }
+  }, [assignmentsData, deferredId, deferredStatus])
 
   // Action: assign topics using CP-SAT solver
   const assignTopics = (settings: AssignNowSettings): void => {
@@ -40,9 +64,9 @@ export function useAssignNowButtonVM(periodId: Id<"selectionPeriods">): AssignNo
     
     // Call CP-SAT solver - errors will show as toast
     assignWithCPSATAction({ periodId, settings })
-      .then(() => {
-        isLoading$.value = false
-        toast.success("Students assigned successfully!")
+      .then((result) => {
+        setDeferredId(result.deferredId)
+        toast("Assignment started. Waiting for solver response...")
       })
       .catch((error) => {
         console.error("CP-SAT assignment failed:", error)

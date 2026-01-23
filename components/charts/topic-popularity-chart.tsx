@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, Line, LineChart, YAxis, ComposedCh
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
 import type { Id } from "@/convex/_generated/dataModel"
+import type { FunctionReturnType } from "convex/server"
 import {
   Card,
   CardContent,
@@ -18,6 +19,11 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 import { TrendingUp, TrendingDown, Minus } from "lucide-react"
+
+type TopicRankingHistoryData = NonNullable<
+  FunctionReturnType<typeof api.analytics.getTopicRankingHistory>
+>
+type TopicRankingPoint = TopicRankingHistoryData["chartData"][number]
 
 const chartConfig = {
   added: {
@@ -68,8 +74,8 @@ export function TopicPopularityChart({
   
   // Calculate trend
   const recentData = chartData.slice(-7)
-  const oldAvg = recentData.slice(0, 3).reduce((acc, d) => acc + (d.averagePosition || 0), 0) / 3
-  const newAvg = recentData.slice(-3).reduce((acc, d) => acc + (d.averagePosition || 0), 0) / 3
+  const oldAvg = recentData.slice(0, 3).reduce((acc: number, d: TopicRankingPoint) => acc + (d.averagePosition || 0), 0) / 3
+  const newAvg = recentData.slice(-3).reduce((acc: number, d: TopicRankingPoint) => acc + (d.averagePosition || 0), 0) / 3
   const trend = oldAvg === 0 ? "stable" : newAvg < oldAvg ? "improving" : newAvg > oldAvg ? "declining" : "stable"
 
   return (

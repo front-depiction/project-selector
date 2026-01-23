@@ -4,6 +4,7 @@ import { signal, computed, ReadonlySignal, batch } from "@preact/signals-react"
 import { useQuery, useMutation, useConvex } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import type { Doc, Id } from "@/convex/_generated/dataModel"
+import type { FunctionReturnType } from "convex/server"
 import type { SelectionPeriod } from "@/convex/schemas/SelectionPeriod"
 import * as SelectionPeriodModule from "@/convex/schemas/SelectionPeriod"
 import { format } from "date-fns"
@@ -152,6 +153,13 @@ export interface DashboardVM {
   readonly topicAnalytics: readonly unknown[] | undefined
   readonly existingQuestionIds$: ReadonlySignal<readonly string[]>
 }
+
+type SelectionQuestionRow = NonNullable<
+  FunctionReturnType<typeof api.selectionQuestions.getQuestionsForPeriod>
+>[number]
+type AssignmentExportRow = NonNullable<
+  FunctionReturnType<typeof api.assignments.getAllAssignmentsForExport>
+>[number]
 
 // Re-export the form's type to ensure type compatibility
 export type { SelectionPeriodFormValues } from "@/components/forms/selection-period-form"
@@ -373,7 +381,7 @@ export function useDashboardVM(): DashboardVM {
   // Computed: existing question IDs for the currently editing period (if any)
   const existingQuestionIds$ = computed((): readonly string[] => {
     const existingQuestionsData = dataSignals.existingQuestionsData$.value
-    return (existingQuestionsData ?? []).map((sq) => sq.questionId)
+    return (existingQuestionsData ?? []).map((sq: SelectionQuestionRow) => sq.questionId)
   })
 
   // Computed: periods list for table
@@ -382,7 +390,7 @@ export function useDashboardVM(): DashboardVM {
       return Loadable.pending()
     }
 
-    const items = periodsData.map((p): PeriodItemVM => {
+    const items = periodsData.map((p: SelectionPeriodWithStats): PeriodItemVM => {
       const status: { display: string; variant: "default" | "secondary" | "outline"; color: string } = SelectionPeriodModule.match(p)({
         open: () => ({ display: "OPEN", variant: "default" as "default" | "secondary" | "outline", color: "bg-green-600 text-white" }),
         inactive: () => ({ display: "INACTIVE", variant: "secondary" as "default" | "secondary" | "outline", color: "bg-blue-600 text-white" }),
@@ -430,7 +438,7 @@ export function useDashboardVM(): DashboardVM {
       return Loadable.pending()
     }
 
-    const items = topicsData.map((t): TopicItemVM => ({
+    const items = topicsData.map((t: Doc<"topics">): TopicItemVM => ({
       key: t._id,
       title: t.title,
       description: t.description,
@@ -464,15 +472,15 @@ export function useDashboardVM(): DashboardVM {
 
   // Computed: stats with pre-formatted displays
   const stats$ = computed((): StatsVM => {
-    const activeTopicsCount = (topicsData ?? []).filter(t => t.isActive).length
+    const activeTopicsCount = (topicsData ?? []).filter((t: Doc<"topics">) => t.isActive).length
     const totalTopicsCount = topicsData?.length ?? 0
     const totalStudents = statsData?.totalStudents ?? 0
     const totalSelections = statsData?.totalSelections ?? 0
     const avgSelections = statsData?.averageSelectionsPerStudent ?? 0
 
     const assignmentsArray = assignments$.value
-    const matchedAssignments = assignmentsArray.filter(a => a.isMatched).length
-    const topChoiceAssignments = assignmentsArray.filter(a => a.preferenceRank === 1).length
+    const matchedAssignments = assignmentsArray.filter((a: AssignmentItemVM) => a.isMatched).length
+    const topChoiceAssignments = assignmentsArray.filter((a: AssignmentItemVM) => a.preferenceRank === 1).length
     const matchRate = assignmentsArray.length > 0 ? (matchedAssignments / assignmentsArray.length) * 100 : 0
     const topChoiceRate = assignmentsArray.length > 0 ? (topChoiceAssignments / assignmentsArray.length) * 100 : 0
 
@@ -643,7 +651,7 @@ export function useDashboardVM(): DashboardVM {
       assignmentsData$: computed((): readonly Assignment[] | undefined => {
         const data = dataSignals.assignmentsData$.value
         if (!data) return undefined
-        return data.map((a): Assignment => ({
+        return data.map((a: AssignmentExportRow): Assignment => ({
           studentId: a.student_id,
           topicTitle: a.assigned_topic,
           preferenceRank: 0,
@@ -658,7 +666,7 @@ export function useDashboardVM(): DashboardVM {
         // Map from the query result format to { questionId: string }[]
         const data = dataSignals.existingQuestionsData$.value
         if (!data) return undefined
-        return data.map((sq) => ({ questionId: sq.questionId as string }))
+        return data.map((sq: SelectionQuestionRow) => ({ questionId: sq.questionId as string }))
       }),
       createPeriod: createPeriodMutation,
       updatePeriod: updatePeriodMutation,

@@ -24,7 +24,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Loader2, PlayCircle } from "lucide-react"
 import { useAssignNowButtonVM } from "./AssignNowButtonVM"
 import { useQuery } from "convex/react"
@@ -61,9 +61,9 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
   )
 
   const isAssigned = status === "assigned"
-  // Can assign if status is "closed" (period is closed but not yet assigned)
-  const canAssign = status === "closed" || status === "open"
-  const isDisabled = disabled || isAssigned || !canAssign || vm.isLoading$.value
+  // Allow re-assignment even after a successful assignment.
+  const canAssign = status === "closed" || status === "open" || status === "assigned"
+  const isDisabled = disabled || !canAssign || vm.isLoading$.value
 
   const handleClick = () => {
     // Check if questionnaires are complete before assigning
@@ -79,7 +79,8 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
     setActiveView("students")
   }
 
-  const topics = assignmentSetup?.topics ?? []
+  type Topic = Doc<"topics">
+  const topics = (assignmentSetup?.topics ?? []) as Topic[]
   const studentCount = assignmentSetup?.studentCount ?? 0
   const rankingsEnabled = assignmentSetup?.rankingsEnabled ?? true
 
@@ -131,8 +132,6 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
       >
         {vm.isLoading$.value ? (
           <Loader2 className="h-4 w-4 animate-spin" />
-        ) : isAssigned ? (
-          <PlayCircle className="h-4 w-4 opacity-40" />
         ) : (
           <PlayCircle className="h-4 w-4" />
         )}
@@ -156,7 +155,7 @@ export function AssignNowButton({ periodId, status, disabled }: AssignNowButtonP
       </AlertDialog>
 
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[70vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assignment Settings</DialogTitle>
             <DialogDescription>

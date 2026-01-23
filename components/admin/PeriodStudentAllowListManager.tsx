@@ -4,7 +4,7 @@ import * as React from "react"
 import { useState, useCallback } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -62,7 +62,11 @@ export function PeriodStudentAllowListManager({
   const [editingEntryId, setEditingEntryId] = React.useState<string | null>(null)
   const [editingName, setEditingName] = React.useState<string>("")
 
-  const allowList = useQuery(api.periodStudentAccessCodes.getPeriodAccessCodes, { selectionPeriodId })
+  type AccessCodeEntry = Doc<"periodStudentAllowList">
+  const allowList = useQuery(
+    api.periodStudentAccessCodes.getPeriodAccessCodes,
+    { selectionPeriodId }
+  ) as AccessCodeEntry[] | undefined
   const generateCodes = useMutation(api.periodStudentAccessCodes.generateStudentAccessCodes)
   const removeStudent = useMutation(api.periodStudentAccessCodes.removeStudentCode)
   const clearAll = useMutation(api.periodStudentAccessCodes.clearAllStudentCodes)
@@ -97,8 +101,8 @@ export function PeriodStudentAllowListManager({
     // Create CSV content with headers (Name column for teacher to fill)
     // Use exact header names that match what we're looking for in import
     const headers = ["Access Code", "Student Name"]
-    const rows = allowList.map(entry => [
-      entry.code,
+    const rows = allowList.map((entry): [string, string] => [
+      entry.studentId,
       entry.name || "" // Include existing names if any
     ])
     
@@ -264,7 +268,7 @@ export function PeriodStudentAllowListManager({
   const handleCopyAllCodes = useCallback(() => {
     if (!allowList || allowList.length === 0) return
     
-    const codes = allowList.map(e => e.code).join("\n")
+    const codes = allowList.map(e => e.studentId).join("\n")
     navigator.clipboard.writeText(codes)
     toast.success("Copied all codes to clipboard")
   }, [allowList])
@@ -451,7 +455,7 @@ export function PeriodStudentAllowListManager({
                   <div key={entry._id} className="flex items-center justify-between p-2 border rounded hover:bg-muted/50">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <Badge variant="outline" className="font-mono text-xs shrink-0">
-                        {entry.code}
+                        {entry.studentId}
                       </Badge>
                       {isEditing ? (
                         <div className="flex items-center gap-1 flex-1">
@@ -460,7 +464,7 @@ export function PeriodStudentAllowListManager({
                             onChange={(e) => setEditingName(e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
-                                handleSaveName(entry._id, entry.code)
+                                handleSaveName(entry._id, entry.studentId)
                               } else if (e.key === "Escape") {
                                 handleCancelEdit()
                               }
@@ -473,7 +477,7 @@ export function PeriodStudentAllowListManager({
                             variant="ghost"
                             size="sm"
                             className="h-7 px-2"
-                            onClick={() => handleSaveName(entry._id, entry.code)}
+                            onClick={() => handleSaveName(entry._id, entry.studentId)}
                           >
                             <Check className="h-3 w-3" />
                           </Button>
@@ -501,7 +505,7 @@ export function PeriodStudentAllowListManager({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 hover:bg-destructive hover:text-destructive-foreground shrink-0"
-                        onClick={() => handleRemove(entry.code)}
+                        onClick={() => handleRemove(entry.studentId)}
                       >
                         <X className="h-3 w-3" />
                       </Button>

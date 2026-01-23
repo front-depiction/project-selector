@@ -14,6 +14,7 @@ import * as TopicTeacherAllowList from "./schemas/TopicTeacherAllowList"
 import * as PeriodStudentAllowList from "./schemas/PeriodStudentAllowList"
 import * as Constraint from "./schemas/Constraint"
 import * as TeacherOnboarding from "./schemas/TeacherOnboarding"
+import * as DeferredAssignment from "./schemas/DeferredAssignment"
 
 export default defineSchema({
   topics: defineTable(Topic.Topic)
@@ -91,4 +92,8 @@ export default defineSchema({
   // Tracks teacher onboarding progress
   teacherOnboarding: defineTable(TeacherOnboarding.TeacherOnboarding)
     .index("by_userId", ["userId"]),
+
+  deferredAssignments: defineTable(DeferredAssignment.DeferredAssignment)
+    .index("by_period", ["periodId"])
+    .index("by_status", ["status"]),
 })
