@@ -115,6 +115,7 @@ export default function SelectionPeriodForm({
             start_deadline: initialValues.start_deadline?.getTime(),
             end_deadline: initialValues.end_deadline?.getTime(),
             topicIds: initialValues.topicIds,
+            minimizeCategoryIds: initialValues.minimizeCategoryIds,
             questionIds: initialValues.questionIds,
             rankingsEnabled: initialValues.rankingsEnabled,
             accessMode: initialValues.accessMode,
@@ -141,7 +142,7 @@ export default function SelectionPeriodForm({
                 codeLength: initialValues.codeLength ?? 6,
             })
         }
-    }, [initialValuesKey, form])
+    }, [initialValuesKey, form, initialValues])
 
     // Watch start_deadline and auto-update end_deadline if it becomes invalid
     const startDeadline = useWatch({ control: form.control, name: "start_deadline" })

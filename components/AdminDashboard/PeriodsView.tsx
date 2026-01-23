@@ -93,21 +93,34 @@ const EditPeriodFormWrapper: React.FC<{
     closeDialog()
   }
 
+  // Memoize initialValues to prevent unnecessary form resets
+  // The form will only reset when the actual content changes
+  const memoizedInitialValues = React.useMemo(() => ({
+    title: editingPeriod.title,
+    selection_period_id: editingPeriod.semesterId,
+    start_deadline: new Date(editingPeriod.openDate),
+    end_deadline: new Date(editingPeriod.closeDate),
+    topicIds: [...existingTopicIds],
+    minimizeCategoryIds: [...existingMinimizeCategoryIds],
+    questionIds: [...existingQuestionIds],
+    rankingsEnabled: editingPeriod.rankingsEnabled ?? true,
+  }), [
+    editingPeriod.title,
+    editingPeriod.semesterId,
+    editingPeriod.openDate,
+    editingPeriod.closeDate,
+    editingPeriod.rankingsEnabled,
+    existingTopicIds,
+    existingMinimizeCategoryIds,
+    existingQuestionIds,
+  ])
+
   return (
     <SelectionPeriodForm
       topics={topics}
       categories={categories}
       questions={questions}
-      initialValues={{
-        title: editingPeriod.title,
-        selection_period_id: editingPeriod.semesterId,
-        start_deadline: new Date(editingPeriod.openDate),
-        end_deadline: new Date(editingPeriod.closeDate),
-        topicIds: [...existingTopicIds],
-        minimizeCategoryIds: [...existingMinimizeCategoryIds],
-        questionIds: [...existingQuestionIds],
-        rankingsEnabled: editingPeriod.rankingsEnabled ?? true,
-      }}
+      initialValues={memoizedInitialValues}
       onSubmit={handleSubmit}
     />
   )
