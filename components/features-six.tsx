@@ -8,7 +8,7 @@ export default function FeaturesSection() {
             <div className="py-24">
                 <div className="mx-auto w-full max-w-5xl px-6">
                     <div>
-                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">Streamline project topic selection for your university</h2>
+                        <h2 className="text-foreground max-w-2xl text-balance text-4xl font-semibold">Streamline project topic selection for your school</h2>
                     </div>
                     <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                         <Card
