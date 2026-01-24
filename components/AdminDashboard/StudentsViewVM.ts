@@ -50,6 +50,10 @@ export interface StudentsViewDeps {
   }) => Promise<any>
 }
 
+type StudentsByPeriod = FunctionReturnType<typeof api.studentAnswers.getAllPeriodsStudentsWithCompletionStatus>
+type StudentGroup = NonNullable<StudentsByPeriod>[number]
+type StudentEntry = StudentGroup["students"][number]
+
 // ============================================================================
 // Factory Function
 // ============================================================================
@@ -77,9 +81,9 @@ export function createStudentsViewVM(deps: StudentsViewDeps): StudentsViewVM {
     const data = allPeriodsStudentsData$.value
     if (!data) return []
 
-    return data.map(group => ({
+    return data.map((group: StudentGroup) => ({
       period: group.period,
-      students: group.students.map((student): StudentItemVM => {
+      students: group.students.map((student: StudentEntry): StudentItemVM => {
         const completionPercentage = student.totalCount > 0
           ? (student.answeredCount / student.totalCount) * 100
           : 100

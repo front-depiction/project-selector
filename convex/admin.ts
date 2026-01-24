@@ -1196,6 +1196,8 @@ export const clearAllData = mutation({
       deleteAllFromTable(ctx, "categories"),
       // Users (auth)
       deleteAllFromTable(ctx, "users"),
+      // Deferred assignments
+      deleteAllFromTable(ctx, "deferredAssignments"),
       // Scheduled functions
       cancelAllScheduled(ctx),
     ])

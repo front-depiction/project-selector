@@ -4,6 +4,7 @@ import { TrendingUp } from "lucide-react"
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
+import type { FunctionReturnType } from "convex/server"
 
 import {
   Card,
@@ -20,6 +21,10 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart"
 
+type TopicCompetitionRow = NonNullable<
+  FunctionReturnType<typeof api.analytics.getTopicCompetitionLevels>
+>[number]
+
 export function TopicCompetitionMixedChart({ className }: { className?: string }) {
   const data = useQuery(api.analytics.getTopicCompetitionLevels)
 
@@ -35,10 +40,10 @@ export function TopicCompetitionMixedChart({ className }: { className?: string }
 
   // Take top 10 most competitive topics (lowest average rank = most competitive)
   const chartData = data
-    .filter(d => d.students > 0 && d.averageRank !== null)
-    .sort((a, b) => (a.averageRank || 999) - (b.averageRank || 999))
+    .filter((d: TopicCompetitionRow) => d.students > 0 && d.averageRank !== null)
+    .sort((a: TopicCompetitionRow, b: TopicCompetitionRow) => (a.averageRank || 999) - (b.averageRank || 999))
     .slice(0, 10)
-    .map((d) => {
+    .map((d: TopicCompetitionRow) => {
       // Determine color based on competition level
       const colorIndex =
         d.competitionLevel === "Very High"
@@ -90,8 +95,8 @@ export function TopicCompetitionMixedChart({ className }: { className?: string }
   }
 
   // Calculate average metrics
-  const avgRank = chartData.reduce((acc, curr) => acc + (curr.averageRank || 0), 0) / chartData.length
-  const avgTop3 = chartData.reduce((acc, curr) => acc + curr.top3Percentage, 0) / chartData.length
+  const avgRank = chartData.reduce((acc: number, curr) => acc + (curr.averageRank || 0), 0) / chartData.length
+  const avgTop3 = chartData.reduce((acc: number, curr) => acc + curr.top3Percentage, 0) / chartData.length
 
   return (
     <Card className={className}>

@@ -3,6 +3,7 @@
 import { Bar, BarChart, XAxis, YAxis } from "recharts"
 import { useQuery } from "convex-helpers/react/cache/hooks"
 import { api } from "@/convex/_generated/api"
+import type { FunctionReturnType } from "convex/server"
 import {
   Card,
   CardContent,
@@ -19,6 +20,10 @@ import {
 } from "@/components/ui/chart"
 import { TrendingUp, Users } from "lucide-react"
 
+type TopicCompetitionRow = NonNullable<
+  FunctionReturnType<typeof api.analytics.getTopicCompetitionLevels>
+>[number]
+
 export function TopicCompetitionChart({ className }: { className?: string }) {
   const data = useQuery(api.analytics.getTopicCompetitionLevels)
 
@@ -33,7 +38,7 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
   }
 
   // Take top 10 most popular topics and prepare chart data
-  const chartData = data.slice(0, 10).map((d, index) => ({
+  const chartData = data.slice(0, 10).map((d: TopicCompetitionRow, index: number) => ({
     topic: d.topic.length > 15 ? d.topic.substring(0, 15) + "..." : d.topic,
     students: d.students,
     fill: `var(--color-topic-${index})`,
@@ -47,7 +52,7 @@ export function TopicCompetitionChart({ className }: { className?: string }) {
     students: {
       label: "Students",
     },
-    ...chartData.reduce((acc, item, index) => ({
+    ...chartData.reduce((acc: Record<string, { label: string; color: string }>, item, index: number) => ({
       ...acc,
       [`topic-${index}`]: {
         label: item.topic,

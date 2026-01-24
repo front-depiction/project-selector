@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -49,7 +49,11 @@ export function TeacherAllowListManager({
   const [newEmail, setNewEmail] = useState("")
   const [note, setNote] = useState("")
 
-  const allowList = useQuery(api.topicTeacherAllowList.getTopicTeachers, { topicId })
+  type TeacherAllowListEntry = Doc<"topicTeacherAllowList">
+  const allowList = useQuery(
+    api.topicTeacherAllowList.getTopicTeachers,
+    { topicId }
+  ) as TeacherAllowListEntry[] | undefined
   const addTeacher = useMutation(api.topicTeacherAllowList.addTeacherEmail)
   const removeTeacher = useMutation(api.topicTeacherAllowList.removeTeacherEmail)
   const clearAll = useMutation(api.topicTeacherAllowList.clearAllTeachers)

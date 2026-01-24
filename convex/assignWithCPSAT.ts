@@ -1,15 +1,16 @@
 import { action, internalAction } from "./_generated/server"
+import type { FunctionReturnType } from "convex/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 
 /**
- * Assigns students to topics using CP-SAT solver, then saves results.
- * This is the recommended way to assign students when CP-SAT is available.
+ * Initiates CP-SAT solver evaluation and stores a deferred assignment request.
+ * Assignment results are delivered asynchronously via the deferred callback.
  * 
  * @category Actions
  * @since 0.3.0
  */
-export const assignWithCPSAT = action({
+export const assignWithCPSAT: ReturnType<typeof action> = action({
   args: {
     periodId: v.id("selectionPeriods"),
     settings: v.optional(v.object({
@@ -21,23 +22,16 @@ export const assignWithCPSAT = action({
       })))
     }))
   },
-  handler: async (ctx, args) => {
-    // Solve using CP-SAT - errors will propagate to UI
-    const assignments = await ctx.runAction(internal.assignmentSolver.solveAssignment, {
+  handler: async (ctx, args): Promise<FunctionReturnType<typeof internal.assignmentSolver.requestDeferredAssignment>> => {
+    const result: FunctionReturnType<typeof internal.assignmentSolver.requestDeferredAssignment> = await ctx.runAction(
+      internal.assignmentSolver.requestDeferredAssignment,
+      {
       periodId: args.periodId,
       settings: args.settings
-    })
+      }
+    )
 
-    // Validate we got assignments
-    if (!assignments || assignments.length === 0) {
-      throw new Error("CP-SAT solver returned no assignments")
-    }
-
-    // Save assignments via mutation
-    await ctx.runMutation(internal.assignments.saveCPSATAssignments, {
-      periodId: args.periodId,
-      assignments
-    })
+    return result
   }
 })
 

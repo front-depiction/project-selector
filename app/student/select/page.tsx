@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import type { Id } from "@/convex/_generated/dataModel"
+import type { Doc, Id } from "@/convex/_generated/dataModel"
 import { signal, computed } from "@preact/signals-react"
 import { createStudentSelectionPageVM } from "@/components/StudentSelection/StudentSelectionPageVM"
 import { createStudentQuestionPresentationVM } from "@/components/StudentQuestionnaire/StudentQuestionPresentationViewVM"
@@ -112,10 +112,15 @@ function useStudentSelectionPageVM() {
       const { studentId, selectionPeriodId, answers } = args
 
       // Get current answers
-      const currentAnswers = localStore.getQuery(api.studentAnswers.getAnswers, { studentId, selectionPeriodId }) ?? []
+      const currentAnswers = (localStore.getQuery(
+        api.studentAnswers.getAnswers,
+        { studentId, selectionPeriodId }
+      ) ?? []) as Array<Doc<"studentAnswers">>
 
       // Build map of existing answers by questionId
-      const answersMap = new Map(currentAnswers.map(a => [a.questionId, a]))
+      const answersMap = new Map<Id<"questions">, Doc<"studentAnswers">>(
+        currentAnswers.map((a) => [a.questionId, a])
+      )
 
       // Add/update with new answers
       for (const answer of answers) {
