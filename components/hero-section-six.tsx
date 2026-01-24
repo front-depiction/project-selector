@@ -13,9 +13,8 @@ export default function HeroSection() {
     return (
         <section className="py-20">
             <div className="relative z-10 mx-auto w-full max-w-2xl px-6 lg:px-0">
-                <div className="flex items-center justify-between">
+                <div>
                     <TopicMatchLogo />
-                    <LoginButton variant="ghost" size="sm" />
                 </div>
                 <div className="relative">
                     <h1 className="mt-16 max-w-xl text-balance text-5xl font-medium">Smart Project Selection for Educators</h1>
@@ -40,9 +39,6 @@ export default function HeroSection() {
                     </div>
                 </div>
 
-                <div className="mt-8 flex flex-wrap items-center gap-4">
-                    <p className="text-muted-foreground text-center">Trusted by educators from kindergarten to university</p>
-                </div>
             </div>
         </section>
     )
@@ -78,7 +74,7 @@ const AppMockup = () => {
             <div className="flex items-center justify-between mb-4 pb-3 border-b">
                 <div className="flex items-center gap-2">
                     <TopicMatchLogo className="size-7" />
-                    <span className="font-semibold text-sm">TopicMatch</span>
+                    <span className="font-semibold text-sm">Project Selector</span>
                 </div>
                 <Badge variant="default" className="bg-green-600 text-white text-xs">
                     Selection Open

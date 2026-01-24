@@ -1,5 +1,3 @@
-import { ArrowRight } from 'lucide-react'
-
 export default function ContentSection() {
     return (
         <section>
@@ -29,26 +27,6 @@ export default function ContentSection() {
                             </div>
                         </div>
 
-                        <div className="border-t">
-                            <ul
-                                role="list"
-                                className="text-muted-foreground mt-8 space-y-2">
-                                {[
-                                    { value: '1000+*', label: 'Topics Assigned' },
-                                    { value: '50+*', label: 'Hours Saved Per Semester' },
-                                    { value: '100%*', label: 'Fair Distribution' },
-                                    { value: '25+*', label: 'Institutions Trust Us' },
-                                ].map((stat, index) => (
-                                    <li
-                                        key={index}
-                                        className="-ml-0.5 flex items-center gap-1.5">
-                                        <ArrowRight className="size-4 opacity-50" />
-                                        <span className="text-foreground font-medium">{stat.value}</span> {stat.label}
-                                    </li>
-                                ))}
-                            </ul>
-                            <p className="text-muted-foreground text-xs mt-4">*Data shown is for demonstration purposes only</p>
-                        </div>
                     </div>
                 </div>
             </div>
